@@ -1,0 +1,347 @@
+import { GoogleGenAI, Chat, Content, Type } from "@google/genai";
+import { AppError, ReportType, Sender } from '../types';
+import { ChatMode } from '../constants';
+import { normalizeAppError } from '../utils/errorHelpers';
+import { withAutoRetry } from '../utils/retry';
+import { Message } from '../types';
+import { stripMarkdown, cleanSuggestionText, cleanStatusMarkers } from '../utils/textCleaners';
+import { lookupCliente, formatarParaPrompt, benchmarkClientes, formatarBenchmarkParaPrompt } from './clientLookupService';
+import { addInvestigation } from '../components/InvestigationDashboard';
+
+export interface GeminiRequestOptions {
+  useGrounding?: boolean;
+  thinkingMode?: boolean;
+  signal?: AbortSignal;
+  onText?: (text: string) => void;
+  onStatus?: (status: string) => void;
+}
+
+const BEST_MODEL_ID = 'gemini-3-pro-preview';
+const FAST_MODEL_ID = 'gemini-3-flash-preview';
+
+const CONTINUITY_SYSTEM = `
+Você é o estrategista de continuidade do Senior Scout 360.
+Sua missão é criar ganchos comerciais que forcem o cliente a admitir um gap de gestão ou tecnologia.
+
+DIRETRIZES DE PENSAMENTO:
+1. ANCORAGEM OBRIGATÓRIA: Cada pergunta deve conter ao menos UM dado específico do contexto.
+2. FOCO EM VENDAS (SENIOR): Direcione para sistemas: ERP, HCM, WMS ou GATec.
+3. ESTILO "SNIPER": Se o contexto diz que a empresa cresceu, pergunte sobre o caos que isso gera.
+
+PROIBIÇÕES:
+- PROIBIDO: Iniciar perguntas com "Como você..." (muito vago).
+- PROIBIDO: Perguntas genéricas que sirvam para qualquer empresa.
+
+Responda EXCLUSIVAMENTE em Português (Brasil) usando um Array JSON de strings.
+`;
+
+let genAI: GoogleGenAI | null = null;
+
+const getGenAI = (): GoogleGenAI => {
+  if (!genAI) {
+    const apiKey = process.env.API_KEY;
+    if (!apiKey) {
+      throw new Error("API_KEY environment variable is missing.");
+    }
+    genAI = new GoogleGenAI({ apiKey });
+  }
+  return genAI;
+};
+
+function getReadableTitle(source: { uri?: string; title?: string }): string {
+  const title = source.title || '';
+  const uri = source.uri || '';
+  
+  if (title && title.length > 20 && !title.match(/^[\w.-]+\.\w{2,4}$/)) {
+    return title;
+  }
+  
+  let domain = '';
+  try {
+    if (title && title.includes('.')) {
+      domain = title;
+    } else if (uri) {
+      domain = new URL(uri).hostname.replace('www.', '');
+    }
+  } catch {
+    domain = title || 'Fonte';
+  }
+  
+  const DOMAIN_NAMES: Record<string, string> = {
+    'youtube.com': '📺 YouTube',
+    'theagribiz.com': '🌾 The AgriBiz',
+    'comprerural.com': '🐄 Compre Rural',
+    'agfeed.com.br': '📰 AgFeed',
+    'canalrural.com.br': '📺 Canal Rural',
+    'globorural.globo.com': '📰 Globo Rural',
+    'valoreconomico.globo.com': '📰 Valor Econômico',
+    'reuters.com': '📰 Reuters',
+    'bloomberg.com': '📰 Bloomberg',
+    'forbes.com.br': '📰 Forbes Brasil',
+    'senior.com.br': '🏢 Senior Sistemas',
+    'gatec.com.br': '🌾 GAtec',
+    'conab.gov.br': '🏛️ CONAB',
+    'ibama.gov.br': '🏛️ IBAMA',
+    'jusbrasil.com.br': '⚖️ JusBrasil',
+    'reclameaqui.com.br': '⭐ Reclame Aqui',
+    'linkedin.com': '💼 LinkedIn',
+    'imea.com.br': '📊 IMEA',
+    'google.com': '🔍 Google'
+  };
+  
+  if (DOMAIN_NAMES[domain]) return DOMAIN_NAMES[domain];
+  const knownKey = Object.keys(DOMAIN_NAMES).find(key => domain.includes(key));
+  if (knownKey) return DOMAIN_NAMES[knownKey];
+
+  return domain || title || 'Fonte Externa';
+}
+
+export const createChatSession = (
+  systemInstruction: string, 
+  history: Message[],
+  modelId: string = BEST_MODEL_ID,
+  useGrounding: boolean = true,
+  thinkingMode: boolean = true 
+): Chat => {
+  const ai = getGenAI();
+  const tools: any[] = useGrounding ? [{ googleSearch: {} }] : [];
+
+  const sdkHistory: Content[] = history
+    .filter(msg => !msg.isError)
+    .map(msg => ({
+      role: msg.sender === Sender.User ? 'user' : 'model',
+      parts: [{ text: msg.text }]
+    }));
+
+  let config: any = {
+    systemInstruction: `
+      ${systemInstruction}
+      
+      MODO LIVE STATUS (OBRIGATÓRIO):
+      Durante a geração, emita marcadores [[STATUS: Mensagem]] a cada nova dimensão da análise técnica.
+      1. [[STATUS: Localizando dados oficiais e Receita Federal...]]
+      2. [[STATUS: Analisando quadro societário e coligadas...]]
+      3. [[STATUS: Varrendo histórico jurídico e processos...]]
+      4. [[STATUS: Mapeando gaps tecnológicos e softwares utilizados...]]
+      5. [[STATUS: Consolidando oportunidades de venda Senior...]]
+
+      REGRAS CRÍTICAS:
+      - JAMAIS use introduções fixas ("O Grupo X é pioneiro...", "Iniciando análise").
+      - Vá direto aos fatos novos e táticos.
+      - PROIBIDO repetir informações já presentes no histórico acima.
+      
+      # FORMATO DE LINKS
+      Ao citar fontes, USE SEMPRE links markdown clicáveis:
+      - Formato: [texto descritivo](URL)
+      - Exemplo: "A empresa faturou R$ 2 bi [segundo Valor Econômico](https://...)"
+      - NUNCA use URLs soltas. SEMPRE encapsule em link markdown.
+    `,
+    temperature: 0.15,
+    tools: tools.length > 0 ? tools : undefined,
+  };
+
+  if (thinkingMode) {
+    config.thinkingConfig = { thinkingBudget: 24576, includeThoughts: false }; 
+  }
+
+  return ai.chats.create({ model: modelId, config: config, history: sdkHistory });
+};
+
+export const resetChatSession = () => {};
+
+const extractCompanyName = async (msg: string): Promise<{ empresa: string | null; benchmark: boolean }> => {
+  if (!msg || msg.trim().length < 5) return { empresa: null, benchmark: false };
+  try {
+    const ai = getGenAI();
+    const response = await ai.models.generateContent({
+      model: FAST_MODEL_ID,
+      contents: `Extraia: EMPRESA|BENCHMARK (SIM/NAO). Nome limpo sem LTDA. Frase: "${msg}"`,
+      config: { temperature: 0, maxOutputTokens: 50 }
+    });
+    const text = (response.text || 'NONE|NAO').trim().replace(/["'`]+/g, '');
+    const parts = text.split('|');
+    const empresaRaw = (parts[0] || '').trim();
+    const empresa = (empresaRaw === 'NONE' || empresaRaw.length < 2) ? null : empresaRaw;
+    return { empresa, benchmark: parts[1] === 'SIM' };
+  } catch { return { empresa: null, benchmark: false }; }
+};
+
+const generateBenchmarkKeywords = async (empresaNome: string, contexto: string): Promise<string[]> => {
+  try {
+    const ai = getGenAI();
+    const response = await ai.models.generateContent({
+      model: FAST_MODEL_ID,
+      contents: `Gere 5-8 palavras-chave do SETOR para pesquisar similares de "${empresaNome}". Contexto: "${contexto}". Separadas por vírgula.`,
+      config: { temperature: 0.1, maxOutputTokens: 80 }
+    });
+    return (response.text || "").split(',').map(k => k.trim()).filter(k => k.length > 1);
+  } catch { return []; }
+};
+
+export const generateLoadingCuriosities = async (context: string): Promise<string[]> => {
+  const ai = getGenAI();
+  try {
+    const response = await ai.models.generateContent({
+      model: FAST_MODEL_ID,
+      contents: `Gere 10 curiosidades estratégicas e reais (max 100 chars) sobre a empresa ou setor: "${context}". Use "Você sabia?" ou "Curiosidade:" mas não mostre ""Você sabia?" ou "Curiosidade:" pro usuário, somente o conteúdo. JSON Array.`,
+      config: { responseMimeType: 'application/json', temperature: 0.8 }
+    });
+    return JSON.parse(response.text || "[]");
+  } catch { return []; }
+};
+
+// ============================================================
+// FUNÇÃO QUE FALTAVA - DEFINIDA AQUI!
+// ============================================================
+const generateFallbackSuggestions = async (lastUserText: string, botResponseText: string, isOperacao: boolean): Promise<string[]> => {
+  try {
+    const ai = getGenAI();
+    const response = await ai.models.generateContent({
+      model: FAST_MODEL_ID, 
+      contents: `Gere 3 sugestões JSON baseadas nesta resposta: "${botResponseText.substring(0, 1000)}"`,
+      config: { 
+        systemInstruction: CONTINUITY_SYSTEM,
+        responseMimeType: 'application/json', 
+        temperature: 0.3 
+      }
+    });
+    
+    const json = JSON.parse(response.text || "[]");
+    if (!Array.isArray(json)) return ["Mapear decisores", "Verificar gaps"];
+
+    return json.map((item: any) => {
+      if (typeof item === 'string') return item;
+      if (typeof item === 'object' && item !== null) {
+        return item.sugestao || item.pergunta || item.titulo || item.text || item.dor_identificada || "Sugestão relacionada";
+      }
+      return String(item);
+    }).filter(s => s && s.length > 0).slice(0, 3);
+
+  } catch { return ["Aprofundar análise de TI", "Mapear decisores", "Verificar gaps de ERP"]; }
+};
+
+export const sendMessageToGemini = async (
+  message: string, 
+  history: Message[],
+  systemInstruction: string, 
+  options: GeminiRequestOptions = {}
+): Promise<{ text: string; sources: Array<{title: string, url: string}>, suggestions: string[] }> => {
+  const { useGrounding = true, thinkingMode = true, signal, onText, onStatus } = options;
+
+  const apiCall = async () => {
+    const chatSession = createChatSession(systemInstruction, history, BEST_MODEL_ID, useGrounding, thinkingMode);
+    if (signal?.aborted) throw new Error("Request aborted");
+
+    let messageToSend = message;
+    let enrichments: string[] = [];
+    const { empresa, benchmark } = await extractCompanyName(message);
+    
+    if (empresa) {
+      const lookup = await lookupCliente(empresa);
+      enrichments.push(lookup.encontrado ? formatarParaPrompt(lookup) : `\n[Lookup: "${empresa}" não encontrado na base interna]\n`);
+      if (benchmark || message.includes('investigar')) {
+        const keywords = await generateBenchmarkKeywords(empresa, message);
+        const bench = await benchmarkClientes(keywords);
+        if (bench.ok) enrichments.push(formatarBenchmarkParaPrompt(bench, empresa));
+      }
+    }
+    
+    if (enrichments.length > 0) messageToSend = enrichments.join('\n') + `\n\nUSUÁRIO: ${message}`;
+
+    const result = await chatSession.sendMessageStream({ message: messageToSend });
+    let rawAccumulator = '';
+    let lastEmittedStatus = '';
+    let groundingChunks: any[] = [];
+
+    for await (const chunk of result) {
+      if (signal?.aborted) break;
+      const chunkText = chunk.text || "";
+      rawAccumulator += chunkText;
+      if (chunk.candidates?.[0]?.groundingMetadata?.groundingChunks) {
+        groundingChunks = [...groundingChunks, ...chunk.candidates[0].groundingMetadata.groundingChunks];
+      }
+
+      const { cleanText, lastStatus } = cleanStatusMarkers(rawAccumulator);
+      if (lastStatus && lastStatus !== lastEmittedStatus) {
+        onStatus?.(lastStatus);
+        lastEmittedStatus = lastStatus;
+      }
+      onText?.(cleanText.replace(/\[\[?S?T?A?T?U?S?:?.*$/, ''));
+    }
+
+    const finalClean = cleanStatusMarkers(rawAccumulator);
+    return {
+      text: finalClean.cleanText,
+      sources: groundingChunks.filter(c => c.web?.uri).map(c => ({ title: getReadableTitle(c.web), url: c.web.uri })),
+      suggestions: [],
+    };
+  };
+
+  try {
+    const responseData = await withAutoRetry('Gemini:Stream', apiCall, { maxRetries: 3 });
+    const suggestions = await generateFallbackSuggestions(message, responseData.text, systemInstruction.includes("Operação"));
+
+    const { empresa } = await extractCompanyName(message);
+    if (empresa && responseData.text.length > 300) {
+      addInvestigation({
+        id: Date.now().toString(),
+        empresa,
+        score: 75,
+        scoreLabel: "ANALISADO",
+        gaps: [], familias: [],
+        isCliente: responseData.text.includes("✅ SIM"),
+        modo: systemInstruction.includes("Operação") ? "Operação" : "Diretoria",
+        data: new Date().toLocaleDateString("pt-BR"),
+        resumo: responseData.text.substring(0, 150).replace(/[#*\n]/g, ' '),
+      });
+    }
+
+    return { ...responseData, suggestions };
+  } catch (error: any) { throw normalizeAppError(error, 'GEMINI'); }
+};
+
+export const generateNewSuggestions = async (contextText: string, previousSuggestions: string[] = []): Promise<string[]> => {
+  if (!contextText.trim()) return [];
+  const ai = getGenAI();
+  try {
+    const response = await ai.models.generateContent({
+      model: FAST_MODEL_ID, 
+      contents: [{
+        role: "user",
+        parts: [{ text: `CONTEXTO:\n${contextText}\n\nEVITAR: ${previousSuggestions.join(', ')}\nGere 3 perguntas JSON.` }]
+      }],
+      config: { 
+        systemInstruction: CONTINUITY_SYSTEM,
+        responseMimeType: "application/json",
+        responseSchema: { type: Type.ARRAY, items: { type: Type.STRING } },
+        temperature: 0.4 
+      },
+    });
+    
+    const jsonText = response.text || "[]";
+    let json = JSON.parse(jsonText);
+    if (!Array.isArray(json)) json = [];
+
+    return json.map((item: any) => {
+      if (typeof item === 'string') return item;
+      if (typeof item === 'object' && item !== null) {
+        return item.pergunta || item.sugestao || item.text || "Opção relacionada";
+      }
+      return String(item);
+    }).filter((s: string) => s && s.length > 2 && !s.includes("Opção relacionada")).slice(0, 3);
+
+  } catch { return ["Mapear decisores", "Consultar ERP atual"]; }
+};
+
+export const generateConsolidatedDossier = async (history: Message[], systemInstruction: string, mode: ChatMode, reportType: ReportType = 'full'): Promise<string> => {
+  const ai = getGenAI();
+  const prompt = `Consolide este histórico para um relatório tipo ${reportType}: ${history.map(m => m.text).join('\n')}`;
+  try {
+    const response = await ai.models.generateContent({
+      model: BEST_MODEL_ID,
+      contents: prompt,
+      config: { systemInstruction, temperature: 0.2, thinkingConfig: { thinkingBudget: 24576 } }
+    });
+    return response.text || "Erro na consolidação.";
+  } catch (error) { throw normalizeAppError(error, 'GEMINI'); }
+};

@@ -1,0 +1,181 @@
+import { ChatSession, Message } from "../types";
+import { withAutoRetry } from "../utils/retry";
+import { normalizeAppError } from "../utils/errorHelpers";
+import { BACKEND_URL } from "./apiConfig";
+
+const SESSIONS_API_URL = BACKEND_URL;
+const TIMEOUT_MS = 10000;
+
+interface RemoteSessionRow {
+  sessionId: string;
+  userId?: string;
+  userName?: string; 
+  title: string;
+  empresaAlvo: string;
+  cnpj: string;
+  createdAt: string;
+  updatedAt: string;
+  messagesJson?: string;
+  scoreOportunidade?: number | string;
+  resumoDossie?: string;
+}
+
+// Helper com timeout
+async function fetchWithTimeout(url: string, options: RequestInit, timeout: number = TIMEOUT_MS): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeout);
+  
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+    return response;
+  } catch (err: any) {
+    clearTimeout(timeoutId);
+    throw err;
+  }
+}
+
+export async function listRemoteSessions(): Promise<ChatSession[]> {
+  const apiCall = async () => {
+    // Apps Script espera POST com action
+    const res = await fetchWithTimeout(SESSIONS_API_URL, {
+      method: "POST",
+      redirect: "follow",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ action: "listSessions" })
+    });
+    
+    if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
+    
+    const text = await res.text();
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      throw new Error("Invalid JSON response");
+    }
+
+    if (!data.ok) throw new Error(data.message || "Logical API error");
+    return data.sessions || [];
+  };
+
+  try {
+    const rows = await withAutoRetry<RemoteSessionRow[]>('RemoteStore:list', apiCall, { maxRetries: 2 });
+    
+    return rows.map((r) => ({
+      id: r.sessionId,
+      title: r.title || "Sessão sem título",
+      empresaAlvo: r.empresaAlvo || null,
+      cnpj: r.cnpj || null,
+      modoPrincipal: null,
+      scoreOportunidade: r.scoreOportunidade ? Number(r.scoreOportunidade) : null,
+      resumoDossie: r.resumoDossie || null,
+      createdAt: r.createdAt,
+      updatedAt: r.updatedAt,
+      messages: [] 
+    }));
+  } catch (error) {
+    console.warn("[RemoteStore] Failed to list sessions, returning empty:", error);
+    return [];
+  }
+}
+
+export async function getRemoteSession(id: string): Promise<ChatSession | null> {
+  const apiCall = async () => {
+    const res = await fetchWithTimeout(SESSIONS_API_URL, {
+      method: "POST",
+      redirect: "follow",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ action: "getSession", sessionId: id })
+    });
+
+    if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
+    
+    const text = await res.text();
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      throw new Error("Invalid JSON response");
+    }
+
+    if (!data.ok || !data.session) return null;
+    return data.session as RemoteSessionRow;
+  };
+
+  try {
+    const s = await withAutoRetry('RemoteStore:get', apiCall, { maxRetries: 2 });
+    if (!s) return null;
+
+    let messages: Message[] = [];
+    if (s.messagesJson) {
+      try {
+        const parsed = JSON.parse(s.messagesJson);
+        messages = parsed.map((m: any) => ({
+          ...m,
+          timestamp: new Date(m.timestamp)
+        }));
+      } catch { messages = []; }
+    }
+
+    return {
+      id: s.sessionId,
+      title: s.title || "Sessão sem título",
+      empresaAlvo: s.empresaAlvo || null,
+      cnpj: s.cnpj || null,
+      modoPrincipal: null,
+      scoreOportunidade: s.scoreOportunidade ? Number(s.scoreOportunidade) : null,
+      resumoDossie: s.resumoDossie || null,
+      createdAt: s.createdAt,
+      updatedAt: s.updatedAt,
+      messages
+    };
+  } catch (error) {
+    console.error("[RemoteStore] Failed to get session:", error);
+    return null;
+  }
+}
+
+export async function saveRemoteSession(session: ChatSession, userId?: string, userName?: string) {
+  const payload = {
+    action: "saveSession",
+    session: {
+      id: session.id,
+      userId: userId || "user_default",
+      userName: userName || "Convidado",
+      title: session.title,
+      empresaAlvo: session.empresaAlvo,
+      cnpj: session.cnpj,
+      createdAt: session.createdAt,
+      updatedAt: session.updatedAt,
+      messages: session.messages,
+      scoreOportunidade: session.scoreOportunidade,
+      resumoDossie: session.resumoDossie
+    }
+  };
+
+  const apiCall = async () => {
+    const res = await fetchWithTimeout(SESSIONS_API_URL, {
+      method: "POST",
+      redirect: "follow",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify(payload)
+    });
+    
+    const text = await res.text();
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      throw new Error("Invalid JSON response");
+    }
+
+    if (!data.ok) throw new Error(data.message || "Save failed");
+    return data;
+  };
+
+  return await withAutoRetry('RemoteStore:save', apiCall, { maxRetries: 3 });
+}

@@ -1,0 +1,133 @@
+/**
+ * linkFixer.ts - Intercepta e corrige links falsos gerados pelo Gemini
+ * VERSÃO ATUALIZADA: Menos agressivo, preserva títulos mesmo sem URL
+ */
+
+import { findSeniorProductUrl, isFakeUrl, FAKE_DOMAINS } from '../services/apiConfig';
+
+/**
+ * Corrige links no texto MARKDOWN (antes de renderizar)
+ * Intercepta: [Texto](google.com/search?...), [Texto](aistudio.google.com/...), etc.
+ */
+export function fixFakeLinks(markdownText: string): string {
+  if (!markdownText) return markdownText;
+
+  // 1. Links markdown: [texto](url_fake) → **texto** (negrito, sem link)
+  let clean = markdownText.replace(
+    /\[([^\]]+)\]\((https?:\/\/[^)]+)\)/gi,
+    (match, linkText, url) => {
+      if (isFakeUrl(url)) {
+        const realUrl = findSeniorProductUrl(linkText);
+        if (realUrl) {
+          return `[${linkText}](${realUrl})`;
+        }
+        return `**${linkText}**`;
+      }
+      return match;
+    }
+  );
+
+  // 2. URLs soltas fake no texto → remover
+  const domainsRegexPart = FAKE_DOMAINS.map(d => d.replace(/\./g, '\\.')).join('|');
+  const fakeStandaloneRegex = new RegExp(`https?:\\/\\/(?:www\\.)?(?:${domainsRegexPart})[^\\s)>]*`, 'gi');
+  
+  clean = clean.replace(fakeStandaloneRegex, '');
+
+  return clean;
+}
+
+/**
+ * Corrige links no HTML JÁ RENDERIZADO
+ */
+export function fixFakeLinksHTML(html: string): string {
+  if (!html) return html;
+
+  return html.replace(
+    /<a\s+[^>]*href="(https?:\/\/[^"]+)"[^>]*>([^<]+)<\/a>/gi,
+    (match, url, linkText) => {
+      if (!isFakeUrl(url)) return match;
+
+      const realUrl = findSeniorProductUrl(linkText);
+      if (realUrl) {
+        return `<a href="${realUrl}" target="_blank" rel="noopener noreferrer" style="color:#059669;text-decoration:none;border-bottom:1px dotted #059669;">${linkText}</a>`;
+      }
+
+      return `<strong style="color:#059669;">${linkText}</strong>`;
+    }
+  );
+}
+
+/**
+ * Remove bloco de "Fontes" que contém apenas URLs fake do Gemini
+ * MANTÉM fontes com URLs reais ou apenas títulos.
+ * 
+ * MUDANÇA: Agora é menos agressivo - preserva linhas com título mesmo sem URL.
+ */
+export function cleanFakeSourcesBlock(text: string): string {
+  if (!text) return text;
+
+  const sourcesMatch = text.match(/(\n\*?\*?(?:Fontes?|Referências?|Sources?)[\s\S]*$)/i);
+  if (!sourcesMatch) return text;
+
+  const sourcesBlock = sourcesMatch[1];
+  const lines = sourcesBlock.split('\n');
+  const cleanedLines: string[] = [];
+  let hasValidContent = false;
+
+  for (const line of lines) {
+    const urlMatch = line.match(/(https?:\/\/[^\s)]+)/);
+    
+    if (urlMatch && isFakeUrl(urlMatch[1])) {
+      // Linha com URL fake → TENTAR RECUPERAR o título
+      const titleMatch = line.match(/^\s*[\^]?\d*\s*[-–—:]?\s*(.+?)(?:\s*\(|\s*https?:\/\/)/);
+      if (titleMatch && titleMatch[1] && titleMatch[1].trim().length > 3) {
+        // Tem título válido → manter sem o link fake
+        cleanedLines.push(line.replace(urlMatch[1], '').replace(/[()]/g, '').trim());
+        hasValidContent = true;
+      }
+      continue;
+    }
+    
+    if (urlMatch && !isFakeUrl(urlMatch[1])) {
+      hasValidContent = true;
+    }
+    
+    if (!urlMatch && line.trim().length > 5) {
+      hasValidContent = true;
+    }
+    
+    cleanedLines.push(line);
+  }
+
+  const cleaned = cleanedLines.join('\n').trim();
+  if (!hasValidContent || cleaned.replace(/\*?\*?(?:Fontes?|Referências?|Sources?)\*?\*?:?\s*/i, '').trim().length < 10) {
+    return text.replace(sourcesMatch[1], '').trim();
+  }
+
+  return text.replace(sourcesMatch[1], '\n' + cleaned);
+}
+
+/**
+ * NOVO: Extrai apenas links VÁLIDOS do texto (não-fake).
+ * Usado para gerar lista de fontes na exportação.
+ */
+export function extractValidLinks(text: string): Array<{ title: string; url: string }> {
+  const links: Array<{ title: string; url: string }> = [];
+  if (!text) return links;
+  
+  const linkRegex = /\[([^\]]+)\]\((https?:\/\/[^)]+)\)/gi;
+  let match;
+  
+  while ((match = linkRegex.exec(text)) !== null) {
+    const title = match[1].trim();
+    const url = match[2].trim();
+    
+    if (!isFakeUrl(url)) {
+      if (!links.find(l => l.url === url)) {
+        links.push({ title, url });
+      }
+    }
+  }
+  
+  return links;
+}
