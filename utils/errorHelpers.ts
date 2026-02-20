@@ -23,8 +23,8 @@ export function normalizeAppError(
 
   let code: ErrorCode = 'UNKNOWN';
   let friendlyMessage = defaultMessage;
-  let retryable = true;
-  let transient = false;
+  let retryable = true;   // Default: botão "Tentar de novo" aparece
+  let transient = false;  // Default: sem auto-retry automático
 
   // 0. Erros Fatais de Fetch / Abort (NÃO RETENTAR)
   if (rawMessage.match(/input body is disturbed/i)) {
@@ -40,7 +40,7 @@ export function normalizeAppError(
     transient = false; // CRÍTICO: Nunca retentar cancelamento do usuário
   }
   // 1. Erros de Rede / Conexão (Fetch API)
-  else if (rawMessage.match(/fetch failed|network|connection|offline|internet/i)) {
+  else if (rawMessage.match(/fetch failed|load failed|network|connection|offline|internet|failed to fetch|err_connection|net::err_/i)) {
     code = 'NETWORK';
     friendlyMessage = 'Parece que você está sem internet ou houve uma falha na conexão.';
     transient = true;
