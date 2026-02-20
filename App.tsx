@@ -192,7 +192,6 @@ function collectFullReport(messages: any[]): { text: string; sections: string[];
 
   const fullText = sections.join('\n\n');
 
-');
   return { text: fullText, sections, allLinks };
 }
 
