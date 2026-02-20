@@ -427,7 +427,6 @@ export const sendMessageToGemini = async (
         if (lastStatus !== lastEmittedStatus) {
           onStatus?.(lastStatus);
           lastEmittedStatus = lastStatus;
-          lastRealStatus = 'marker';
         }
       }
 
@@ -447,6 +446,7 @@ export const sendMessageToGemini = async (
       suggestions: [],
       scorePorta: finalParsed.scorePorta,
       statuses: finalParsed.statuses,
+      empresa,
     };
   };
 
@@ -455,7 +455,7 @@ export const sendMessageToGemini = async (
     onStatus?.("Gerando ganchos comerciais finais...");
     const suggestions = await generateFallbackSuggestions(message, responseData.text, systemInstruction.includes("Operação"));
 
-    const { empresa } = await extractCompanyName(message);
+    const empresa = responseData.empresa;
     if (empresa && responseData.text.length > 300) {
       addInvestigation({
         id: Date.now().toString(),
