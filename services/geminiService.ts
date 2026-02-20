@@ -244,7 +244,7 @@ const analyzeUserIntent = async (msg: string): Promise<{
     const response = await ai.models.generateContent({
       model: ROUTER_MODEL_ID,
       contents: prompt,
-      config: { temperature: 0, maxOutputTokens: 50 }
+      config: { temperature: 0, maxOutputTokens: 100 }
     });
     
     const text = (response.text || 'NONE|NAO|TATICA').trim().replace(/["'`]+/g, '');
@@ -279,14 +279,15 @@ export const generateLoadingCuriosities = async (context: string): Promise<strin
   try {
     const response = await ai.models.generateContent({
       model: ROUTER_MODEL_ID,
-      contents: `Gere 10 curiosidades estratégicas REAIS sobre "${context}" (máx 120 chars cada).
+      contents: `Gere 6 curiosidades REAIS e VARIADAS sobre "${context}" (máx 120 chars cada).
 
-REGRAS OBRIGATÓRIAS:
-- Cada frase DEVE começar com o nome da empresa/grupo ou dizer claramente QUEM faz o quê
-- Inclua dados específicos: números, anos, locais, produtos
-- Exemplo BOM: "O Grupo Scheffer cultiva mais de 300 mil hectares de soja no Mato Grosso"
+REGRAS:
+- VARIE o formato: NÃO comece todas com o mesmo nome. Alterne entre fatos da empresa, do setor e da região
+- Inclua dados específicos: números, anos, locais
+- Exemplo BOM: "Sapezal (MT) é um dos maiores municípios produtores de soja do Brasil"
+- Exemplo BOM: "O setor de grãos movimenta R$ 400 bi por ano no Brasil"
 - Exemplo RUIM: "Forte presença em mercados internacionais" (quem? onde? quanto?)
-- Se não souber dados reais, gere sobre o SETOR mencionando o contexto brasileiro
+- No máximo 2 das 6 podem citar o nome da empresa diretamente
 
 Retorne um JSON Array de strings.`,
       config: { responseMimeType: 'application/json', temperature: 0.8 }
@@ -371,24 +372,11 @@ export const sendMessageToGemini = async (
     let lastEmittedStatus = '';
     let lastEmittedScore: ScorePortaData | null = null;
     let groundingChunks: any[] = [];
-    let chunkCount = 0;
-    const streamStart = Date.now();
-    let lastTimeStatus = '';
-
-    // Sub-statuses based on elapsed time for long-running deep research
-    const timeBasedStatuses = [
-      { afterMs: 15000, msg: "Varrendo fontes públicas e portais do setor..." },
-      { afterMs: 40000, msg: "Cruzando dados de múltiplas fontes da web..." },
-      { afterMs: 75000, msg: "Consolidando informações estratégicas..." },
-      { afterMs: 120000, msg: "Análise profunda em andamento — quase finalizando..." },
-      { afterMs: 180000, msg: "Dossiê extenso sendo compilado — aguarde mais um momento..." },
-    ];
 
     for await (const chunk of result) {
       if (signal?.aborted) break;
       const chunkText = chunk.text || "";
       rawAccumulator += chunkText;
-      chunkCount++;
 
       if (chunk.candidates?.[0]?.groundingMetadata?.groundingChunks) {
         groundingChunks = [...groundingChunks, ...chunk.candidates[0].groundingMetadata.groundingChunks];
@@ -401,18 +389,6 @@ export const sendMessageToGemini = async (
         if (lastStatus !== lastEmittedStatus) {
           onStatus?.(lastStatus);
           lastEmittedStatus = lastStatus;
-          lastTimeStatus = lastStatus;
-        }
-      }
-
-      // Emit time-based progress when no marker status has changed
-      const elapsed = Date.now() - streamStart;
-      for (const ts of timeBasedStatuses) {
-        if (elapsed >= ts.afterMs && lastTimeStatus !== ts.msg) {
-          if (parsed.statuses.length === 0 || lastEmittedStatus === lastTimeStatus) {
-            onStatus?.(ts.msg);
-            lastTimeStatus = ts.msg;
-          }
         }
       }
 
