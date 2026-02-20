@@ -160,14 +160,14 @@ function convertLinksToFootnotes(text: string, groundingSources: Array<{ title: 
     return num;
   }
 
-  // Add grounding sources first
+  // Add grounding sources primeiro
   for (const gs of groundingSources) {
     if (gs.url && !isFakeUrl(gs.url) && !urlToNum.has(gs.url)) {
       getOrCreateNum(gs.url, gs.title);
     }
   }
 
-  // 1. Replace markdown links: [text](url)
+  // 1. Substitui links markdown: [texto](url)
   let processed = text.replace(
     /\[([^\]]+)\]\((https?:\/\/[^)]+)\)/gi,
     (_match, linkText: string, url: string) => {
@@ -177,28 +177,30 @@ function convertLinksToFootnotes(text: string, groundingSources: Array<{ title: 
     }
   );
 
-  // 2. Replace parenthesized URLs: text(https://url.com) or (https://url.com)
+  // 2. URLs "cruas" entre parênteses: (https://url.com) ou texto(https://url.com)
   processed = processed.replace(
     /\(?(https?:\/\/[^\s)<>"]+)\)?/gi,
     (match, url: string) => {
       if (isFakeUrl(url)) return '';
       try {
         const domain = new URL(url).hostname.replace('www.', '');
-        const num = getOrCreateNum(url, domain);
-        return `<footnote data-num="${num}"></footnote>`;
+        const label = domain || url;
+        const num = getOrCreateNum(url, label);
+        // Exibe domínio + badge de fonte, em vez de só o ^1 solto
+        return `${label}<footnote data-num="${num}"></footnote>`;
       } catch {
         return match;
       }
     }
   );
 
-  // 3. Clean leftover empty brackets/parens from malformed links
+  // 3. Limpa sobras de colchetes/parênteses vazios
   processed = processed
-    .replace(/\[\s*\]/g, '')           // empty []
-    .replace(/\(\s*\)/g, '')           // empty ()
-    .replace(/\]\s*\./g, '.')          // stray ].
-    .replace(/\]\s*,/g, ',')           // stray ],
-    .replace(/\]\s*$/gm, '')           // stray ] at end of line
+    .replace(/\[\s*\]/g, '')           // [] vazios
+    .replace(/\(\s*\)/g, '')           // () vazios
+    .replace(/\]\s*\./g, '.')          // ]. perdido
+    .replace(/\]\s*,/g, ',')           // ], perdido
+    .replace(/\]\s*$/gm, '');          // ] no fim da linha
 
   return { processedText: processed, footnoteSources };
 }

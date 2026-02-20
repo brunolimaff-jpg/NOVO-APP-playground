@@ -74,6 +74,46 @@ function sanitizeStreamText(text: string): string {
     .replace(/^\s*\]/, '');
 }
 
+/**
+ * enforceOpeningWithSeller
+ * Garante que aberturas coloquiais como "Fala, time" sejam ajustadas
+ * para um tom mais profissional, citando o vendedor quando possível.
+ */
+function enforceOpeningWithSeller(rawText: string, nomeVendedor: string): string {
+  if (!rawText) return rawText;
+
+  const seller = nomeVendedor?.trim() || 'Vendedor';
+
+  // Não mexe em textos que começam com heading Markdown (#, ##, etc.)
+  const trimmedStart = rawText.trimStart();
+  if (/^#+\s/.test(trimmedStart)) {
+    return rawText;
+  }
+
+  // Trabalha em uma cópia aparada no início, preservando resto do conteúdo
+  let text = trimmedStart;
+  const forbiddenOpenings = [
+    /^fala[,!\.\s]*time[\.!?\s-]*/i,
+    /^fala[,!\.\s]*(pessoal|galera)[\.!?\s-]*/i,
+  ];
+
+  let replaced = false;
+  for (const re of forbiddenOpenings) {
+    if (re.test(text)) {
+      text = text.replace(re, `${seller}, `);
+      replaced = true;
+      break;
+    }
+  }
+
+  if (!replaced) return rawText;
+
+  // Re-anexa os espaços iniciais que foram removidos em trimStart
+  const leadingWhitespaceMatch = rawText.match(/^\s*/);
+  const leadingWhitespace = leadingWhitespaceMatch ? leadingWhitespaceMatch[0] : '';
+  return leadingWhitespace + text;
+}
+
 // ===================================================================
 // PARSER DE MARCADOR [[COMPETITOR:...]]
 // ===================================================================
@@ -539,8 +579,10 @@ export const sendMessageToGemini = async (
     }
 
     const finalParsed = parseMarkers(rawAccumulator);
+    const finalText = enforceOpeningWithSeller(finalParsed.text, nomeParaInjetar);
+
     return {
-      text: finalParsed.text,
+      text: finalText,
       sources: groundingChunks.filter(c => c.web?.uri).map(c => ({ title: getReadableTitle(c.web), url: c.web.uri })),
       suggestions: [],
       scorePorta: finalParsed.scorePorta,
