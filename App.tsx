@@ -829,10 +829,11 @@ const App: React.FC = () => {
     
     if (!sessionId) {
       sessionId = uuidv4();
+      const immediateTitle = cleanTitle(extractCompanyName(displayText || text));
       const newSession: ChatSession = {
         id: sessionId,
-        title: 'Nova Investigação',
-        empresaAlvo: null, cnpj: null, modoPrincipal: null, scoreOportunidade: null, resumoDossie: null,
+        title: immediateTitle || 'Nova Investigação',
+        empresaAlvo: immediateTitle || null, cnpj: null, modoPrincipal: null, scoreOportunidade: null, resumoDossie: null,
         createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
         messages: []
       };
