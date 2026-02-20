@@ -65,13 +65,14 @@ const SectionalBotMessage: React.FC<SectionalBotMessageProps> = ({
 
   return (
     <div className="sectional-message space-y-4">
-      {sections.map((section) => (
+      {sections.map((section, idx) => (
         <div key={section.key} className="section-block group relative">
           <div className="section-content">
-             <MarkdownRenderer 
-                content={section.key === 'intro' ? section.content : `${'#'.repeat(section.level)} ${section.title}\n\n${section.content}`} 
+             <MarkdownRenderer
+                content={section.key === 'intro' ? section.content : `${'#'.repeat(section.level)} ${section.title}\n\n${section.content}`}
                 isDarkMode={isDarkMode}
                 groundingSources={message.groundingSources}
+                showCollapsibleSources={idx === sections.length - 1}
              />
           </div>
         </div>

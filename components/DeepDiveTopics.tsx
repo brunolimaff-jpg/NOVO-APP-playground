@@ -16,7 +16,8 @@ const DEEP_DIVE_OPTIONS = [
 ];
 
 const DeepDiveTopics: React.FC<DeepDiveTopicsProps> = ({ onDeepDive, isDarkMode, empresaContext }) => {
-  const displayName = empresaContext?.trim();
+  const raw = empresaContext?.trim();
+  const displayName = raw && raw.length <= 60 ? raw : undefined;
 
   return (
     <div className={`mt-4 pt-3 animate-fade-in`}>

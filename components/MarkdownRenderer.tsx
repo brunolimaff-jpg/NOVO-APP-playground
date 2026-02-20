@@ -13,6 +13,7 @@ interface MarkdownRendererProps {
   content: string;
   isDarkMode: boolean;
   groundingSources?: Array<{ title: string; url: string }>;
+  showCollapsibleSources?: boolean;
 }
 
 interface FootnoteSource {
@@ -218,7 +219,7 @@ function preprocessExistingFootnotes(text: string): string {
     .replace(/(?<!\[)\^(\d+)/g, '<footnote data-num="$1"></footnote>');
 }
 
-const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, isDarkMode, groundingSources }) => {
+const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, isDarkMode, groundingSources, showCollapsibleSources = true }) => {
   const theme = {
     textNormal: isDarkMode ? 'text-slate-300' : 'text-slate-700',
     textBold: isDarkMode ? 'text-white' : 'text-slate-900',
@@ -319,7 +320,7 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, isDarkMode
         {processedContent}
       </Markdown>
 
-      <CollapsibleSources sources={footnoteSources} isDarkMode={isDarkMode} />
+      {showCollapsibleSources && <CollapsibleSources sources={footnoteSources} isDarkMode={isDarkMode} />}
     </div>
   );
 };

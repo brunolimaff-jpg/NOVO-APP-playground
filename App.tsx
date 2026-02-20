@@ -725,11 +725,11 @@ const App: React.FC = () => {
 
       setSessions(prev => prev.map(s => s.id === sessionId ? {
         ...s,
-        title: (s.messages.length <= 2 || s.title === 'Nova Investigação') 
-               ? cleanTitle(extractCompanyName(responseText || text)) 
+        title: (s.messages.length <= 2 || s.title === 'Nova Investigação')
+               ? cleanTitle(extractCompanyName(text))
                : s.title,
-        empresaAlvo: (s.messages.length <= 2) 
-                     ? extractCompanyName(responseText || text) 
+        empresaAlvo: (s.messages.length <= 2)
+                     ? extractCompanyName(text)
                      : s.empresaAlvo,
         updatedAt: new Date().toISOString(),
         messages: s.messages.map(msg => 
