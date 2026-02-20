@@ -279,7 +279,16 @@ export const generateLoadingCuriosities = async (context: string): Promise<strin
   try {
     const response = await ai.models.generateContent({
       model: ROUTER_MODEL_ID,
-      contents: `Gere 10 curiosidades estratégicas e reais (max 100 chars) sobre a empresa ou setor: "${context}". JSON Array.`,
+      contents: `Gere 10 curiosidades estratégicas REAIS sobre "${context}" (máx 120 chars cada).
+
+REGRAS OBRIGATÓRIAS:
+- Cada frase DEVE começar com o nome da empresa/grupo ou dizer claramente QUEM faz o quê
+- Inclua dados específicos: números, anos, locais, produtos
+- Exemplo BOM: "O Grupo Scheffer cultiva mais de 300 mil hectares de soja no Mato Grosso"
+- Exemplo RUIM: "Forte presença em mercados internacionais" (quem? onde? quanto?)
+- Se não souber dados reais, gere sobre o SETOR mencionando o contexto brasileiro
+
+Retorne um JSON Array de strings.`,
       config: { responseMimeType: 'application/json', temperature: 0.8 }
     });
     return JSON.parse(response.text || "[]");
@@ -356,31 +365,57 @@ export const sendMessageToGemini = async (
     
     if (enrichments.length > 0) messageToSend = enrichments.join('\n') + `\n\nUSUÁRIO: ${message}`;
 
-    onStatus?.("Conectando ao modelo de IA para geração do dossiê...");
+    onStatus?.("Conectando ao modelo de IA...");
     const result = await chatSession.sendMessageStream({ message: messageToSend });
     let rawAccumulator = '';
     let lastEmittedStatus = '';
     let lastEmittedScore: ScorePortaData | null = null;
     let groundingChunks: any[] = [];
+    let chunkCount = 0;
+    const streamStart = Date.now();
+    let lastTimeStatus = '';
+
+    // Sub-statuses based on elapsed time for long-running deep research
+    const timeBasedStatuses = [
+      { afterMs: 15000, msg: "Varrendo fontes públicas e portais do setor..." },
+      { afterMs: 40000, msg: "Cruzando dados de múltiplas fontes da web..." },
+      { afterMs: 75000, msg: "Consolidando informações estratégicas..." },
+      { afterMs: 120000, msg: "Análise profunda em andamento — quase finalizando..." },
+      { afterMs: 180000, msg: "Dossiê extenso sendo compilado — aguarde mais um momento..." },
+    ];
 
     for await (const chunk of result) {
       if (signal?.aborted) break;
       const chunkText = chunk.text || "";
       rawAccumulator += chunkText;
+      chunkCount++;
+
       if (chunk.candidates?.[0]?.groundingMetadata?.groundingChunks) {
         groundingChunks = [...groundingChunks, ...chunk.candidates[0].groundingMetadata.groundingChunks];
       }
 
       const parsed = parseMarkers(rawAccumulator);
-      
+
       if (parsed.statuses.length > 0) {
         const lastStatus = parsed.statuses[parsed.statuses.length - 1];
         if (lastStatus !== lastEmittedStatus) {
           onStatus?.(lastStatus);
           lastEmittedStatus = lastStatus;
+          lastTimeStatus = lastStatus;
         }
       }
-      
+
+      // Emit time-based progress when no marker status has changed
+      const elapsed = Date.now() - streamStart;
+      for (const ts of timeBasedStatuses) {
+        if (elapsed >= ts.afterMs && lastTimeStatus !== ts.msg) {
+          if (parsed.statuses.length === 0 || lastEmittedStatus === lastTimeStatus) {
+            onStatus?.(ts.msg);
+            lastTimeStatus = ts.msg;
+          }
+        }
+      }
+
       if (parsed.scorePorta && parsed.scorePorta !== lastEmittedScore) {
         onScorePorta?.(parsed.scorePorta);
         lastEmittedScore = parsed.scorePorta;
