@@ -1,10 +1,10 @@
 import { GoogleGenAI, Chat, Content, Type } from "@google/genai";
 import { AppError, ReportType, Sender, ScorePortaData, ParsedContent } from '../types';
-import { ChatMode } from '../constants';
+import { ChatMode, NOME_VENDEDOR_PLACEHOLDER } from '../constants';
 import { normalizeAppError } from '../utils/errorHelpers';
 import { withAutoRetry } from '../utils/retry';
 import { Message } from '../types';
-import { stripMarkdown, cleanSuggestionText, cleanStatusMarkers } from '../utils/textCleaners';
+import { stripMarkdown, cleanSuggestionText } from '../utils/textCleaners';
 import { lookupCliente, formatarParaPrompt, benchmarkClientes, formatarBenchmarkParaPrompt } from './clientLookupService';
 import { addInvestigation } from '../components/InvestigationDashboard';
 
@@ -15,6 +15,7 @@ export interface GeminiRequestOptions {
   onText?: (text: string) => void;
   onStatus?: (status: string) => void;
   onScorePorta?: (score: ScorePortaData) => void;
+  nomeVendedor?: string;
 }
 
 // ===================================================================
@@ -47,6 +48,31 @@ Responda EXCLUSIVAMENTE em Português (Brasil) usando um Array JSON de strings.
 `;
 
 // ===================================================================
+// LIMPEZA DE TEXTO — STREAMING E FINAL
+// ===================================================================
+
+/**
+ * sanitizeStreamText
+ * Remove TODOS os marcadores [[...]] do texto acumulado antes de exibir
+ * na UI durante o streaming. Também remove ] soltos gerados por parsers
+ * parciais de marcadores.
+ */
+function sanitizeStreamText(text: string): string {
+  return text
+    // Remove marcadores completos — ordem importa (mais específico primeiro)
+    .replace(/\[\[COMPETITOR:[^\]]*\]\]/g, '')
+    .replace(/\[\[PORTA:[^\]]*\]\]/g, '')
+    .replace(/\[\[STATUS:[^\]]*\]\]/g, '')
+    // Remove qualquer outro [[MARCADOR:...]] completo
+    .replace(/\[\[[A-Z_]+:[^\n]*?\]\]/g, '')
+    // Remove marcador parcial na última linha (stream ainda chegando)
+    .replace(/\[\[?[A-Z_]*:?[^\n]*$/, '')
+    // Remove ] ou [ soltos no início (artefato de parse)
+    .replace(/^(\s*\]\s*\n)+/, '')
+    .replace(/^\s*\]/, '');
+}
+
+// ===================================================================
 // FUNÇÕES DE PARSING E CONTEXTO
 // ===================================================================
 
@@ -55,6 +81,7 @@ export function parseMarkers(content: string): ParsedContent {
   const statuses: string[] = [];
   let scorePorta: ScorePortaData | null = null;
 
+  // 1. Extrai e remove marcadores [[STATUS:...]]
   const statusRegex = /\[\[STATUS:([^\]]+)\]\]/g;
   let statusMatch;
   while ((statusMatch = statusRegex.exec(content)) !== null) {
@@ -62,6 +89,7 @@ export function parseMarkers(content: string): ParsedContent {
     text = text.replace(statusMatch[0], '');
   }
 
+  // 2. Extrai e remove marcador [[PORTA:...]]
   const portaRegex = /\[\[PORTA:(\d+):P(\d+):O(\d+):R(\d+):T(\d+):A(\d+)\]\]/;
   const portaMatch = text.match(portaRegex);
   if (portaMatch) {
@@ -76,7 +104,19 @@ export function parseMarkers(content: string): ParsedContent {
     text = text.replace(portaMatch[0], '');
   }
 
+  // 3. Remove marcadores [[COMPETITOR:...]] (capturado pela UI, não exibido)
+  text = text.replace(/\[\[COMPETITOR:[^\]]*\]\]/g, '');
+
+  // 4. Remove qualquer outro marcador [[MARCADOR:...]] residual
+  text = text.replace(/\[\[[A-Z_]+:[^\n]*?\]\]/g, '');
+
+  // 5. Limpa ] ou [ soltos no início (artefato de parse de marcadores)
+  text = text.replace(/^(\s*\]\s*\n)+/, '');
+  text = text.replace(/^\s*\]/, '');
+
+  // 6. Normaliza espaços/linhas em branco extras
   text = text.replace(/^\s*\n/gm, '\n').trim();
+
   return { text, statuses, scorePorta };
 }
 
@@ -177,7 +217,7 @@ function getReadableTitle(source: { uri?: string; title?: string }): string {
 export const createChatSession = (
   systemInstruction: string, 
   history: Message[],
-  modelId: string, // Agora recebe o modelo dinamicamente
+  modelId: string,
   useGrounding: boolean = true,
   thinkingMode: boolean = false 
 ): Chat => {
@@ -329,7 +369,14 @@ export const sendMessageToGemini = async (
   systemInstruction: string, 
   options: GeminiRequestOptions = {}
 ): Promise<{ text: string; sources: Array<{title: string, url: string}>, suggestions: string[], scorePorta: ScorePortaData | null, statuses: string[] }> => {
-  const { useGrounding = true, thinkingMode = false, signal, onText, onStatus, onScorePorta } = options;
+  const { useGrounding = true, thinkingMode = false, signal, onText, onStatus, onScorePorta, nomeVendedor } = options;
+
+  // Injeta o nome do vendedor no system prompt (substitui {{NOME_VENDEDOR}})
+  const nomeParaInjetar = nomeVendedor?.trim() || 'Vendedor';
+  const systemInstructionFinal = systemInstruction.replace(
+    new RegExp(NOME_VENDEDOR_PLACEHOLDER.replace(/[{}]/g, '\\$&'), 'g'),
+    nomeParaInjetar
+  );
 
   const apiCall = async () => {
     onStatus?.("Analisando complexidade do pedido...");
@@ -343,7 +390,7 @@ export const sendMessageToGemini = async (
       onStatus?.("Deep Research ativado — varredura completa da web iniciada...");
     }
 
-    const chatSession = createChatSession(systemInstruction, history, selectedModel, useGrounding, thinkingMode);
+    const chatSession = createChatSession(systemInstructionFinal, history, selectedModel, useGrounding, thinkingMode);
     if (signal?.aborted) throw new Error("Request aborted");
 
     let messageToSend = message;
@@ -381,7 +428,7 @@ export const sendMessageToGemini = async (
     let groundingChunks: any[] = [];
     let chunkCount = 0;
     let sourcesReported = 0;
-    let textMilestone = 0; // 0=nenhum, 1=2k, 2=6k, 3=12k
+    let textMilestone = 0;
 
     for await (const chunk of result) {
       if (signal?.aborted) break;
@@ -389,7 +436,6 @@ export const sendMessageToGemini = async (
       rawAccumulator += chunkText;
       chunkCount++;
 
-      // Status real: primeiro chunk recebido
       if (chunkCount === 1) {
         onStatus?.("Primeiros dados recebidos do modelo...");
       }
@@ -398,7 +444,6 @@ export const sendMessageToGemini = async (
         const newChunks = chunk.candidates[0].groundingMetadata.groundingChunks;
         groundingChunks = [...groundingChunks, ...newChunks];
 
-        // Status real: fontes encontradas na web
         const totalSources = groundingChunks.filter(c => c.web?.uri).length;
         if (totalSources > sourcesReported) {
           sourcesReported = totalSources;
@@ -406,7 +451,6 @@ export const sendMessageToGemini = async (
         }
       }
 
-      // Status real: marcos de tamanho do dossiê
       const textLen = rawAccumulator.length;
       if (textLen > 12000 && textMilestone < 3) {
         onStatus?.("Finalizando dossiê — estruturando conclusões...");
@@ -421,7 +465,6 @@ export const sendMessageToGemini = async (
 
       const parsed = parseMarkers(rawAccumulator);
 
-      // Status real: markers do próprio modelo [[STATUS: ...]]
       if (parsed.statuses.length > 0) {
         const lastStatus = parsed.statuses[parsed.statuses.length - 1];
         if (lastStatus !== lastEmittedStatus) {
@@ -435,8 +478,8 @@ export const sendMessageToGemini = async (
         lastEmittedScore = parsed.scorePorta;
       }
 
-      const { cleanText } = cleanStatusMarkers(rawAccumulator);
-      onText?.(cleanText.replace(/\[\[?S?T?A?T?U?S?:?.*$/, ''));
+      // Usa sanitizeStreamText para limpar TODOS os marcadores antes de exibir
+      onText?.(sanitizeStreamText(rawAccumulator));
     }
 
     const finalParsed = parseMarkers(rawAccumulator);
