@@ -205,7 +205,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                     <div key={msg.id} className={`flex justify-start animate-fade-in`}>
                       <div className={`rounded-2xl p-4 shadow-sm ${isDarkMode ? 'bg-slate-900' : 'bg-white'} border border-gray-700/30 px-3 md:px-5 py-3 md:py-4 w-full`}>
                         <div className="flex items-center justify-between mb-2 opacity-70 text-[10px] uppercase font-bold tracking-wider select-none">
-                          <span>{mode === 'operacao' ? '🛻 Operação' : '✈️ Diretoria'}</span>
+                          <span>{mode === 'operacao' ? '🚺 Operação' : '✈️ Diretoria'}</span>
                           <span>{msg.timestamp.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
                         </div>
                         <LoadingSmart isLoading={isLoading} mode={mode} isDarkMode={isDarkMode} onStop={isLoading ? onStop : undefined} processing={processing} searchQuery={lastUserQuery} />
@@ -226,7 +226,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                   <div key={msg.id} className={`flex ${isBot ? 'justify-start' : 'justify-end'} animate-fade-in`}>
                     <div className={`rounded-2xl p-4 shadow-sm relative group ${isBot ? `${isDarkMode ? 'bg-slate-900' : 'bg-white'} border border-gray-700/30 px-3 md:px-5 py-3 md:py-4 w-full` : `${isDarkMode ? 'bg-emerald-900/20 border border-emerald-900/30 text-emerald-100' : 'bg-emerald-50 border border-emerald-100 text-slate-800'} max-w-[90%] md:max-w-[75%] lg:max-w-[60%]`}`}>
                       <div className="flex items-center justify-between mb-2 opacity-70 text-[10px] uppercase font-bold tracking-wider select-none">
-                        <span>{isBot ? (mode === 'operacao' ? '🛻 Operação' : '✈️ Diretoria') : '👤 Você'}</span>
+                        <span>{isBot ? (mode === 'operacao' ? '🚺 Operação' : '✈️ Diretoria') : '👤 Você'}</span>
                         <span>{msg.timestamp.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
                       </div>
 
@@ -240,6 +240,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                                r={msg.scorePorta.r}
                                t={msg.scorePorta.t}
                                a={msg.scorePorta.a}
+                               isDarkMode={isDarkMode}
                              />
                            )}
 
@@ -262,9 +263,11 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                              />
                            )}
 
+                           {/* FIX: sourcesCount=0 para remover Fontes duplicado do MessageActionsBar.
+                               As fontes já são exibidas pelo CollapsibleSources dentro do MarkdownRenderer. */}
                            <MessageActionsBar
                                content={msg.text}
-                               sourcesCount={displaySources.length}
+                               sourcesCount={0}
                                currentFeedback={msg.feedback}
                                onFeedback={(fb) => onFeedback(msg.id, fb)}
                                onSubmitFeedback={(fb, comment, content) => onSendFeedback(msg.id, fb, comment, content)}
