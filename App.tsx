@@ -244,11 +244,7 @@ function detectInconsistencies(sections: string[]): string {
 
   if (inconsistencies.length === 0) return '';
 
-  return '
-
----
-
-return '\n\n---\n\n## ⚠️ INCONSISTÊNCIAS DETECTADAS\n\n' +
+  return '\n\n---\n\n## ⚠️ INCONSISTÊNCIAS DETECTADAS\n\n' +
     '> Os dados abaixo apareceram com valores diferentes entre o dossiê principal e os aprofundamentos. ' +
     'Recomenda-se verificar a fonte mais confiável antes de usar em propostas.\n\n' +
     inconsistencies.map((inc, i) => `${i + 1}. ${inc}`).join('\n') +
@@ -895,8 +891,6 @@ const App: React.FC = () => {
       "TRECHO_DOSSIE:",
       snippet
     ].filter(Boolean).join("\n\n");
-
-");
 
     const oldSuggestions = targetMessage.suggestions || [];
 
