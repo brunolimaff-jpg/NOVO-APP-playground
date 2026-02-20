@@ -442,7 +442,13 @@ const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [loadingStatus, setLoadingStatus] = useState<string>('Iniciando análise');
   const [isInitialized, setIsInitialized] = useState(false);
-  const [isDarkMode, setIsDarkMode] = useState(false);
+  
+  // MUDANÇA 1: Forçar tema claro como padrão inicial
+  const [isDarkMode, setIsDarkMode] = useState(() => {
+    const savedTheme = localStorage.getItem(THEME_KEY);
+    return savedTheme === 'dark';
+  });
+  
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [lastQuery, setLastQuery] = useState<string>(""); 
   const [isSavingRemote, setIsSavingRemote] = useState(false);
@@ -722,12 +728,9 @@ const App: React.FC = () => {
         { 
           signal,
           onText: () => {},
+          // MUDANÇA 2: Mostrar o status exato que o robô enviar em vez de mascarar
           onStatus: (newStatus) => { 
-            const friendlyStatus = newStatus.toLowerCase().includes('thinking') || 
-                                 newStatus.toLowerCase().includes('searching')
-              ? "Realizando pesquisa..."
-              : newStatus;
-            setLoadingStatus(friendlyStatus); 
+            setLoadingStatus(newStatus); 
           }
         }
       );
@@ -1239,6 +1242,20 @@ const App: React.FC = () => {
   // ============================================
   // RENDER
   // ============================================
+
+  // MUDANÇA 3: Trava de segurança para impedir cliques antes da sincronização
+  if (!isInitialized) {
+    return (
+      <div className={`flex h-screen w-full items-center justify-center ${isDarkMode ? 'bg-slate-950' : 'bg-slate-50'}`}>
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-10 h-10 border-4 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin" />
+          <p className={`text-sm font-medium tracking-wide ${isDarkMode ? 'text-slate-400' : 'text-slate-500'} animate-pulse`}>
+            Preparando ambiente...
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>
