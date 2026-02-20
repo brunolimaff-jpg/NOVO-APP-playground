@@ -253,25 +253,6 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                                 onRegenerateSuggestions={onRegenerateSuggestions}
                            />
 
-                           {/* Sugestões DENTRO do balão */}
-                           {isLast && !isLoading && displayedSuggestions.length > 0 && (
-                             <div className="flex flex-wrap gap-2 mt-3">
-                               {displayedSuggestions.map((suggestion, index) => (
-                                 <button
-                                   key={index}
-                                   onClick={() => handleActionClick(suggestion)}
-                                   className={`text-[11px] md:text-xs px-3 py-1.5 rounded-full transition-all text-left shadow-sm border active:scale-95 ${
-                                     isDarkMode
-                                       ? 'bg-emerald-900/30 text-emerald-300 border-emerald-800 hover:border-emerald-500 hover:bg-emerald-900/50'
-                                       : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:border-emerald-400 hover:bg-emerald-100'
-                                   }`}
-                                 >
-                                   {suggestion}
-                                 </button>
-                               ))}
-                             </div>
-                           )}
-
                            {/* DeepDiveTopics DENTRO do balão */}
                            {isLast && !isLoading && (
                              <DeepDiveTopics

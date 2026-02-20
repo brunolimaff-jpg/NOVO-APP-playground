@@ -11,34 +11,43 @@ interface SmartOptionsProps {
 export function parseSmartOptions(text?: string): { cleanText: string; options: string[] } {
   if (!text) return { cleanText: '', options: [] };
 
-  const suggestionHeaderRegex = /(?:---|___|\*\*\*)\s*[\r\n]+(?:\*\*|##|###)?\s*(?:🔎|⚡|🤠)?\s*(?:O que você quer descobrir agora|E aí, onde a gente joga o adubo agora|E aí, qual desses você quer cavucar|Próximos passos|Sugestões de perguntas)(?:.*?)[\r\n]+/i;
-  
-  const parts = text.split(suggestionHeaderRegex);
-  
-  if (parts.length < 2) {
-    return { cleanText: text, options: [] };
+  // Tenta vários padrões de cabeçalho de sugestões (do mais específico ao mais genérico)
+  const regexes = [
+    // Com separador (---, ___, ***) antes do header
+    /(?:---|___|\*\*\*)\s*[\r\n]+(?:\*\*|##|###)?\s*(?:🔎|⚡|🤠)?\s*(?:O que você quer descobrir agora|E aí, onde a gente joga o adubo agora|E aí, qual desses você quer cavucar|Próximos passos|Sugestões?(?:\s+de\s+perguntas)?)(?:.*?)[\r\n]+/i,
+    // Sem separador: **Sugestões** ou ## Sugestões (no fim do texto)
+    /\n+(?:\*\*|##|###)\s*(?:🔎|⚡|🤠)?\s*(?:Sugestões?(?:\s+de\s+perguntas)?|Próximos\s+passos|O que você quer descobrir agora)\s*\*?\*?\s*[\r\n]+/i,
+  ];
+
+  for (const regex of regexes) {
+    const parts = text.split(regex);
+    if (parts.length >= 2) {
+      const cleanText = parts[0].trim();
+      const suggestionsBlock = parts[parts.length - 1];
+
+      const lines = suggestionsBlock.split('\n');
+      const options = lines
+        .map(line => line.trim())
+        .filter(line => /^[\*\-•\+]\s/.test(line) || /^\d+\./.test(line))
+        .map(line => {
+            const clean = line
+                .replace(/^[\*\-•\+\d\.]+\s*/, '')
+                .replace(/^"|"$/g, '')
+                .replace(/^'|'$/g, '')
+                .replace(/\*+$/, '')
+                .trim();
+            return cleanSuggestionText(clean);
+        })
+        .filter(line => line.length > 0)
+        .slice(0, 4);
+
+      if (options.length > 0) {
+        return { cleanText, options };
+      }
+    }
   }
 
-  const cleanText = parts[0].trim();
-  const suggestionsBlock = parts[parts.length - 1];
-  
-  const lines = suggestionsBlock.split('\n');
-  const options = lines
-    .map(line => line.trim())
-    .filter(line => /^[\*\-•\+]\s/.test(line) || /^\d+\./.test(line))
-    .map(line => {
-        const clean = line
-            .replace(/^[\*\-•\+\d\.]+\s*/, '')
-            .replace(/^"|"$/g, '')
-            .replace(/^'|'$/g, '')
-            .replace(/\*+$/, '')
-            .trim();
-        return cleanSuggestionText(clean);
-    })
-    .filter(line => line.length > 0)
-    .slice(0, 4); 
-
-  return { cleanText, options };
+  return { cleanText: text, options: [] };
 }
 
 const SmartOptions: React.FC<SmartOptionsProps> = ({ 
