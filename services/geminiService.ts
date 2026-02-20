@@ -17,7 +17,7 @@ export interface GeminiRequestOptions {
   onScorePorta?: (score: ScorePortaData) => void;
 }
 
-const BEST_MODEL_ID = 'gemini-3-pro-preview';
+const BEST_MODEL_ID = 'gemini-3.1-pro-preview';
 const FAST_MODEL_ID = 'gemini-3-flash-preview';
 
 const CONTINUITY_SYSTEM = `
