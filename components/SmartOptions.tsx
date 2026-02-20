@@ -3,27 +3,21 @@ import { cleanSuggestionText } from '../utils/textCleaners';
 
 interface SmartOptionsProps {
   options: string[];
-  onPreFillInput: (text: string) => void;  // MUDANÇA: preenche input em vez de enviar
+  onPreFillInput: (text: string) => void;
   isRegenerating?: boolean;
   onRegenerate?: () => void;
 }
 
 export function parseSmartOptions(text: string): { cleanText: string; options: string[] } {
-  // Regex para encontrar o bloco de sugestões
-  // Busca por separadores como ---, seguido de cabeçalho como "**🔎 O que você quer descobrir agora?**"
   const suggestionHeaderRegex = /(?:---|___|\*\*\*)\s*[\r\n]+(?:\*\*|##|###)?\s*(?:🔎|⚡|🤠)?\s*(?:O que você quer descobrir agora|E aí, onde a gente joga o adubo agora|E aí, qual desses você quer cavucar|Próximos passos|Sugestões de perguntas)(?:.*?)[\r\n]+/i;
   
   const parts = text.split(suggestionHeaderRegex);
   
-  // Se não houver split, retorna texto original e opções vazias
   if (parts.length < 2) {
     return { cleanText: text, options: [] };
   }
 
-  // O conteúdo antes do split é o texto limpo
   const cleanText = parts[0].trim();
-  
-  // A parte depois é o bloco de sugestões
   const suggestionsBlock = parts[parts.length - 1];
   
   const lines = suggestionsBlock.split('\n');
@@ -32,22 +26,22 @@ export function parseSmartOptions(text: string): { cleanText: string; options: s
     .filter(line => /^[\*\-•\+]\s/.test(line) || /^\d+\./.test(line))
     .map(line => {
         const clean = line
-            .replace(/^[\*\-•\+\d\.]+\s*/, '') // Remove bullets ou números
-            .replace(/^"|"$/g, '') // Remove aspas
+            .replace(/^[\*\-•\+\d\.]+\s*/, '')
+            .replace(/^"|"$/g, '')
             .replace(/^'|'$/g, '')
-            .replace(/\*+$/, '') // Remove asteriscos finais
+            .replace(/\*+$/, '')
             .trim();
         return cleanSuggestionText(clean);
     })
     .filter(line => line.length > 0)
-    .slice(0, 4); // Máximo 4 sugestões
+    .slice(0, 4); 
 
   return { cleanText, options };
 }
 
 const SmartOptions: React.FC<SmartOptionsProps> = ({ 
   options, 
-  onPreFillInput,  // MUDANÇA: nome mais claro
+  onPreFillInput,
   isRegenerating = false,
   onRegenerate
 }) => {
@@ -78,7 +72,7 @@ const SmartOptions: React.FC<SmartOptionsProps> = ({
         {options.map((option, idx) => (
           <button
             key={idx}
-            onClick={() => onPreFillInput(option)}  // MUDANÇA: preenche input
+            onClick={() => onPreFillInput(option)}
             className="text-xs text-left px-3 py-2 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-900/30 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-colors shadow-sm active:scale-95"
           >
             {option}
