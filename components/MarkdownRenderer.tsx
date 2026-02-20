@@ -242,7 +242,7 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, isDarkMode
     const { processedText, footnoteSources: sources } = convertLinksToFootnotes(text, groundingSources || []);
     text = processedText;
 
-    text = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    // Bold (**text**) is handled natively by react-markdown + remarkGfm
     text = text.replace(
       /\[\[PORTA:(\d+):P(\d+):O(\d+):R(\d+):T(\d+):A(\d+)\]\]/g,
       '<porta-score data-score="$1" data-p="$2" data-o="$3" data-r="$4" data-t="$5" data-a="$6"></porta-score>'

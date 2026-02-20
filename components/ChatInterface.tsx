@@ -223,60 +223,63 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                 const displaySources = rawSources.filter(s => s.url && !isFakeUrl(s.url));
 
                 return (
-                  <div key={msg.id} className={`flex ${isBot ? 'justify-start' : 'justify-end'} animate-fade-in`}>
-                    <div className={`rounded-2xl p-4 shadow-sm relative group ${isBot ? `${isDarkMode ? 'bg-slate-900' : 'bg-white'} border border-gray-700/30 px-3 md:px-5 py-3 md:py-4 w-full` : `${isDarkMode ? 'bg-emerald-900/20 border border-emerald-900/30 text-emerald-100' : 'bg-emerald-50 border border-emerald-100 text-slate-800'} max-w-[90%] md:max-w-[75%] lg:max-w-[60%]`}`}>
-                      <div className="flex items-center justify-between mb-2 opacity-70 text-[10px] uppercase font-bold tracking-wider select-none">
-                        <span>{isBot ? (mode === 'operacao' ? '🛻 Operação' : '✈️ Diretoria') : '👤 Você'}</span>
-                        <span>{msg.timestamp.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                  <React.Fragment key={msg.id}>
+                    <div className={`flex ${isBot ? 'justify-start' : 'justify-end'} animate-fade-in`}>
+                      <div className={`rounded-2xl p-4 shadow-sm relative group ${isBot ? `${isDarkMode ? 'bg-slate-900' : 'bg-white'} border border-gray-700/30 px-3 md:px-5 py-3 md:py-4 w-full` : `${isDarkMode ? 'bg-emerald-900/20 border border-emerald-900/30 text-emerald-100' : 'bg-emerald-50 border border-emerald-100 text-slate-800'} max-w-[90%] md:max-w-[75%] lg:max-w-[60%]`}`}>
+                        <div className="flex items-center justify-between mb-2 opacity-70 text-[10px] uppercase font-bold tracking-wider select-none">
+                          <span>{isBot ? (mode === 'operacao' ? '🛻 Operação' : '✈️ Diretoria') : '👤 Você'}</span>
+                          <span>{msg.timestamp.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                        </div>
+
+                        {isBot ? (
+                          <>
+                             {msg.scorePorta && (
+                               <ScorePorta
+                                 score={msg.scorePorta.score}
+                                 p={msg.scorePorta.p}
+                                 o={msg.scorePorta.o}
+                                 r={msg.scorePorta.r}
+                                 t={msg.scorePorta.t}
+                                 a={msg.scorePorta.a}
+                               />
+                             )}
+
+                             <SectionalBotMessage
+                                  message={{...msg, groundingSources: displaySources}}
+                                  sessionId={currentSession?.id}
+                                  userId={typeof userId === 'string' ? userId : undefined}
+                                  isDarkMode={isDarkMode}
+                                  mode={mode}
+                                  onPreFillInput={setInput}
+                                  onRegenerateSuggestions={onRegenerateSuggestions}
+                             />
+
+                             <MessageActionsBar
+                                 content={msg.text}
+                                 sourcesCount={displaySources.length}
+                                 currentFeedback={msg.feedback}
+                                 onFeedback={(fb) => onFeedback(msg.id, fb)}
+                                 onSubmitFeedback={(fb, comment, content) => onSendFeedback(msg.id, fb, comment, content)}
+                                 onToggleSources={() => onToggleMessageSources(msg.id)}
+                                 isSourcesVisible={!!msg.isSourcesOpen}
+                                 isDarkMode={isDarkMode}
+                             />
+                          </>
+                        ) : (
+                          <div className="whitespace-pre-wrap text-sm md:text-base leading-relaxed">{msg.text}</div>
+                        )}
                       </div>
-
-                      {isBot ? (
-                        <>
-                           {msg.scorePorta && (
-                             <ScorePorta
-                               score={msg.scorePorta.score}
-                               p={msg.scorePorta.p}
-                               o={msg.scorePorta.o}
-                               r={msg.scorePorta.r}
-                               t={msg.scorePorta.t}
-                               a={msg.scorePorta.a}
-                             />
-                           )}
-
-                           <SectionalBotMessage
-                                message={{...msg, groundingSources: displaySources}}
-                                sessionId={currentSession?.id}
-                                userId={typeof userId === 'string' ? userId : undefined}
-                                isDarkMode={isDarkMode}
-                                mode={mode}
-                                onPreFillInput={setInput}
-                                onRegenerateSuggestions={onRegenerateSuggestions}
-                           />
-
-                           {isLast && !isLoading && (
-                             <DeepDiveTopics
-                               onDeepDive={handleActionClick}
-                               isDarkMode={isDarkMode}
-                               empresaContext={currentSession?.empresaAlvo || currentSession?.title}
-                             />
-                           )}
-
-                           <MessageActionsBar
-                               content={msg.text}
-                               sourcesCount={displaySources.length}
-                               currentFeedback={msg.feedback}
-                               onFeedback={(fb) => onFeedback(msg.id, fb)}
-                               onSubmitFeedback={(fb, comment, content) => onSendFeedback(msg.id, fb, comment, content)}
-                               onToggleSources={() => onToggleMessageSources(msg.id)}
-                               isSourcesVisible={!!msg.isSourcesOpen}
-                               isDarkMode={isDarkMode}
-                           />
-                        </>
-                      ) : (
-                        <div className="whitespace-pre-wrap text-sm md:text-base leading-relaxed">{msg.text}</div>
-                      )}
                     </div>
-                  </div>
+
+                    {/* DeepDiveTopics FORA do balão, como elemento separado */}
+                    {isBot && isLast && !isLoading && (
+                      <DeepDiveTopics
+                        onDeepDive={handleActionClick}
+                        isDarkMode={isDarkMode}
+                        empresaContext={currentSession?.empresaAlvo || currentSession?.title}
+                      />
+                    )}
+                  </React.Fragment>
                 );
               })}
               <div ref={messagesEndRef} />
