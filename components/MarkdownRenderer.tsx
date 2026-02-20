@@ -28,7 +28,7 @@ const FootnoteBadge: React.FC<{ num: number }> = ({ num }) => (
     color: '#059669',
     fontSize: '0.7em',
     fontWeight: 700,
-    cursor: 'default',
+    cursor: 'pointer',
     marginLeft: '1px',
     verticalAlign: 'super',
     lineHeight: 1,
@@ -205,7 +205,6 @@ function convertLinksToFootnotes(text: string, groundingSources: Array<{ title: 
 
 // Remove "Fontes:" blocks from text (we show them in CollapsibleSources)
 function removeSourcesBlock(text: string): string {
-  // Remove sections like "**Fontes:**\n- link1\n- link2" or "## Fontes\n..."
   return text
     .replace(/\n+#{1,3}\s*(?:Fontes?|Referências?|Sources?|Refs?)\s*\n([\s\S]*?)(?=\n#{1,3}\s|$)/gi, '\n')
     .replace(/\n+\*?\*?(?:Fontes?|Referências?|Sources?|Refs?)\*?\*?:?\s*\n([\s\S]*?)(?=\n#{1,3}\s|\n\*\*[A-Z]|$)/gi, '\n');
@@ -233,7 +232,6 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, isDarkMode
     const cleaned = content.replace(/\[\[STATUS:.*?\]\]\n?/g, '');
     let text = cleanStatusMarkers(cleaned).cleanText;
     text = fixFakeLinks(text);
-    // Remove "[fonte não disponível]" artifacts from fixFakeLinks
     text = text.replace(/\s*\*?\[fonte não disponível\]\*?/gi, '');
     text = removeSourcesBlock(text);
     text = text.replace(/^--+$/gm, `<hr class="${theme.hr} my-8" />`);
@@ -243,7 +241,6 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, isDarkMode
     const { processedText, footnoteSources: sources } = convertLinksToFootnotes(text, groundingSources || []);
     text = processedText;
 
-    // Bold (**text**) is handled natively by react-markdown + remarkGfm
     text = text.replace(
       /\[\[PORTA:(\d+):P(\d+):O(\d+):R(\d+):T(\d+):A(\d+)\]\]/g,
       '<porta-score data-score="$1" data-p="$2" data-o="$3" data-r="$4" data-t="$5" data-a="$6"></porta-score>'
@@ -273,8 +270,23 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, isDarkMode
             return <PortaScoreBadge score={score} p={pVal} o={oVal} r={rVal} t={tVal} a={aVal} isDarkMode={isDarkMode} />;
           },
           // @ts-ignore
+          // FIX: footnote badges agora viram hyperlinks clicáveis quando URL está disponível
           'footnote': (props: any) => {
             const num = parseInt(props['data-num'] || '0', 10);
+            const source = footnoteSources.find(s => s.num === num);
+            if (source && source.url && !isFakeUrl(source.url)) {
+              return (
+                <a
+                  href={source.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ textDecoration: 'none' }}
+                  title={source.title}
+                >
+                  <FootnoteBadge num={num} />
+                </a>
+              );
+            }
             return <FootnoteBadge num={num} />;
           },
 
