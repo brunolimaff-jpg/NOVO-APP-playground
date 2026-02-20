@@ -17,8 +17,18 @@ export interface GeminiRequestOptions {
   onScorePorta?: (score: ScorePortaData) => void;
 }
 
-const BEST_MODEL_ID = 'gemini-3.1-pro-preview';
-const FAST_MODEL_ID = 'gemini-3-flash-preview';
+// ===================================================================
+// CONFIGURAÇÃO DOS MODELOS (ROTEAMENTO INTELIGENTE)
+// ===================================================================
+
+// O "Maestro" - Rápido, barato, decide para onde a pergunta vai
+const ROUTER_MODEL_ID = 'gemini-2.5-flash'; 
+
+// Rota 1: Tática (Mais rápido, focado em ferramentas e respostas pontuais)
+const TACTICAL_MODEL_ID = 'gemini-3.1-pro-preview-customtools';
+
+// Rota 2: Dossiê Profundo (Lento, mas cruza dados da web inteira)
+const DEEP_RESEARCH_MODEL_ID = 'deep-research-pro-preview-12-2025';
 
 const CONTINUITY_SYSTEM = `
 Você é o estrategista de continuidade do Senior Scout 360.
@@ -37,18 +47,14 @@ Responda EXCLUSIVAMENTE em Português (Brasil) usando um Array JSON de strings.
 `;
 
 // ===================================================================
-// FUNÇÕES DE PARSING
+// FUNÇÕES DE PARSING E CONTEXTO
 // ===================================================================
 
-/**
- * Parser para extrair marcadores especiais do texto
- */
 export function parseMarkers(content: string): ParsedContent {
   let text = content;
   const statuses: string[] = [];
   let scorePorta: ScorePortaData | null = null;
 
-  // Extrair e remover marcadores de status [[STATUS:...]]
   const statusRegex = /\[\[STATUS:([^\]]+)\]\]/g;
   let statusMatch;
   while ((statusMatch = statusRegex.exec(content)) !== null) {
@@ -56,7 +62,6 @@ export function parseMarkers(content: string): ParsedContent {
     text = text.replace(statusMatch[0], '');
   }
 
-  // Extrair e remover marcador PORTA [[PORTA:SCORE:P:O:R:T:A]]
   const portaRegex = /\[\[PORTA:(\d+):P(\d+):O(\d+):R(\d+):T(\d+):A(\d+)\]\]/;
   const portaMatch = text.match(portaRegex);
   if (portaMatch) {
@@ -75,80 +80,29 @@ export function parseMarkers(content: string): ParsedContent {
   return { text, statuses, scorePorta };
 }
 
-// ===================================================================
-// NOVO: SISTEMA DE CONTEXTO ISOLADO POR EMPRESA
-// ===================================================================
-
-// Cache global para rastrear contexto atual
 let currentCompanyContext: {
   empresa: string;
   sessionId: string;
   timestamp: number;
 } | null = null;
 
-/**
- * Gera lembrete de contexto para evitar alucinação
- * MELHORADO: Agora valida se houve mudança de empresa
- */
-export function generateContextReminder(
-  companyName: string | null, 
-  sessionId?: string
-): string {
+export function generateContextReminder(companyName: string | null, sessionId?: string): string {
   if (!companyName) return '';
-  
   const now = Date.now();
-  
-  // Verificar se houve mudança de contexto
   if (currentCompanyContext && currentCompanyContext.empresa !== companyName) {
-    // CONTEXTO MUDOU - emitir alerta no sistema
     console.warn(`[CONTEXTO] Mudança detectada: "${currentCompanyContext.empresa}" → "${companyName}"`);
-    
-    // Invalidar contexto anterior
-    currentCompanyContext = {
-      empresa: companyName,
-      sessionId: sessionId || 'unknown',
-      timestamp: now
-    };
-    
-    // Retornar instrução explícita para ignorar dados anteriores
-    return `
-
-⚠️ [TROCA DE CONTEXTO DETECTADA]: O usuário mudou de "${currentCompanyContext.empresa}" para "${companyName}".
-- IGNORE TODOS os dados de empresas anteriores.
-- NÃO mencione nenhuma empresa que não seja "${companyName}".
-- Se encontrar dados de outra empresa no histórico, DESCARTE.
-- Foco 100% em: ${companyName}
-`;
+    currentCompanyContext = { empresa: companyName, sessionId: sessionId || 'unknown', timestamp: now };
+    return `\n\n⚠️ [TROCA DE CONTEXTO DETECTADA]: O usuário mudou de "${currentCompanyContext.empresa}" para "${companyName}".\n- IGNORE TODOS os dados de empresas anteriores.\n- NÃO mencione nenhuma empresa que não seja "${companyName}".\n- Se encontrar dados de outra empresa no histórico, DESCARTE.\n- Foco 100% em: ${companyName}\n`;
   }
-  
-  // Atualizar contexto atual
-  currentCompanyContext = {
-    empresa: companyName,
-    sessionId: sessionId || 'unknown',
-    timestamp: now
-  };
-  
-  return `
-
-📌 [CONTEXTO ATIVO]: Você está investigando a empresa "${companyName}".
-- Mantenha foco TOTAL nesta empresa.
-- NÃO misture com dados de outras empresas.
-- Se detectar inconsistência, ALERTAR: "⚠️ Dados inconsistentes detectados. Mantendo foco em ${companyName}."
-- NUNCA cite nomes de empresas que não foram mencionados pelo usuário.
-`;
+  currentCompanyContext = { empresa: companyName, sessionId: sessionId || 'unknown', timestamp: now };
+  return `\n\n📌 [CONTEXTO ATIVO]: Você está investigando a empresa "${companyName}".\n- Mantenha foco TOTAL nesta empresa.\n- NÃO misture com dados de outras empresas.\n- Se detectar inconsistência, ALERTAR: "⚠️ Dados inconsistentes detectados. Mantendo foco em ${companyName}."\n- NUNCA cite nomes de empresas que não foram mencionados pelo usuário.\n`;
 }
 
-/**
- * Reseta o contexto ao trocar de sessão
- */
 export function resetCompanyContext(): void {
   currentCompanyContext = null;
   console.log('[CONTEXTO] Resetado');
 }
 
-/**
- * Extrai sugestões do texto da resposta
- */
 export function extractSuggestionsFromResponse(content: string): string[] {
   const suggestions: string[] = [];
   const suggestionsMatch = content.match(/\*\*Sugestões\*\*\n([\s\S]*?)(?=\n---|\n\*\*|$)/i);
@@ -163,10 +117,6 @@ export function extractSuggestionsFromResponse(content: string): string[] {
   }
   return suggestions;
 }
-
-// ===================================================================
-// QUICK ACTIONS REMOVIDAS DAQUI - AGORA ESTÃO NO ChatInterface.tsx
-// ===================================================================
 
 let genAI: GoogleGenAI | null = null;
 
@@ -184,11 +134,9 @@ const getGenAI = (): GoogleGenAI => {
 function getReadableTitle(source: { uri?: string; title?: string }): string {
   const title = source.title || '';
   const uri = source.uri || '';
-  
   if (title && title.length > 20 && !title.match(/^[\w.-]+\.\w{2,4}$/)) {
     return title;
   }
-  
   let domain = '';
   try {
     if (title && title.includes('.')) {
@@ -199,7 +147,6 @@ function getReadableTitle(source: { uri?: string; title?: string }): string {
   } catch {
     domain = title || 'Fonte';
   }
-  
   const DOMAIN_NAMES: Record<string, string> = {
     'youtube.com': '📺 YouTube',
     'theagribiz.com': '🌾 The AgriBiz',
@@ -221,20 +168,18 @@ function getReadableTitle(source: { uri?: string; title?: string }): string {
     'imea.com.br': '📊 IMEA',
     'google.com': '🔍 Google'
   };
-  
   if (DOMAIN_NAMES[domain]) return DOMAIN_NAMES[domain];
   const knownKey = Object.keys(DOMAIN_NAMES).find(key => domain.includes(key));
   if (knownKey) return DOMAIN_NAMES[knownKey];
-
   return domain || title || 'Fonte Externa';
 }
 
 export const createChatSession = (
   systemInstruction: string, 
   history: Message[],
-  modelId: string = BEST_MODEL_ID,
+  modelId: string, // Agora recebe o modelo dinamicamente
   useGrounding: boolean = true,
-  thinkingMode: boolean = true 
+  thinkingMode: boolean = false 
 ): Chat => {
   const ai = getGenAI();
   const tools: any[] = useGrounding ? [{ googleSearch: {} }] : [];
@@ -267,48 +212,61 @@ export const createChatSession = (
       # FORMATO DE LINKS
       Ao citar fontes, USE SEMPRE links markdown clicáveis:
       - Formato: [texto descritivo](URL)
-      - Exemplo: "A empresa faturou R$ 2 bi [segundo Valor Econômico](https://...)"
-      - NUNCA use URLs soltas. SEMPRE encapsule em link markdown.
-      - NUNCA invente URLs. Se não tiver a URL real, use [Fonte: Nome da Fonte] sem link.
     `,
     temperature: 0.15,
     tools: tools.length > 0 ? tools : undefined,
   };
 
-  if (thinkingMode) {
-    config.thinkingConfig = { thinkingBudget: 24576, includeThoughts: false }; 
-  }
-
   return ai.chats.create({ model: modelId, config: config, history: sdkHistory });
 };
 
 export const resetChatSession = () => {
-  // NOVO: Resetar contexto ao resetar sessão
   resetCompanyContext();
 };
 
-const extractCompanyName = async (msg: string): Promise<{ empresa: string | null; benchmark: boolean }> => {
-  if (!msg || msg.trim().length < 5) return { empresa: null, benchmark: false };
+const analyzeUserIntent = async (msg: string): Promise<{ 
+  empresa: string | null; 
+  benchmark: boolean;
+  rota: 'tatica' | 'profunda' 
+}> => {
+  if (!msg || msg.trim().length < 5) return { empresa: null, benchmark: false, rota: 'tatica' };
+  
   try {
     const ai = getGenAI();
+    const prompt = `
+      Analise a frase do usuário: "${msg}"
+      Extraia 3 informações separadas por "|":
+      1. NOME DA EMPRESA (limpo, sem LTDA/SA. Se não houver, responda NONE)
+      2. BENCHMARK: O usuário quer comparar com concorrentes? (SIM/NAO)
+      3. ROTA: Responda PROFUNDA se o usuário pediu um "dossiê completo", "investigação completa", "capivara", "varredura" ou quer saber TUDO sobre a empresa. Responda TATICA se for uma pergunta específica, pontual ou continuação de conversa.
+    `;
+
     const response = await ai.models.generateContent({
-      model: FAST_MODEL_ID,
-      contents: `Extraia: EMPRESA|BENCHMARK (SIM/NAO). Nome limpo sem LTDA. Frase: "${msg}"`,
+      model: ROUTER_MODEL_ID,
+      contents: prompt,
       config: { temperature: 0, maxOutputTokens: 50 }
     });
-    const text = (response.text || 'NONE|NAO').trim().replace(/["'`]+/g, '');
+    
+    const text = (response.text || 'NONE|NAO|TATICA').trim().replace(/["'`]+/g, '');
     const parts = text.split('|');
+    
     const empresaRaw = (parts[0] || '').trim();
     const empresa = (empresaRaw === 'NONE' || empresaRaw.length < 2) ? null : empresaRaw;
-    return { empresa, benchmark: parts[1] === 'SIM' };
-  } catch { return { empresa: null, benchmark: false }; }
+    const benchmark = parts[1]?.trim() === 'SIM';
+    const rota = parts[2]?.trim() === 'PROFUNDA' ? 'profunda' : 'tatica';
+
+    return { empresa, benchmark, rota };
+  } catch (err) { 
+    console.error("Erro no roteador:", err);
+    return { empresa: null, benchmark: false, rota: 'tatica' }; 
+  }
 };
 
 const generateBenchmarkKeywords = async (empresaNome: string, contexto: string): Promise<string[]> => {
   try {
     const ai = getGenAI();
     const response = await ai.models.generateContent({
-      model: FAST_MODEL_ID,
+      model: ROUTER_MODEL_ID,
       contents: `Gere 5-8 palavras-chave do SETOR para pesquisar similares de "${empresaNome}". Contexto: "${contexto}". Separadas por vírgula.`,
       config: { temperature: 0.1, maxOutputTokens: 80 }
     });
@@ -320,8 +278,8 @@ export const generateLoadingCuriosities = async (context: string): Promise<strin
   const ai = getGenAI();
   try {
     const response = await ai.models.generateContent({
-      model: FAST_MODEL_ID,
-      contents: `Gere 10 curiosidades estratégicas e reais (max 100 chars) sobre a empresa ou setor: "${context}". Use "Você sabia?" ou "Curiosidade:" mas não mostre ""Você sabia?" ou "Curiosidade:" pro usuário, somente o conteúdo. JSON Array.`,
+      model: ROUTER_MODEL_ID,
+      contents: `Gere 10 curiosidades estratégicas e reais (max 100 chars) sobre a empresa ou setor: "${context}". JSON Array.`,
       config: { responseMimeType: 'application/json', temperature: 0.8 }
     });
     return JSON.parse(response.text || "[]");
@@ -332,7 +290,7 @@ const generateFallbackSuggestions = async (lastUserText: string, botResponseText
   try {
     const ai = getGenAI();
     const response = await ai.models.generateContent({
-      model: FAST_MODEL_ID, 
+      model: ROUTER_MODEL_ID, 
       contents: `Gere 3 sugestões JSON baseadas nesta resposta: "${botResponseText.substring(0, 1000)}"`,
       config: { 
         systemInstruction: CONTINUITY_SYSTEM,
@@ -361,27 +319,35 @@ export const sendMessageToGemini = async (
   systemInstruction: string, 
   options: GeminiRequestOptions = {}
 ): Promise<{ text: string; sources: Array<{title: string, url: string}>, suggestions: string[], scorePorta: ScorePortaData | null, statuses: string[] }> => {
-  const { useGrounding = true, thinkingMode = true, signal, onText, onStatus, onScorePorta } = options;
+  const { useGrounding = true, thinkingMode = false, signal, onText, onStatus, onScorePorta } = options;
 
   const apiCall = async () => {
-    const chatSession = createChatSession(systemInstruction, history, BEST_MODEL_ID, useGrounding, thinkingMode);
+    onStatus?.("Analisando complexidade do pedido...");
+    const { empresa, benchmark, rota } = await analyzeUserIntent(message);
+
+    const selectedModel = rota === 'profunda' ? DEEP_RESEARCH_MODEL_ID : TACTICAL_MODEL_ID;
+    
+    if (rota === 'profunda') {
+      onStatus?.("Modo Deep Research ativado. Uma varredura completa da web foi iniciada...");
+    }
+
+    const chatSession = createChatSession(systemInstruction, history, selectedModel, useGrounding, thinkingMode);
     if (signal?.aborted) throw new Error("Request aborted");
 
     let messageToSend = message;
     let enrichments: string[] = [];
-    const { empresa, benchmark } = await extractCompanyName(message);
     
-    // NOVO: Gerar contexto com sessionId se disponível
     const sessionId = currentCompanyContext?.sessionId;
     
     if (empresa) {
+      onStatus?.(`Buscando histórico da ${empresa} na base interna...`);
       const lookup = await lookupCliente(empresa);
       enrichments.push(lookup.encontrado ? formatarParaPrompt(lookup) : `\n[Lookup: "${empresa}" não encontrado na base interna]\n`);
       
-      // NOVO: Adicionar contexto com validação de mudança
       enrichments.push(generateContextReminder(empresa, sessionId));
       
       if (benchmark || message.includes('investigar')) {
+        onStatus?.("Mapeando competidores e benchmarks do setor...");
         const keywords = await generateBenchmarkKeywords(empresa, message);
         const bench = await benchmarkClientes(keywords);
         if (bench.ok) enrichments.push(formatarBenchmarkParaPrompt(bench, empresa));
@@ -390,6 +356,7 @@ export const sendMessageToGemini = async (
     
     if (enrichments.length > 0) messageToSend = enrichments.join('\n') + `\n\nUSUÁRIO: ${message}`;
 
+    onStatus?.("Conectando ao modelo de IA para geração do dossiê...");
     const result = await chatSession.sendMessageStream({ message: messageToSend });
     let rawAccumulator = '';
     let lastEmittedStatus = '';
@@ -404,10 +371,8 @@ export const sendMessageToGemini = async (
         groundingChunks = [...groundingChunks, ...chunk.candidates[0].groundingMetadata.groundingChunks];
       }
 
-      // Parsear marcadores em tempo real
       const parsed = parseMarkers(rawAccumulator);
       
-      // Emitir status
       if (parsed.statuses.length > 0) {
         const lastStatus = parsed.statuses[parsed.statuses.length - 1];
         if (lastStatus !== lastEmittedStatus) {
@@ -416,7 +381,6 @@ export const sendMessageToGemini = async (
         }
       }
       
-      // Emitir score PORTA
       if (parsed.scorePorta && parsed.scorePorta !== lastEmittedScore) {
         onScorePorta?.(parsed.scorePorta);
         lastEmittedScore = parsed.scorePorta;
@@ -437,7 +401,8 @@ export const sendMessageToGemini = async (
   };
 
   try {
-    const responseData = await withAutoRetry('Gemini:Stream', apiCall, { maxRetries: 3 });
+    const responseData = await withAutoRetry('Gemini:Stream', apiCall, { maxRetries: 2 });
+    onStatus?.("Gerando ganchos comerciais finais...");
     const suggestions = await generateFallbackSuggestions(message, responseData.text, systemInstruction.includes("Operação"));
 
     const { empresa } = await extractCompanyName(message);
@@ -464,7 +429,7 @@ export const generateNewSuggestions = async (contextText: string, previousSugges
   const ai = getGenAI();
   try {
     const response = await ai.models.generateContent({
-      model: FAST_MODEL_ID, 
+      model: ROUTER_MODEL_ID, 
       contents: [{
         role: "user",
         parts: [{ text: `CONTEXTO:\n${contextText}\n\nEVITAR: ${previousSuggestions.join(', ')}\nGere 3 perguntas JSON.` }]
@@ -497,9 +462,9 @@ export const generateConsolidatedDossier = async (history: Message[], systemInst
   const prompt = `Consolide este histórico para um relatório tipo ${reportType}: ${history.map(m => m.text).join('\n')}`;
   try {
     const response = await ai.models.generateContent({
-      model: BEST_MODEL_ID,
+      model: TACTICAL_MODEL_ID,
       contents: prompt,
-      config: { systemInstruction, temperature: 0.2, thinkingConfig: { thinkingBudget: 24576 } }
+      config: { systemInstruction, temperature: 0.2 }
     });
     return response.text || "Erro na consolidação.";
   } catch (error) { throw normalizeAppError(error, 'GEMINI'); }
