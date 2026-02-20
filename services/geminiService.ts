@@ -1,5 +1,5 @@
 import { GoogleGenAI, Chat, Content, Type } from "@google/genai";
-import { AppError, ReportType, Sender } from '../types';
+import { AppError, ReportType, Sender, ScorePortaData, ParsedContent } from '../types';
 import { ChatMode } from '../constants';
 import { normalizeAppError } from '../utils/errorHelpers';
 import { withAutoRetry } from '../utils/retry';
@@ -14,6 +14,7 @@ export interface GeminiRequestOptions {
   signal?: AbortSignal;
   onText?: (text: string) => void;
   onStatus?: (status: string) => void;
+  onScorePorta?: (score: ScorePortaData) => void;
 }
 
 const BEST_MODEL_ID = 'gemini-3-pro-preview';
@@ -34,6 +35,138 @@ PROIBIÇÕES:
 
 Responda EXCLUSIVAMENTE em Português (Brasil) usando um Array JSON de strings.
 `;
+
+// ===================================================================
+// FUNÇÕES DE PARSING
+// ===================================================================
+
+/**
+ * Parser para extrair marcadores especiais do texto
+ */
+export function parseMarkers(content: string): ParsedContent {
+  let text = content;
+  const statuses: string[] = [];
+  let scorePorta: ScorePortaData | null = null;
+
+  // Extrair e remover marcadores de status [[STATUS:...]]
+  const statusRegex = /\[\[STATUS:([^\]]+)\]\]/g;
+  let statusMatch;
+  while ((statusMatch = statusRegex.exec(content)) !== null) {
+    statuses.push(statusMatch[1]);
+    text = text.replace(statusMatch[0], '');
+  }
+
+  // Extrair e remover marcador PORTA [[PORTA:SCORE:P:O:R:T:A]]
+  const portaRegex = /\[\[PORTA:(\d+):P(\d+):O(\d+):R(\d+):T(\d+):A(\d+)\]\]/;
+  const portaMatch = text.match(portaRegex);
+  if (portaMatch) {
+    scorePorta = {
+      score: parseInt(portaMatch[1]),
+      p: parseInt(portaMatch[2]),
+      o: parseInt(portaMatch[3]),
+      r: parseInt(portaMatch[4]),
+      t: parseInt(portaMatch[5]),
+      a: parseInt(portaMatch[6]),
+    };
+    text = text.replace(portaMatch[0], '');
+  }
+
+  text = text.replace(/^\s*\n/gm, '\n').trim();
+  return { text, statuses, scorePorta };
+}
+
+// ===================================================================
+// NOVO: SISTEMA DE CONTEXTO ISOLADO POR EMPRESA
+// ===================================================================
+
+// Cache global para rastrear contexto atual
+let currentCompanyContext: {
+  empresa: string;
+  sessionId: string;
+  timestamp: number;
+} | null = null;
+
+/**
+ * Gera lembrete de contexto para evitar alucinação
+ * MELHORADO: Agora valida se houve mudança de empresa
+ */
+export function generateContextReminder(
+  companyName: string | null, 
+  sessionId?: string
+): string {
+  if (!companyName) return '';
+  
+  const now = Date.now();
+  
+  // Verificar se houve mudança de contexto
+  if (currentCompanyContext && currentCompanyContext.empresa !== companyName) {
+    // CONTEXTO MUDOU - emitir alerta no sistema
+    console.warn(`[CONTEXTO] Mudança detectada: "${currentCompanyContext.empresa}" → "${companyName}"`);
+    
+    // Invalidar contexto anterior
+    currentCompanyContext = {
+      empresa: companyName,
+      sessionId: sessionId || 'unknown',
+      timestamp: now
+    };
+    
+    // Retornar instrução explícita para ignorar dados anteriores
+    return `
+
+⚠️ [TROCA DE CONTEXTO DETECTADA]: O usuário mudou de "${currentCompanyContext.empresa}" para "${companyName}".
+- IGNORE TODOS os dados de empresas anteriores.
+- NÃO mencione nenhuma empresa que não seja "${companyName}".
+- Se encontrar dados de outra empresa no histórico, DESCARTE.
+- Foco 100% em: ${companyName}
+`;
+  }
+  
+  // Atualizar contexto atual
+  currentCompanyContext = {
+    empresa: companyName,
+    sessionId: sessionId || 'unknown',
+    timestamp: now
+  };
+  
+  return `
+
+📌 [CONTEXTO ATIVO]: Você está investigando a empresa "${companyName}".
+- Mantenha foco TOTAL nesta empresa.
+- NÃO misture com dados de outras empresas.
+- Se detectar inconsistência, ALERTAR: "⚠️ Dados inconsistentes detectados. Mantendo foco em ${companyName}."
+- NUNCA cite nomes de empresas que não foram mencionados pelo usuário.
+`;
+}
+
+/**
+ * Reseta o contexto ao trocar de sessão
+ */
+export function resetCompanyContext(): void {
+  currentCompanyContext = null;
+  console.log('[CONTEXTO] Resetado');
+}
+
+/**
+ * Extrai sugestões do texto da resposta
+ */
+export function extractSuggestionsFromResponse(content: string): string[] {
+  const suggestions: string[] = [];
+  const suggestionsMatch = content.match(/\*\*Sugestões\*\*\n([\s\S]*?)(?=\n---|\n\*\*|$)/i);
+  if (suggestionsMatch) {
+    const lines = suggestionsMatch[1].split('\n');
+    lines.forEach(line => {
+      const match = line.match(/^-\s*"([^"]+)"/);
+      if (match) {
+        suggestions.push(match[1]);
+      }
+    });
+  }
+  return suggestions;
+}
+
+// ===================================================================
+// QUICK ACTIONS REMOVIDAS DAQUI - AGORA ESTÃO NO ChatInterface.tsx
+// ===================================================================
 
 let genAI: GoogleGenAI | null = null;
 
@@ -129,12 +262,14 @@ export const createChatSession = (
       - JAMAIS use introduções fixas ("O Grupo X é pioneiro...", "Iniciando análise").
       - Vá direto aos fatos novos e táticos.
       - PROIBIDO repetir informações já presentes no histórico acima.
+      - PROIBIDO mencionar empresas que não estão no contexto atual.
       
       # FORMATO DE LINKS
       Ao citar fontes, USE SEMPRE links markdown clicáveis:
       - Formato: [texto descritivo](URL)
       - Exemplo: "A empresa faturou R$ 2 bi [segundo Valor Econômico](https://...)"
       - NUNCA use URLs soltas. SEMPRE encapsule em link markdown.
+      - NUNCA invente URLs. Se não tiver a URL real, use [Fonte: Nome da Fonte] sem link.
     `,
     temperature: 0.15,
     tools: tools.length > 0 ? tools : undefined,
@@ -147,7 +282,10 @@ export const createChatSession = (
   return ai.chats.create({ model: modelId, config: config, history: sdkHistory });
 };
 
-export const resetChatSession = () => {};
+export const resetChatSession = () => {
+  // NOVO: Resetar contexto ao resetar sessão
+  resetCompanyContext();
+};
 
 const extractCompanyName = async (msg: string): Promise<{ empresa: string | null; benchmark: boolean }> => {
   if (!msg || msg.trim().length < 5) return { empresa: null, benchmark: false };
@@ -190,9 +328,6 @@ export const generateLoadingCuriosities = async (context: string): Promise<strin
   } catch { return []; }
 };
 
-// ============================================================
-// FUNÇÃO QUE FALTAVA - DEFINIDA AQUI!
-// ============================================================
 const generateFallbackSuggestions = async (lastUserText: string, botResponseText: string, isOperacao: boolean): Promise<string[]> => {
   try {
     const ai = getGenAI();
@@ -225,8 +360,8 @@ export const sendMessageToGemini = async (
   history: Message[],
   systemInstruction: string, 
   options: GeminiRequestOptions = {}
-): Promise<{ text: string; sources: Array<{title: string, url: string}>, suggestions: string[] }> => {
-  const { useGrounding = true, thinkingMode = true, signal, onText, onStatus } = options;
+): Promise<{ text: string; sources: Array<{title: string, url: string}>, suggestions: string[], scorePorta: ScorePortaData | null, statuses: string[] }> => {
+  const { useGrounding = true, thinkingMode = true, signal, onText, onStatus, onScorePorta } = options;
 
   const apiCall = async () => {
     const chatSession = createChatSession(systemInstruction, history, BEST_MODEL_ID, useGrounding, thinkingMode);
@@ -236,9 +371,16 @@ export const sendMessageToGemini = async (
     let enrichments: string[] = [];
     const { empresa, benchmark } = await extractCompanyName(message);
     
+    // NOVO: Gerar contexto com sessionId se disponível
+    const sessionId = currentCompanyContext?.sessionId;
+    
     if (empresa) {
       const lookup = await lookupCliente(empresa);
       enrichments.push(lookup.encontrado ? formatarParaPrompt(lookup) : `\n[Lookup: "${empresa}" não encontrado na base interna]\n`);
+      
+      // NOVO: Adicionar contexto com validação de mudança
+      enrichments.push(generateContextReminder(empresa, sessionId));
+      
       if (benchmark || message.includes('investigar')) {
         const keywords = await generateBenchmarkKeywords(empresa, message);
         const bench = await benchmarkClientes(keywords);
@@ -251,6 +393,7 @@ export const sendMessageToGemini = async (
     const result = await chatSession.sendMessageStream({ message: messageToSend });
     let rawAccumulator = '';
     let lastEmittedStatus = '';
+    let lastEmittedScore: ScorePortaData | null = null;
     let groundingChunks: any[] = [];
 
     for await (const chunk of result) {
@@ -261,19 +404,35 @@ export const sendMessageToGemini = async (
         groundingChunks = [...groundingChunks, ...chunk.candidates[0].groundingMetadata.groundingChunks];
       }
 
-      const { cleanText, lastStatus } = cleanStatusMarkers(rawAccumulator);
-      if (lastStatus && lastStatus !== lastEmittedStatus) {
-        onStatus?.(lastStatus);
-        lastEmittedStatus = lastStatus;
+      // Parsear marcadores em tempo real
+      const parsed = parseMarkers(rawAccumulator);
+      
+      // Emitir status
+      if (parsed.statuses.length > 0) {
+        const lastStatus = parsed.statuses[parsed.statuses.length - 1];
+        if (lastStatus !== lastEmittedStatus) {
+          onStatus?.(lastStatus);
+          lastEmittedStatus = lastStatus;
+        }
       }
+      
+      // Emitir score PORTA
+      if (parsed.scorePorta && parsed.scorePorta !== lastEmittedScore) {
+        onScorePorta?.(parsed.scorePorta);
+        lastEmittedScore = parsed.scorePorta;
+      }
+
+      const { cleanText } = cleanStatusMarkers(rawAccumulator);
       onText?.(cleanText.replace(/\[\[?S?T?A?T?U?S?:?.*$/, ''));
     }
 
-    const finalClean = cleanStatusMarkers(rawAccumulator);
+    const finalParsed = parseMarkers(rawAccumulator);
     return {
-      text: finalClean.cleanText,
+      text: finalParsed.text,
       sources: groundingChunks.filter(c => c.web?.uri).map(c => ({ title: getReadableTitle(c.web), url: c.web.uri })),
       suggestions: [],
+      scorePorta: finalParsed.scorePorta,
+      statuses: finalParsed.statuses,
     };
   };
 
@@ -286,8 +445,8 @@ export const sendMessageToGemini = async (
       addInvestigation({
         id: Date.now().toString(),
         empresa,
-        score: 75,
-        scoreLabel: "ANALISADO",
+        score: responseData.scorePorta?.score || 75,
+        scoreLabel: responseData.scorePorta ? `${responseData.scorePorta.score}/100` : "ANALISADO",
         gaps: [], familias: [],
         isCliente: responseData.text.includes("✅ SIM"),
         modo: systemInstruction.includes("Operação") ? "Operação" : "Diretoria",

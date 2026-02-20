@@ -12,8 +12,52 @@ import MessageActionsBar from './MessageActionsBar';
 import DeepDiveTopics from './DeepDiveTopics';
 import InvestigationDashboard from './InvestigationDashboard';
 import SettingsDrawer from './SettingsDrawer';
-import { cleanTitle, extractSources } from '../utils/textCleaners';
+import ScorePorta from './ScorePorta';
+import StatusIndicator, { InvestigationProgress } from './StatusIndicator';
+import { cleanTitle, extractSources, extractAllLinksFromMarkdown } from '../utils/textCleaners';
 import { isFakeUrl } from '../services/apiConfig';
+
+// ===================================================================
+// QUICK ACTIONS - 4 botões (AGORA PREENCHEM O INPUT)
+// ===================================================================
+const QUICK_ACTIONS = [
+  { icon: "🎯", label: "Comparar", prompt: "Compare com o principal concorrente dessa empresa" },
+  { icon: "💰", label: "Budget", prompt: "Qual o budget estimado para implementação completa com ERP, HCM e GAtec?" },
+  { icon: "💡", label: "Abordagem", prompt: "Me sugira a melhor abordagem para esse decisor" },
+  { icon: "✨", label: "Senior", prompt: "Como os produtos Senior resolveriam as dores dessa empresa?" },
+];
+
+// ===================================================================
+// FUNÇÃO PARA EXTRAIR SUGESTÕES (do módulo de continuidade)
+// ===================================================================
+function extractDisplayedSuggestions(content: string): string[] {
+  const suggestions: string[] = [];
+  
+  // Procura pelo bloco de sugestões em diferentes formatos
+  const patterns = [
+    // Formato: **Sugestões** ou **🔎 O que você quer descobrir agora?**
+    /\*\*(?:Sugestões|🔎\s*O que você quer descobrir agora\?)\*\*\n([\s\S]*?)(?=\n---|\n\*\*|$)/i,
+    // Formato com lista
+    /(?:Sugestões|Próximos passos)[:\s]*\n([\s\S]*?)(?=\n---|\n\*\*|$)/i,
+  ];
+  
+  for (const pattern of patterns) {
+    const match = content.match(pattern);
+    if (match) {
+      const lines = match[1].split('\n');
+      lines.forEach(line => {
+        // Extrai texto de bullets: * "texto" ou - "texto"
+        const bulletMatch = line.match(/^[\*\-]\s*["']?([^"'\n]+)["']?/);
+        if (bulletMatch && bulletMatch[1].trim().length > 5) {
+          suggestions.push(bulletMatch[1].trim().replace(/["']$/, ''));
+        }
+      });
+      if (suggestions.length > 0) break;
+    }
+  }
+  
+  return suggestions.slice(0, 4); // Máximo 4 sugestões
+}
 
 const ChatInterface: React.FC<ChatInterfaceProps> = ({
   currentSession,
@@ -65,6 +109,13 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
   const [input, setInput] = useState('');
   const [showDashboard, setShowDashboard] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  
+  // Sugestões extraídas da resposta
+  const [displayedSuggestions, setDisplayedSuggestions] = useState<string[]>([]);
+  
+  // Status atual da investigação
+  const [currentStatus, setCurrentStatus] = useState<string | null>(null);
+  const [completedStatuses, setCompletedStatuses] = useState<string[]>([]);
 
   useLayoutEffect(() => {
     if (textareaRef.current) {
@@ -85,6 +136,30 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
     }
   }, [messages.length]);
 
+  // Atualizar sugestões e status quando a última mensagem muda
+  useEffect(() => {
+    if (messages.length > 0) {
+      const lastMessage = messages[messages.length - 1];
+      if (lastMessage.sender === Sender.Bot && !lastMessage.isThinking && !lastMessage.isError) {
+        const suggestions = extractDisplayedSuggestions(lastMessage.text);
+        setDisplayedSuggestions(suggestions);
+        
+        // Atualizar status
+        if (lastMessage.statuses && lastMessage.statuses.length > 0) {
+          setCompletedStatuses(lastMessage.statuses);
+          setCurrentStatus(lastMessage.statuses[lastMessage.statuses.length - 1]);
+        }
+      }
+    }
+  }, [messages]);
+
+  // Limpar status ao trocar de sessão
+  useEffect(() => {
+    setCompletedStatuses([]);
+    setCurrentStatus(null);
+    setDisplayedSuggestions([]);
+  }, [currentSession?.id]);
+
   const handleSend = () => {
     if (!input.trim() || isLoading) return;
     onSendMessage(input);
@@ -97,6 +172,30 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
       e.preventDefault();
       handleSend();
     }
+  };
+
+  // ===========================================================
+  // MUDANÇA: Quick Actions agora PREENCHEM o input
+  // ===========================================================
+  const handleQuickActionClick = (prompt: string) => {
+    setInput(prompt);
+    textareaRef.current?.focus();
+  };
+
+  // ===========================================================
+  // MUDANÇA: Sugestões agora PREENCHEM o input
+  // ===========================================================
+  const handleSuggestionClick = (suggestion: string) => {
+    setInput(suggestion);
+    textareaRef.current?.focus();
+  };
+
+  // ===========================================================
+  // MUDANÇA: DeepDive agora PREENCHE o input (callback passado)
+  // ===========================================================
+  const handleDeepDiveClick = (prompt: string) => {
+    setInput(prompt);
+    textareaRef.current?.focus();
   };
 
   const handleCopyMarkdown = () => {
@@ -265,21 +364,33 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
 
                       {isBot ? (
                         <>
-                           {/* AQUI ESTÁ A CHAVE: Passamos onRegenerateSuggestions para o SectionalBotMessage */}
+                           {/* Score PORTA se disponível */}
+                           {msg.scorePorta && (
+                             <ScorePorta 
+                               score={msg.scorePorta.score}
+                               p={msg.scorePorta.p}
+                               o={msg.scorePorta.o}
+                               r={msg.scorePorta.r}
+                               t={msg.scorePorta.t}
+                               a={msg.scorePorta.a}
+                             />
+                           )}
+                           
                            <SectionalBotMessage 
                                 message={{...msg, groundingSources: displaySources}}
                                 sessionId={currentSession?.id}
                                 userId={typeof userId === 'string' ? userId : undefined}
                                 isDarkMode={isDarkMode}
                                 mode={mode}
-                                onSendMessage={onSendMessage}
+                                onPreFillInput={setInput}
                                 onRegenerateSuggestions={onRegenerateSuggestions}
                            />
                            
                            {isLast && !isLoading && (
                              <DeepDiveTopics 
-                               onDeepDive={(prompt, label) => onSendMessage(prompt, label)} 
-                               isDarkMode={isDarkMode} 
+                               onDeepDive={handleDeepDiveClick}
+                               isDarkMode={isDarkMode}
+                               empresaContext={currentSession?.empresaAlvo || currentSession?.title}
                              />
                            )}
 
@@ -295,22 +406,42 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                            />
 
                            {msg.isSourcesOpen && displaySources.length > 0 && (
-                             <div className={`mt-3 p-3 rounded-lg border text-xs animate-slide-in ${isDarkMode ? 'bg-slate-800/50 border-slate-700' : 'bg-slate-50 border-slate-200'}`}>
-                               <div className="flex items-center gap-2 mb-2 pb-2 border-b border-gray-500/20">
-                                 <span className="text-emerald-500">📚</span>
-                                 <span className={`font-bold ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>Fontes e Referências</span>
+                             <div className={`mt-3 p-4 rounded-xl border animate-slide-in ${isDarkMode ? 'bg-slate-800/80 border-slate-700' : 'bg-gradient-to-br from-slate-50 to-white border-slate-200'}`}>
+                               <div className="flex items-center justify-between mb-3 pb-2 border-b border-gray-500/20">
+                                 <div className="flex items-center gap-2">
+                                   <span className="text-lg">📚</span>
+                                   <span className={`font-bold ${isDarkMode ? 'text-slate-200' : 'text-slate-800'}`}>
+                                     Fontes e Referências
+                                   </span>
+                                 </div>
+                                 <span className={`text-xs px-2 py-1 rounded-full ${isDarkMode ? 'bg-emerald-900/50 text-emerald-300' : 'bg-emerald-100 text-emerald-700'}`}>
+                                   {displaySources.length} {displaySources.length === 1 ? 'fonte' : 'fontes'}
+                                 </span>
                                </div>
                                <div className="space-y-2">
                                  {displaySources.map((s, i) => (
-                                   <div key={i} className="flex items-start gap-2.5 group">
-                                     <span className="flex-shrink-0 w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[10px] font-bold mt-0.5 shadow-sm">{i + 1}</span>
+                                   <div key={i} className="flex items-start gap-3 group">
+                                     <span className="flex-shrink-0 w-6 h-6 rounded-full bg-gradient-to-br from-emerald-500 to-emerald-600 text-white flex items-center justify-center text-xs font-bold mt-0.5 shadow-sm">
+                                       {i + 1}
+                                     </span>
                                      <div className="flex-1 min-w-0">
-                                     {s.url && !isFakeUrl(s.url) ? (
-                                       <a href={s.url} target="_blank" rel="noopener noreferrer" className="block text-emerald-500 hover:text-emerald-400 hover:underline font-medium break-all leading-tight transition-colors">{s.title}</a>
-                                     ) : (
-                                       <span className="block text-emerald-500 font-medium break-all leading-tight">{s.title}</span>
-                                     )}
-                                     {s.url && !isFakeUrl(s.url) && (<span className={`text-[10px] block mt-0.5 truncate opacity-60 ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>{s.url}</span>)}
+                                       {s.url && !isFakeUrl(s.url) ? (
+                                         <a 
+                                           href={s.url} 
+                                           target="_blank" 
+                                           rel="noopener noreferrer" 
+                                           className="block text-emerald-600 hover:text-emerald-500 hover:underline font-medium break-all leading-tight transition-colors"
+                                         >
+                                           {s.title}
+                                         </a>
+                                       ) : (
+                                         <span className="block text-emerald-600 font-medium break-all leading-tight">{s.title}</span>
+                                       )}
+                                       {s.url && !isFakeUrl(s.url) && (
+                                         <span className={`text-[10px] block mt-1 truncate opacity-60 ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                                           {s.url}
+                                         </span>
+                                       )}
                                      </div>
                                    </div>
                                  ))}
@@ -333,15 +464,68 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                 onStop={isLoading ? onStop : undefined}
                 processing={processing}
                 searchQuery={lastUserQuery}
+                currentStatus={currentStatus}
+                completedStatuses={completedStatuses}
               />
               <div ref={messagesEndRef} />
             </div>
           )}
         </div>
 
+        {/* ======================================================= */}
+        {/* SUGESTÕES EXTRAÍDAS DA RESPOSTA - AGORA PREENCHEM INPUT */}
+        {/* ======================================================= */}
+        {displayedSuggestions.length > 0 && !isLoading && (
+          <div className={`px-4 py-3 border-t ${isDarkMode ? 'border-slate-800 bg-slate-900/50' : 'border-slate-200 bg-slate-50'}`}>
+            <p className={`text-xs mb-2 font-medium ${isDarkMode ? 'text-gray-400' : 'text-slate-500'}`}>
+              💡 Sugestões de aprofundamento:
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {displayedSuggestions.map((suggestion, index) => (
+                <button
+                  key={index}
+                  onClick={() => handleSuggestionClick(suggestion)}
+                  className={`text-xs px-3 py-2 rounded-lg transition-all text-left hover:scale-105 ${
+                    isDarkMode 
+                      ? 'bg-slate-800 hover:bg-emerald-900/30 text-gray-300 border border-slate-700 hover:border-emerald-600' 
+                      : 'bg-white hover:bg-emerald-50 text-slate-600 border border-slate-200 hover:border-emerald-400 shadow-sm'
+                  }`}
+                >
+                  {suggestion}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ======================================================= */}
+        {/* QUICK ACTIONS - CENTRALIZADAS - AGORA PREENCHEM INPUT */}
+        {/* ======================================================= */}
+        {!isLoading && messages.length > 0 && (
+          <div className={`px-4 py-3 border-t ${isDarkMode ? 'border-slate-800 bg-slate-900/50' : 'border-slate-200 bg-slate-50'}`}>
+            <div className="flex items-center justify-center gap-3 flex-wrap">
+              {QUICK_ACTIONS.map((qa) => (
+                <button
+                  key={qa.label}
+                  onClick={() => handleQuickActionClick(qa.prompt)}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all text-sm font-medium hover:scale-105 ${
+                    isDarkMode 
+                      ? 'bg-slate-800 hover:bg-emerald-900/30 text-gray-200 border border-slate-700 hover:border-emerald-600' 
+                      : 'bg-white hover:bg-emerald-50 text-slate-700 border border-slate-200 hover:border-emerald-400 shadow-sm'
+                  }`}
+                >
+                  <span className="text-base">{qa.icon}</span>
+                  <span>{qa.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ÁREA DE INPUT */}
         <div className={`p-4 md:p-6 border-t ${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-white border-slate-200'} z-20`}>
           <div className="w-full max-w-5xl xl:max-w-6xl mx-auto px-2 md:px-6 lg:px-8">
-            <div className={`relative flex items-end w-full rounded-xl border px-3 py-2 ${isDarkMode ? 'border-gray-700/30 bg-gray-800/50' : 'border-gray-300 bg-white'}`}>
+            <div className={`relative flex items-end w-full rounded-xl border px-4 py-3 ${isDarkMode ? 'border-gray-700/30 bg-gray-800/50' : 'border-gray-300 bg-white'}`}>
               <textarea
                 ref={textareaRef}
                 value={input}
@@ -356,13 +540,19 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
               <button
                 onClick={handleSend}
                 disabled={!input.trim() || isLoading}
-                className={`absolute right-2 bottom-2 w-8 h-8 flex items-center justify-center rounded-lg transition-all shadow-sm ${!input.trim() || isLoading ? (isDarkMode ? 'bg-slate-800 text-slate-600' : 'bg-slate-200 text-slate-400') : 'bg-emerald-600 hover:bg-emerald-500 text-white hover:scale-105 active:scale-95 shadow-emerald-500/20'}`}
+                className={`absolute right-2 bottom-2 w-9 h-9 flex items-center justify-center rounded-xl transition-all shadow-md ${
+                  !input.trim() || isLoading 
+                    ? (isDarkMode ? 'bg-slate-800 text-slate-600' : 'bg-slate-200 text-slate-400') 
+                    : 'bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-white hover:scale-110 active:scale-95 shadow-emerald-500/30'
+                }`}
               >
-                {isLoading ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <span className="text-sm">➤</span>}
+                {isLoading ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <span className="text-lg">➤</span>}
               </button>
             </div>
             <div className="text-center mt-2">
-               <p className={`text-[10px] ${isDarkMode ? 'text-slate-600' : 'text-slate-400'}`}>Senior Scout 360 pode cometer erros. Verifique dados críticos.</p>
+               <p className={`text-[10px] ${isDarkMode ? 'text-slate-600' : 'text-slate-400'}`}>
+                 Senior Scout 360 pode cometer erros. Verifique dados críticos.
+               </p>
             </div>
           </div>
         </div>

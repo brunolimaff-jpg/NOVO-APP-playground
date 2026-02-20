@@ -1,5 +1,5 @@
 {
-  "name": "copy-of-senior-scout-36022",
+  "name": "mvp-rodando---scout",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -16,7 +16,8 @@
     "react-markdown": "9",
     "remark-gfm": "4",
     "remark-breaks": "4",
-    "rehype-raw": "7"
+    "rehype-raw": "7",
+    "framer-motion": "^12.34.2"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

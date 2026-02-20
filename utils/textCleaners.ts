@@ -1,6 +1,6 @@
 /**
  * textCleaners.ts - Utilitários para limpeza e formatação de texto
- * VERSÃO ATUALIZADA: Preserva fontes para exportação
+ * VERSÃO CONSOLIDADA: Remove duplicações com linkFixer.ts
  */
 
 /**
@@ -79,7 +79,7 @@ export function cleanStatusMarkers(text: string): { cleanText: string; lastStatu
 }
 
 // ============================================
-// SOURCE EXTRACTION (NOVO)
+// SOURCE EXTRACTION
 // ============================================
 
 export interface SourceRef {
@@ -90,6 +90,7 @@ export interface SourceRef {
 
 /**
  * Extrai fontes do texto de forma estruturada.
+ * NOTA: Para extração completa de links, use extractAllLinksFromMarkdown
  */
 export function extractSources(text: string): SourceRef[] {
   const sources: SourceRef[] = [];
@@ -161,7 +162,7 @@ export function extractSources(text: string): SourceRef[] {
 
 /**
  * Extrai TODOS os links markdown do texto (não só do bloco de fontes).
- * NOVO: Para usar na exportação e garantir que links inline sejam preservados.
+ * Usado para gerar lista de fontes na exportação.
  */
 export function extractAllLinksFromMarkdown(text: string): SourceRef[] {
   const links: SourceRef[] = [];
@@ -195,7 +196,7 @@ export function removeSourcesBlock(text: string): string {
 }
 
 /**
- * NOVO: Formata lista de fontes para inclusão no PDF/DOC.
+ * Formata lista de fontes para inclusão no PDF/DOC.
  */
 export function formatSourcesForExport(sources: SourceRef[]): string {
   if (!sources || sources.length === 0) return '';

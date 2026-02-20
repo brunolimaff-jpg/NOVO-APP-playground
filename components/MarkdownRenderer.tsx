@@ -6,7 +6,7 @@ import rehypeRaw from 'rehype-raw';
 import { autoLinkSeniorTerms } from '../utils/seniorLinks';
 import { rewriteMarkdownLinksToGoogle } from '../utils/markdownLinks';
 import { cleanStatusMarkers } from '../utils/textCleaners';
-import { fixFakeLinks } from '../utils/linkFixer';
+import { fixFakeLinks, extractAllSourceMentions } from '../utils/linkFixer';
 import { isFakeUrl } from '../services/apiConfig';
 
 interface MarkdownRendererProps {
@@ -132,6 +132,126 @@ const PortaScoreBadge: React.FC<PortaScoreProps> = ({ score, p, o, r, t, a, isDa
   );
 };
 
+// --- Seção de Fontes ---
+interface SourcesSectionProps {
+  sources: Array<{ title: string; url?: string }>;
+  isDarkMode: boolean;
+}
+
+const SourcesSection: React.FC<SourcesSectionProps> = ({ sources, isDarkMode }) => {
+  if (!sources || sources.length === 0) return null;
+
+  // Agrupar fontes por tipo
+  const sourcesWithUrl = sources.filter(s => s.url && !isFakeUrl(s.url));
+  const sourcesWithoutUrl = sources.filter(s => !s.url || isFakeUrl(s.url));
+
+  return (
+    <div style={{
+      marginTop: '20px',
+      padding: '16px',
+      borderRadius: '12px',
+      border: `1px solid ${isDarkMode ? '#334155' : '#e2e8f0'}`,
+      background: isDarkMode ? '#1e293b' : '#f8fafc',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{ fontSize: '18px' }}>📚</span>
+          <span style={{ fontSize: '14px', fontWeight: 700, color: isDarkMode ? '#e2e8f0' : '#1e293b' }}>
+            Fontes e Referências
+          </span>
+        </div>
+        <span style={{
+          fontSize: '12px',
+          padding: '4px 8px',
+          borderRadius: '12px',
+          background: '#05966920',
+          color: '#059669',
+          fontWeight: 600,
+        }}>
+          {sources.length} {sources.length === 1 ? 'fonte' : 'fontes'}
+        </span>
+      </div>
+
+      {/* Fontes com link */}
+      {sourcesWithUrl.length > 0 && (
+        <div style={{ marginBottom: sourcesWithoutUrl.length > 0 ? '16px' : 0 }}>
+          <div style={{ fontSize: '11px', color: isDarkMode ? '#94a3b8' : '#64748b', marginBottom: '8px', fontWeight: 600 }}>
+            🔗 Links disponíveis
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            {sourcesWithUrl.map((s, i) => (
+              <a
+                key={i}
+                href={s.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '8px',
+                  padding: '8px 12px',
+                  borderRadius: '8px',
+                  background: isDarkMode ? '#0f172a' : '#ffffff',
+                  textDecoration: 'none',
+                  transition: 'all 0.2s',
+                }}
+              >
+                <span style={{
+                  minWidth: '20px',
+                  height: '20px',
+                  borderRadius: '50%',
+                  background: '#059669',
+                  color: '#fff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '10px',
+                  fontWeight: 700,
+                }}>
+                  {i + 1}
+                </span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ color: '#059669', fontWeight: 500, fontSize: '13px', wordBreak: 'break-word' }}>
+                    {s.title}
+                  </div>
+                  <div style={{ color: isDarkMode ? '#64748b' : '#94a3b8', fontSize: '10px', marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {s.url}
+                  </div>
+                </div>
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Fontes sem link */}
+      {sourcesWithoutUrl.length > 0 && (
+        <div>
+          <div style={{ fontSize: '11px', color: isDarkMode ? '#94a3b8' : '#64748b', marginBottom: '8px', fontWeight: 600 }}>
+            📖 Mencionadas
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+            {sourcesWithoutUrl.map((s, i) => (
+              <span
+                key={i}
+                style={{
+                  padding: '4px 10px',
+                  borderRadius: '6px',
+                  background: isDarkMode ? '#334155' : '#e2e8f0',
+                  color: isDarkMode ? '#cbd5e1' : '#475569',
+                  fontSize: '12px',
+                }}
+              >
+                {s.title}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 // --- Pré-processamento ---
 function preprocessFootnotes(text: string): string {
   return text
@@ -158,32 +278,45 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, isDarkMode
     // 1. Fix fake links (MANTÉM links válidos!)
     text = fixFakeLinks(text);
 
-    // 2. NÃO remover bloco de fontes - deixe os links aparecerem!
-    // REMOVIDO: text = removeSourcesBlock(text);
-
-    // 3. Fix double dashes
+    // 2. Fix double dashes
     text = text.replace(/^--+$/gm, `<hr class="${theme.hr} my-8" />`);
 
-    // 4. Rewrite links (mapeia Senior links)
+    // 3. Rewrite links (mapeia Senior links)
     text = rewriteMarkdownLinksToGoogle(text);
     
-    // 5. Auto-link Senior terms
+    // 4. Auto-link Senior terms
     text = autoLinkSeniorTerms(text);
 
-    // 6. Fix bold
+    // 5. Fix bold
     text = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
 
-    // 7. PORTA score
+    // 6. PORTA score
     text = text.replace(
       /\[\[PORTA:(\d+):P(\d+):O(\d+):R(\d+):T(\d+):A(\d+)\]\]/g,
       '<porta-score data-score="$1" data-p="$2" data-o="$3" data-r="$4" data-t="$5" data-a="$6"></porta-score>'
     );
 
-    // 8. Footnotes
+    // 7. Footnotes
     text = preprocessFootnotes(text);
 
     return text;
   }, [content, theme.hr]);
+
+  // Extrair todas as fontes para exibição
+  const allSources = useMemo(() => {
+    const extracted = extractAllSourceMentions(content);
+    const grounding = groundingSources || [];
+    
+    // Combinar e remover duplicatas
+    const combined = [...grounding];
+    extracted.forEach(s => {
+      if (!combined.find(c => c.title === s.title && c.url === s.url)) {
+        combined.push(s);
+      }
+    });
+    
+    return combined;
+  }, [content, groundingSources]);
 
   return (
     <div className={`markdown-body ${theme.textNormal} w-full max-w-full overflow-visible text-base md:text-lg`}>
@@ -216,7 +349,7 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, isDarkMode
           li: ({...props}) => <li className="pl-1" {...props} />,
           hr: ({...props}) => <hr className={`${theme.hr} my-6`} {...props} />,
           
-          // IMPORTANTE: Links clicáveis!
+          // Links clicáveis
           a: ({href, children, ...props}) => {
             if (!href || isFakeUrl(href)) {
               return <strong className="text-emerald-500 font-semibold">{children}</strong>;
@@ -249,6 +382,11 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, isDarkMode
       >
         {processedContent}
       </Markdown>
+      
+      {/* NOVO: Seção de fontes no final */}
+      {allSources.length > 0 && (
+        <SourcesSection sources={allSources} isDarkMode={isDarkMode} />
+      )}
     </div>
   );
 };

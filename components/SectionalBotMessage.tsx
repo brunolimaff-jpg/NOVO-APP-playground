@@ -11,10 +11,10 @@ interface SectionalBotMessageProps {
   sessionId?: string;
   userId?: string;
   isDarkMode: boolean;
-  mode?: ChatMode; 
-  onSendMessage?: (text: string) => void;
-  // NOVO: Callback para disparar a regeneração passando o ID correto da mensagem
-  onRegenerateSuggestions?: (messageId: string) => void; 
+  mode?: ChatMode;
+  // MUDANÇA: Callback para preencher o input (não enviar)
+  onPreFillInput?: (text: string) => void;
+  onRegenerateSuggestions?: (messageId: string) => void;
 }
 
 const SectionalBotMessage: React.FC<SectionalBotMessageProps> = ({
@@ -23,7 +23,7 @@ const SectionalBotMessage: React.FC<SectionalBotMessageProps> = ({
   userId,
   isDarkMode,
   mode = 'diretoria',
-  onSendMessage,
+  onPreFillInput,  // MUDANÇA: novo nome
   onRegenerateSuggestions
 }) => {
   const content = message.text || "";
@@ -35,13 +35,13 @@ const SectionalBotMessage: React.FC<SectionalBotMessageProps> = ({
   // 2. Parse Markdown Sections do texto limpo
   const sections = useMemo(() => parseMarkdownSections(cleanText), [cleanText]);
 
-  // ARQUITETURA DE ESTADO: Priorizamos as sugestões em tempo de execução (vindas do App.tsx).
-  // Se não houver, fazemos o fallback gracefully para as extraídas do Markdown original.
+  // ARQUITETURA DE ESTADO: Priorizamos as sugestões em tempo de execução
+  // Se não houver, fazemos fallback para as extraídas do Markdown original.
   const activeOptions = message.suggestions && message.suggestions.length > 0 
     ? message.suggestions 
     : parsedOptions;
 
-  // Extraímos o estado de loading da própria mensagem gerenciada pelo App.tsx
+  // Extraímos o estado de loading da própria mensagem
   const isRegenerating = Boolean(message.isRegeneratingSuggestions);
 
   // Helper para não poluir o JSX
@@ -60,10 +60,10 @@ const SectionalBotMessage: React.FC<SectionalBotMessageProps> = ({
             isDarkMode={isDarkMode} 
             groundingSources={message.groundingSources}
          />
-         {activeOptions.length > 0 && onSendMessage && (
+         {activeOptions.length > 0 && onPreFillInput && (
             <SmartOptions 
               options={activeOptions} 
-              onSelect={onSendMessage} 
+              onPreFillInput={onPreFillInput}  // MUDANÇA: preenche input
               isRegenerating={isRegenerating}
               onRegenerate={handleRegenerate}
             />
@@ -87,12 +87,12 @@ const SectionalBotMessage: React.FC<SectionalBotMessageProps> = ({
         </div>
       ))}
 
-      {/* Render Smart Options atualizado com injeção de estado de Loading */}
-      {activeOptions.length > 0 && onSendMessage && (
+      {/* Render Smart Options */}
+      {activeOptions.length > 0 && onPreFillInput && (
         <div className="pt-2 border-t border-dashed border-gray-500/20 mt-4">
            <SmartOptions 
               options={activeOptions} 
-              onSelect={onSendMessage} 
+              onPreFillInput={onPreFillInput}  // MUDANÇA: preenche input
               isRegenerating={isRegenerating}
               onRegenerate={handleRegenerate}
            />

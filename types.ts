@@ -1,4 +1,3 @@
-
 import React from 'react';
 
 export enum Sender {
@@ -29,13 +28,31 @@ export type ErrorSource = 'GEMINI' | 'BRASIL_API' | 'APPS_SCRIPT' | 'EXPORT' | '
 
 export interface AppError {
   code: ErrorCode;
-  message: string;          // Technical message (for logs/details)
-  friendlyMessage: string;  // UI message (default)
+  message: string;
+  friendlyMessage: string;
   httpStatus?: number;
-  retryable: boolean;       // Can be manually retried by user?
-  transient: boolean;       // Should auto-retry?
+  retryable: boolean;
+  transient: boolean;
   source: ErrorSource;
   details?: any;
+}
+
+// ===================================================================
+// NOVO: Score PORTA
+// ===================================================================
+export interface ScorePortaData {
+  score: number;
+  p: number;
+  o: number;
+  r: number;
+  t: number;
+  a: number;
+}
+
+export interface ParsedContent {
+  text: string;
+  statuses: string[];
+  scorePorta: ScorePortaData | null;
 }
 
 export interface Message {
@@ -48,26 +65,32 @@ export interface Message {
     title: string;
     url: string;
   }>;
-  feedback?: Feedback; // Global message feedback
-  sectionFeedback?: Record<string, Feedback>; // Granular feedback: { "Incentivos Fiscais": "up" }
+  feedback?: Feedback;
+  sectionFeedback?: Record<string, Feedback>;
   suggestions?: string[];
-  isRegeneratingSuggestions?: boolean; // Loading state for suggestions refresh
+  isRegeneratingSuggestions?: boolean;
   isError?: boolean;
-  errorDetails?: AppError; // Structured error details
-  isSourcesOpen?: boolean; // New UI state to track if sources are expanded
+  errorDetails?: AppError;
+  isSourcesOpen?: boolean;
+  // NOVO: Score PORTA
+  scorePorta?: ScorePortaData;
+  // NOVO: Statuses extraídos
+  statuses?: string[];
 }
 
 export interface ChatSession {
   id: string;
-  title: string; // Ex: "Grupo Amaggi - Cuiabá"
+  title: string;
   empresaAlvo: string | null;
   cnpj: string | null;
-  modoPrincipal: string | null; // "Overview", "Matador", "Padrão"
-  scoreOportunidade: number | null; // 0-100
+  modoPrincipal: string | null;
+  scoreOportunidade: number | null;
   resumoDossie: string | null;
-  createdAt: string; // ISO String
-  updatedAt: string; // ISO String
+  createdAt: string;
+  updatedAt: string;
   messages: Message[];
+  // NOVO: Contexto da empresa
+  companyContext?: string;
 }
 
 export interface ChatState {
@@ -77,7 +100,6 @@ export interface ChatState {
 }
 
 export interface ChatInterfaceProps {
-  // Session Props
   currentSession: ChatSession | null;
   sessions: ChatSession[];
   onNewSession: () => void;
@@ -85,52 +107,35 @@ export interface ChatInterfaceProps {
   onDeleteSession: (sessionId: string) => void;
   isSidebarOpen: boolean;
   onToggleSidebar: () => void;
-
-  // Messaging Props
   messages: Message[];
   isLoading: boolean;
   hasMore: boolean;
   onSendMessage: (text: string, displayText?: string) => void;
-  
-  // Feedback Props
-  onFeedback: (messageId: string, feedback: Feedback) => void; // Legacy local state update
-  onSendFeedback: (messageId: string, feedback: Feedback, comment: string, content: string) => void; // New Remote Feedback
-  
+  onFeedback: (messageId: string, feedback: Feedback) => void;
+  onSendFeedback: (messageId: string, feedback: Feedback, comment: string, content: string) => void;
   onSectionFeedback: (messageId: string, sectionTitle: string, feedback: Feedback) => void;
   onLoadMore: () => void;
-  
-  // Actions
   onExportConversation: (format: ExportFormat, reportType: ReportType) => void;
-  onExportPDF: () => void; // New explicit PDF handler
+  onExportPDF: () => void;
   onExportMessage: (messageId: string) => void;
   onRetry: () => void;
-  onClearChat: () => void; // Agora atua como "Salvar e Novo"
+  onClearChat: () => void;
   onRegenerateSuggestions: (messageId: string) => void;
-  onStop?: () => void; // Stop generation
+  onStop?: () => void;
   onReportError?: (messageId: string, error: AppError) => void;
-  
-  // Remote Save Actions
   onSaveRemote: () => void;
   isSavingRemote: boolean;
   remoteSaveStatus: 'idle' | 'success' | 'error';
-  
-  // Theme props
   isDarkMode: boolean;
   onToggleTheme: () => void;
   onToggleMessageSources: (messageId: string) => void;
-  
-  // Export States
   exportStatus: 'idle' | 'loading' | 'success' | 'error';
   exportError: string | null;
   pdfReportContent: string | null;
-  onOpenEmailModal: () => void; 
-  onOpenFollowUpModal: () => void; // New prop for FollowUp Modal
-
-  // Auth Props
+  onOpenEmailModal: () => void;
+  onOpenFollowUpModal: () => void;
   userId: React.ReactNode;
   onLogout: () => void;
-
-  // Context & Status Props
   lastUserQuery?: string;
   processing?: {
     stage?: string;
