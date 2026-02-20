@@ -148,61 +148,66 @@ function convertLinksToFootnotes(text: string, groundingSources: Array<{ title: 
   const urlToNum = new Map<string, number>();
   let counter = 0;
 
+  function getOrCreateNum(url: string, title: string): number {
+    let num = urlToNum.get(url);
+    if (!num) {
+      counter++;
+      num = counter;
+      urlToNum.set(url, num);
+      footnoteSources.push({ num, title, url });
+    }
+    return num;
+  }
+
   // Add grounding sources first
   for (const gs of groundingSources) {
     if (gs.url && !isFakeUrl(gs.url) && !urlToNum.has(gs.url)) {
-      counter++;
-      urlToNum.set(gs.url, counter);
-      footnoteSources.push({ num: counter, title: gs.title, url: gs.url });
+      getOrCreateNum(gs.url, gs.title);
     }
   }
 
-  // Replace [text](url) with text + <footnote>
+  // 1. Replace markdown links: [text](url)
   let processed = text.replace(
     /\[([^\]]+)\]\((https?:\/\/[^)]+)\)/gi,
-    (_match, linkText, url) => {
+    (_match, linkText: string, url: string) => {
       if (isFakeUrl(url)) return `**${linkText}**`;
-      let num = urlToNum.get(url);
-      if (!num) {
-        counter++;
-        num = counter;
-        urlToNum.set(url, num);
-        footnoteSources.push({ num, title: linkText, url });
-      }
+      const num = getOrCreateNum(url, linkText);
       return `${linkText}<footnote data-num="${num}"></footnote>`;
     }
   );
 
-  // Replace standalone URLs with footnotes
+  // 2. Replace parenthesized URLs: text(https://url.com) or (https://url.com)
   processed = processed.replace(
-    /(?<!\(|"|'|=)(https?:\/\/[^\s)<>"]+)/gi,
-    (_match, url) => {
+    /\(?(https?:\/\/[^\s)<>"]+)\)?/gi,
+    (match, url: string) => {
       if (isFakeUrl(url)) return '';
-      let num = urlToNum.get(url);
-      if (!num) {
-        counter++;
-        num = counter;
-        urlToNum.set(url, num);
-        try {
-          const domain = new URL(url).hostname.replace('www.', '');
-          footnoteSources.push({ num, title: domain, url });
-        } catch {
-          footnoteSources.push({ num, title: url.substring(0, 40), url });
-        }
+      try {
+        const domain = new URL(url).hostname.replace('www.', '');
+        const num = getOrCreateNum(url, domain);
+        return `<footnote data-num="${num}"></footnote>`;
+      } catch {
+        return match;
       }
-      return `<footnote data-num="${num}"></footnote>`;
     }
   );
+
+  // 3. Clean leftover empty brackets/parens from malformed links
+  processed = processed
+    .replace(/\[\s*\]/g, '')           // empty []
+    .replace(/\(\s*\)/g, '')           // empty ()
+    .replace(/\]\s*\./g, '.')          // stray ].
+    .replace(/\]\s*,/g, ',')           // stray ],
+    .replace(/\]\s*$/gm, '')           // stray ] at end of line
 
   return { processedText: processed, footnoteSources };
 }
 
 // Remove "Fontes:" blocks from text (we show them in CollapsibleSources)
 function removeSourcesBlock(text: string): string {
-  return text.replace(
-    /\n+\*?\*?(?:Fontes?|Referências?|Sources?|Refs?)\*?\*?:?\s*\n([\s\S]*?)(?=\n#{1,3}\s|\n\*\*[A-Z]|$)/gi,
-    '\n'
-  );
+  // Remove sections like "**Fontes:**\n- link1\n- link2" or "## Fontes\n..."
+  return text
+    .replace(/\n+#{1,3}\s*(?:Fontes?|Referências?|Sources?|Refs?)\s*\n([\s\S]*?)(?=\n#{1,3}\s|$)/gi, '\n')
+    .replace(/\n+\*?\*?(?:Fontes?|Referências?|Sources?|Refs?)\*?\*?:?\s*\n([\s\S]*?)(?=\n#{1,3}\s|\n\*\*[A-Z]|$)/gi, '\n');
 }
 
 // Convert existing ^1, [^1], [1] to footnote tags
@@ -227,6 +232,8 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, isDarkMode
     const cleaned = content.replace(/\[\[STATUS:.*?\]\]\n?/g, '');
     let text = cleanStatusMarkers(cleaned).cleanText;
     text = fixFakeLinks(text);
+    // Remove "[fonte não disponível]" artifacts from fixFakeLinks
+    text = text.replace(/\s*\*?\[fonte não disponível\]\*?/gi, '');
     text = removeSourcesBlock(text);
     text = text.replace(/^--+$/gm, `<hr class="${theme.hr} my-8" />`);
     text = rewriteMarkdownLinksToGoogle(text);

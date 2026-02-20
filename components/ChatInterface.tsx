@@ -196,10 +196,24 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
               )}
 
               {messages.map((msg, idx) => {
-                if (msg.isThinking) return null;
                 const isBot = msg.sender === Sender.Bot;
                 const isLast = idx === messages.length - 1;
-                
+
+                {/* Loading indicator DENTRO do balão do bot */}
+                if (msg.isThinking) {
+                  return (
+                    <div key={msg.id} className={`flex justify-start animate-fade-in`}>
+                      <div className={`rounded-2xl p-4 shadow-sm ${isDarkMode ? 'bg-slate-900' : 'bg-white'} border border-gray-700/30 px-3 md:px-5 py-3 md:py-4 w-full`}>
+                        <div className="flex items-center justify-between mb-2 opacity-70 text-[10px] uppercase font-bold tracking-wider select-none">
+                          <span>{mode === 'operacao' ? '🛻 Operação' : '✈️ Diretoria'}</span>
+                          <span>{msg.timestamp.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                        </div>
+                        <LoadingSmart isLoading={isLoading} mode={mode} isDarkMode={isDarkMode} onStop={isLoading ? onStop : undefined} processing={processing} searchQuery={lastUserQuery} />
+                      </div>
+                    </div>
+                  );
+                }
+
                 if (msg.isError && msg.errorDetails) {
                     return <ErrorMessageCard key={msg.id} error={msg.errorDetails} onRetry={onRetry} isLoadingRetry={isLoading} isDarkMode={isDarkMode} mode={mode} onReportError={onReportError ? () => onReportError(msg.id, msg.errorDetails!) : undefined} />;
                 }
@@ -219,7 +233,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                       {isBot ? (
                         <>
                            {msg.scorePorta && (
-                             <ScorePorta 
+                             <ScorePorta
                                score={msg.scorePorta.score}
                                p={msg.scorePorta.p}
                                o={msg.scorePorta.o}
@@ -228,8 +242,8 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                                a={msg.scorePorta.a}
                              />
                            )}
-                           
-                           <SectionalBotMessage 
+
+                           <SectionalBotMessage
                                 message={{...msg, groundingSources: displaySources}}
                                 sessionId={currentSession?.id}
                                 userId={typeof userId === 'string' ? userId : undefined}
@@ -240,14 +254,14 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                            />
 
                            {isLast && !isLoading && (
-                             <DeepDiveTopics 
+                             <DeepDiveTopics
                                onDeepDive={handleActionClick}
                                isDarkMode={isDarkMode}
                                empresaContext={currentSession?.empresaAlvo || currentSession?.title}
                              />
                            )}
 
-                           <MessageActionsBar 
+                           <MessageActionsBar
                                content={msg.text}
                                sourcesCount={displaySources.length}
                                currentFeedback={msg.feedback}
@@ -257,8 +271,6 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                                isSourcesVisible={!!msg.isSourcesOpen}
                                isDarkMode={isDarkMode}
                            />
-
-                           {/* Fontes agora ficam no CollapsibleSources dentro do MarkdownRenderer */}
                         </>
                       ) : (
                         <div className="whitespace-pre-wrap text-sm md:text-base leading-relaxed">{msg.text}</div>
@@ -267,7 +279,6 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                   </div>
                 );
               })}
-              <LoadingSmart isLoading={isLoading} mode={mode} isDarkMode={isDarkMode} onStop={isLoading ? onStop : undefined} processing={processing} searchQuery={lastUserQuery} />
               <div ref={messagesEndRef} />
             </div>
           )}

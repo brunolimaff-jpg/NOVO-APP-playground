@@ -114,10 +114,10 @@ const LoadingSmart: React.FC<LoadingSmartProps> = ({
 
   return (
     <div className={`
-      flex flex-col w-full max-w-4xl mx-auto my-6 rounded-2xl border p-5 transition-all duration-300
+      flex flex-col w-full rounded-xl p-4 transition-all duration-300
       ${isDarkMode
-        ? 'bg-slate-900 border-emerald-500/20 shadow-2xl shadow-emerald-500/5'
-        : 'bg-white border-slate-200 shadow-xl'}
+        ? 'border border-emerald-500/10'
+        : 'border border-slate-100'}
     `}>
       {/* HEADER: Timer + Botão Parar */}
       <div className="flex items-center justify-between mb-4">
