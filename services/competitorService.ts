@@ -2,7 +2,7 @@
 // Serviço de inteligência competitiva dinâmica — sempre busca em fontes vivas via Gemini.
 // NÃO usa dados fixos de mercado. Tudo é pesquisado em tempo real.
 
-import { CONCORRENTES, getConcorrente, getRevendasPorEstado, Concorrente } from '../competitors';
+import { CONCORRENTES, getConcorrente, getRevendasPorEstado, Concorrente } from './competitors';
 
 // ===================================================================
 // TIPOS
