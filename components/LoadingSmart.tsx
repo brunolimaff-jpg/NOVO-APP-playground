@@ -86,7 +86,7 @@ const LoadingSmart: React.FC<LoadingSmartProps> = ({
 
       setIsFadingOut(false);
 
-      timerRef.current = setTimeout(cycleCuriosity, 5000);
+      timerRef.current = setTimeout(cycleCuriosity, 12000);
     }, FADE_DURATION);
   }, []);
 
