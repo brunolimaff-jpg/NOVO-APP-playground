@@ -16,20 +16,22 @@ const DEEP_DIVE_OPTIONS = [
 ];
 
 const DeepDiveTopics: React.FC<DeepDiveTopicsProps> = ({ onDeepDive, isDarkMode, empresaContext }) => {
+  const displayName = empresaContext?.trim();
+
   return (
-    <div className={`mt-4 pt-4 border-t border-dashed ${isDarkMode ? 'border-gray-700/50' : 'border-gray-200'} animate-fade-in`}>
+    <div className={`rounded-xl px-4 py-3 animate-fade-in ${isDarkMode ? 'bg-slate-900/50' : 'bg-slate-50'}`}>
       <span className={`text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 mb-3 ${isDarkMode ? 'text-emerald-400/70' : 'text-emerald-600/70'}`}>
-        🔍 Aprofundar na Empresa {empresaContext ? `(${empresaContext})` : ''}
+        🔍 Aprofundar{displayName ? ` — ${displayName}` : ''}
       </span>
       <div className="flex flex-wrap gap-2">
         {DEEP_DIVE_OPTIONS.map((opt) => (
           <button
             key={opt.label}
             onClick={() => onDeepDive(opt.prompt)}
-            title={opt.tooltip} // <-- Aqui está o explicativo ao passar o mouse
+            title={opt.tooltip}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium transition-all shadow-sm border active:scale-95 ${
-              isDarkMode 
-                ? 'bg-slate-800/80 text-slate-300 border-slate-700 hover:border-emerald-500 hover:bg-slate-800' 
+              isDarkMode
+                ? 'bg-slate-800/80 text-slate-300 border-slate-700 hover:border-emerald-500 hover:bg-slate-800'
                 : 'bg-white text-slate-600 border-slate-200 hover:border-emerald-400 hover:bg-slate-50'
             }`}
           >
