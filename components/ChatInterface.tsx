@@ -223,88 +223,86 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                 const displaySources = rawSources.filter(s => s.url && !isFakeUrl(s.url));
 
                 return (
-                  <React.Fragment key={msg.id}>
-                    <div className={`flex ${isBot ? 'justify-start' : 'justify-end'} animate-fade-in`}>
-                      <div className={`rounded-2xl p-4 shadow-sm relative group ${isBot ? `${isDarkMode ? 'bg-slate-900' : 'bg-white'} border border-gray-700/30 px-3 md:px-5 py-3 md:py-4 w-full` : `${isDarkMode ? 'bg-emerald-900/20 border border-emerald-900/30 text-emerald-100' : 'bg-emerald-50 border border-emerald-100 text-slate-800'} max-w-[90%] md:max-w-[75%] lg:max-w-[60%]`}`}>
-                        <div className="flex items-center justify-between mb-2 opacity-70 text-[10px] uppercase font-bold tracking-wider select-none">
-                          <span>{isBot ? (mode === 'operacao' ? '🛻 Operação' : '✈️ Diretoria') : '👤 Você'}</span>
-                          <span>{msg.timestamp.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
-                        </div>
-
-                        {isBot ? (
-                          <>
-                             {msg.scorePorta && (
-                               <ScorePorta
-                                 score={msg.scorePorta.score}
-                                 p={msg.scorePorta.p}
-                                 o={msg.scorePorta.o}
-                                 r={msg.scorePorta.r}
-                                 t={msg.scorePorta.t}
-                                 a={msg.scorePorta.a}
-                               />
-                             )}
-
-                             <SectionalBotMessage
-                                  message={{...msg, groundingSources: displaySources}}
-                                  sessionId={currentSession?.id}
-                                  userId={typeof userId === 'string' ? userId : undefined}
-                                  isDarkMode={isDarkMode}
-                                  mode={mode}
-                                  onPreFillInput={setInput}
-                                  onRegenerateSuggestions={onRegenerateSuggestions}
-                             />
-
-                             <MessageActionsBar
-                                 content={msg.text}
-                                 sourcesCount={displaySources.length}
-                                 currentFeedback={msg.feedback}
-                                 onFeedback={(fb) => onFeedback(msg.id, fb)}
-                                 onSubmitFeedback={(fb, comment, content) => onSendFeedback(msg.id, fb, comment, content)}
-                                 onToggleSources={() => onToggleMessageSources(msg.id)}
-                                 isSourcesVisible={!!msg.isSourcesOpen}
-                                 isDarkMode={isDarkMode}
-                             />
-                          </>
-                        ) : (
-                          <div className="whitespace-pre-wrap text-sm md:text-base leading-relaxed">{msg.text}</div>
-                        )}
+                  <div key={msg.id} className={`flex ${isBot ? 'justify-start' : 'justify-end'} animate-fade-in`}>
+                    <div className={`rounded-2xl p-4 shadow-sm relative group ${isBot ? `${isDarkMode ? 'bg-slate-900' : 'bg-white'} border border-gray-700/30 px-3 md:px-5 py-3 md:py-4 w-full` : `${isDarkMode ? 'bg-emerald-900/20 border border-emerald-900/30 text-emerald-100' : 'bg-emerald-50 border border-emerald-100 text-slate-800'} max-w-[90%] md:max-w-[75%] lg:max-w-[60%]`}`}>
+                      <div className="flex items-center justify-between mb-2 opacity-70 text-[10px] uppercase font-bold tracking-wider select-none">
+                        <span>{isBot ? (mode === 'operacao' ? '🛻 Operação' : '✈️ Diretoria') : '👤 Você'}</span>
+                        <span>{msg.timestamp.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
                       </div>
-                    </div>
 
-                    {/* DeepDiveTopics FORA do balão, como elemento separado */}
-                    {isBot && isLast && !isLoading && (
-                      <DeepDiveTopics
-                        onDeepDive={handleActionClick}
-                        isDarkMode={isDarkMode}
-                        empresaContext={currentSession?.empresaAlvo || currentSession?.title}
-                      />
-                    )}
-                  </React.Fragment>
+                      {isBot ? (
+                        <>
+                           {msg.scorePorta && (
+                             <ScorePorta
+                               score={msg.scorePorta.score}
+                               p={msg.scorePorta.p}
+                               o={msg.scorePorta.o}
+                               r={msg.scorePorta.r}
+                               t={msg.scorePorta.t}
+                               a={msg.scorePorta.a}
+                             />
+                           )}
+
+                           <SectionalBotMessage
+                                message={{...msg, groundingSources: displaySources}}
+                                sessionId={currentSession?.id}
+                                userId={typeof userId === 'string' ? userId : undefined}
+                                isDarkMode={isDarkMode}
+                                mode={mode}
+                                onPreFillInput={setInput}
+                                onRegenerateSuggestions={onRegenerateSuggestions}
+                           />
+
+                           {/* Sugestões DENTRO do balão */}
+                           {isLast && !isLoading && displayedSuggestions.length > 0 && (
+                             <div className="flex flex-wrap gap-2 mt-3">
+                               {displayedSuggestions.map((suggestion, index) => (
+                                 <button
+                                   key={index}
+                                   onClick={() => handleActionClick(suggestion)}
+                                   className={`text-[11px] md:text-xs px-3 py-1.5 rounded-full transition-all text-left shadow-sm border active:scale-95 ${
+                                     isDarkMode
+                                       ? 'bg-emerald-900/30 text-emerald-300 border-emerald-800 hover:border-emerald-500 hover:bg-emerald-900/50'
+                                       : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:border-emerald-400 hover:bg-emerald-100'
+                                   }`}
+                                 >
+                                   {suggestion}
+                                 </button>
+                               ))}
+                             </div>
+                           )}
+
+                           {/* DeepDiveTopics DENTRO do balão */}
+                           {isLast && !isLoading && (
+                             <DeepDiveTopics
+                               onDeepDive={handleActionClick}
+                               isDarkMode={isDarkMode}
+                               empresaContext={currentSession?.empresaAlvo || currentSession?.title}
+                             />
+                           )}
+
+                           <MessageActionsBar
+                               content={msg.text}
+                               sourcesCount={displaySources.length}
+                               currentFeedback={msg.feedback}
+                               onFeedback={(fb) => onFeedback(msg.id, fb)}
+                               onSubmitFeedback={(fb, comment, content) => onSendFeedback(msg.id, fb, comment, content)}
+                               onToggleSources={() => onToggleMessageSources(msg.id)}
+                               isSourcesVisible={!!msg.isSourcesOpen}
+                               isDarkMode={isDarkMode}
+                           />
+                        </>
+                      ) : (
+                        <div className="whitespace-pre-wrap text-sm md:text-base leading-relaxed">{msg.text}</div>
+                      )}
+                    </div>
+                  </div>
                 );
               })}
               <div ref={messagesEndRef} />
             </div>
           )}
         </div>
-
-        {/* SUGESTÕES IMEDIATAS COLADAS NO INPUT - COM CORES ORIGINAIS */}
-        {displayedSuggestions.length > 0 && !isLoading && (
-          <div className="w-full max-w-5xl xl:max-w-6xl mx-auto px-4 md:px-8 mb-2 flex flex-wrap gap-2 z-10 animate-slide-in">
-            {displayedSuggestions.map((suggestion, index) => (
-              <button
-                key={index}
-                onClick={() => handleActionClick(suggestion)}
-                className={`text-[11px] md:text-xs px-3 py-1.5 rounded-full transition-all text-left shadow-sm border active:scale-95 ${
-                  isDarkMode 
-                    ? 'bg-emerald-900/30 text-emerald-300 border-emerald-800 hover:border-emerald-500 hover:bg-emerald-900/50' 
-                    : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:border-emerald-400 hover:bg-emerald-100'
-                }`}
-              >
-                {suggestion}
-              </button>
-            ))}
-          </div>
-        )}
 
         {/* ÁREA DE INPUT COM MENU ⚡ */}
         <div className={`p-4 md:p-6 border-t ${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-white border-slate-200'} z-20`}>

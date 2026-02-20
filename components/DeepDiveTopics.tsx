@@ -19,7 +19,7 @@ const DeepDiveTopics: React.FC<DeepDiveTopicsProps> = ({ onDeepDive, isDarkMode,
   const displayName = empresaContext?.trim();
 
   return (
-    <div className={`rounded-xl px-4 py-3 animate-fade-in ${isDarkMode ? 'bg-slate-900/50' : 'bg-slate-50'}`}>
+    <div className={`mt-4 pt-3 animate-fade-in`}>
       <span className={`text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 mb-3 ${isDarkMode ? 'text-emerald-400/70' : 'text-emerald-600/70'}`}>
         🔍 Aprofundar{displayName ? ` — ${displayName}` : ''}
       </span>
