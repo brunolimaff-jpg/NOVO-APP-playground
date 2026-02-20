@@ -423,7 +423,6 @@ const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [loadingStatus, setLoadingStatus] = useState<string>('Iniciando análise');
   const [completedLoadingStatuses, setCompletedLoadingStatuses] = useState<string[]>([]);
-  const [loadingSeconds, setLoadingSeconds] = useState(0);
   const [isInitialized, setIsInitialized] = useState(false);
   
   const [isDarkMode, setIsDarkMode] = useState(() => {
@@ -527,40 +526,6 @@ const App: React.FC = () => {
     resetChatSession();
     document.title = `${APP_NAME} ${MODE_LABELS[mode].icon}`;
   }, [mode]);
-
-  // ============================================
-  // TIMER E MENSAGENS ENGRAÇADAS DE ESPERA
-  // ============================================
-
-  useEffect(() => {
-    let interval: NodeJS.Timeout;
-    if (isLoading) {
-      interval = setInterval(() => {
-        setLoadingSeconds(prev => prev + 1);
-      }, 1000);
-    } else {
-      setLoadingSeconds(0);
-    }
-    return () => clearInterval(interval);
-  }, [isLoading]);
-
-  useEffect(() => {
-    if (!isLoading) return;
-    
-    const humorMsgs: Record<number, string> = {
-      60: "Pensando mais que o normal... a internet na roça tá devagar hoje 🚜💨",
-      90: "O dossiê é tão grande que o servidor foi tomar um café ☕🤖",
-      120: "Buscando informações até nas fofocas do sindicato rural 🕵️‍♂️🌽",
-      150: "Calma aí, o estagiário tropeçou no cabo do servidor 🔌😬",
-      180: "Quase lá! Negociando os dados com a Receita Federal 🤝💼",
-      240: "Isso que é uma capivara longa! Continuo cavando... ⛏️😅",
-      300: "A IA tá suando frio, mas não desistiu ainda! 💦🧠"
-    };
-
-    if (humorMsgs[loadingSeconds]) {
-      setLoadingStatus(humorMsgs[loadingSeconds]);
-    }
-  }, [loadingSeconds, isLoading]);
 
   // ============================================
   // SESSION MANAGEMENT

@@ -366,29 +366,60 @@ export const sendMessageToGemini = async (
     
     if (enrichments.length > 0) messageToSend = enrichments.join('\n') + `\n\nUSUÁRIO: ${message}`;
 
-    onStatus?.("Conectando ao modelo de IA...");
+    onStatus?.("Enviando para o modelo de IA...");
     const result = await chatSession.sendMessageStream({ message: messageToSend });
     let rawAccumulator = '';
     let lastEmittedStatus = '';
     let lastEmittedScore: ScorePortaData | null = null;
     let groundingChunks: any[] = [];
+    let chunkCount = 0;
+    let lastRealStatus = '';
+    let sourcesReported = 0;
 
     for await (const chunk of result) {
       if (signal?.aborted) break;
       const chunkText = chunk.text || "";
       rawAccumulator += chunkText;
+      chunkCount++;
+
+      // Status real: primeiro chunk recebido
+      if (chunkCount === 1 && !lastRealStatus) {
+        onStatus?.("Modelo respondendo — primeiros dados recebidos...");
+        lastRealStatus = 'first_chunk';
+      }
 
       if (chunk.candidates?.[0]?.groundingMetadata?.groundingChunks) {
-        groundingChunks = [...groundingChunks, ...chunk.candidates[0].groundingMetadata.groundingChunks];
+        const newChunks = chunk.candidates[0].groundingMetadata.groundingChunks;
+        groundingChunks = [...groundingChunks, ...newChunks];
+
+        // Status real: fontes encontradas na web
+        const totalSources = groundingChunks.filter(c => c.web?.uri).length;
+        if (totalSources > sourcesReported) {
+          sourcesReported = totalSources;
+          onStatus?.(`${totalSources} fonte${totalSources > 1 ? 's' : ''} encontrada${totalSources > 1 ? 's' : ''} na web — cruzando dados...`);
+          lastRealStatus = 'sources';
+        }
+      }
+
+      // Status real: progresso baseado no tamanho do texto gerado
+      const textLen = rawAccumulator.length;
+      if (textLen > 2000 && lastRealStatus !== 'building_large') {
+        onStatus?.("Dossiê em construção — análise detalhada em andamento...");
+        lastRealStatus = 'building_large';
+      } else if (textLen > 6000 && lastRealStatus !== 'almost_done') {
+        onStatus?.("Finalizando dossiê — estruturando conclusões...");
+        lastRealStatus = 'almost_done';
       }
 
       const parsed = parseMarkers(rawAccumulator);
 
+      // Status real: markers do próprio modelo [[STATUS: ...]]
       if (parsed.statuses.length > 0) {
         const lastStatus = parsed.statuses[parsed.statuses.length - 1];
         if (lastStatus !== lastEmittedStatus) {
           onStatus?.(lastStatus);
           lastEmittedStatus = lastStatus;
+          lastRealStatus = 'marker';
         }
       }
 
