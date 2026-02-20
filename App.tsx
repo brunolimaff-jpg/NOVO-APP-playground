@@ -719,7 +719,8 @@ const App: React.FC = () => {
               }
               return newStatus;
             });
-          }
+          },
+          nomeVendedor: typeof user?.displayName === 'string' ? user.displayName : 'Vendedor',
         }
       );
 
@@ -1134,7 +1135,7 @@ const App: React.FC = () => {
           empresa: cleanTitle(extractCompanyName(currentSession?.title)),
           vendedor: user?.displayName || 'Vendedor',
           dias: followUpDias,
-          emailVendedor: emailTo || user?.displayName?.includes('@') ? user.displayName : '',
+          emailVendedor: emailTo || (user?.displayName?.includes('@') ? user.displayName : ''),
           notas: followUpNotas,
           score: currentSession?.scoreOportunidade || '',
           produtos: '',
@@ -1336,7 +1337,7 @@ const App: React.FC = () => {
               
               <div className="flex gap-3">
                 <button onClick={() => { setShowEmailModal(false); setEmailStatus(null); }} className="flex-1 px-4 py-2.5 rounded-lg border border-gray-600 text-gray-300 hover:bg-gray-700 transition-colors text-sm font-medium">Cancelar</button>
-                <button onClick={handleSendEmail} disabled={emailStatus === 'sending' || !emailTo.includes('@')} className="flex-1 px-4 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:bg-gray-600 disabled:cursor-not-allowed text-white transition-colors text-sm font-medium">{emailStatus === 'sending' ? 'Enviando...' : 'Enviar'}</button>
+                <button onClick={handleSendEmail} disabled={emailStatus === 'sending' || !emailTo.includes('@')} className="flex-1 px-4 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:bg-gray-600 disabled:cursor-not-allowed text:white transition-colors text-sm font-medium">{emailStatus === 'sending' ? 'Enviando...' : 'Enviar'}</button>
               </div>
             </div>
           </div>
@@ -1361,7 +1362,7 @@ const App: React.FC = () => {
                   <button
                     key={d}
                     onClick={() => setFollowUpDias(d)}
-                    className={`p-3 rounded-xl border text-center transition-all ${followUpDias === d ? 'border-emerald-500 bg-emerald-500/10 text-white' : 'border-gray-700/30 bg-gray-800/50 text-gray-400 hover:border-gray-600'}`}
+                    className={`p-3 rounded-xl border text-center transition-all ${followUpDias === d ? 'border-emerald-500 bg-emerald-500/10 text:white' : 'border-gray-700/30 bg-gray-800/50 text-gray-400 hover:border-gray-600'}`}
                   >
                     <p className="text-lg font-bold">{d}</p>
                     <p className="text-xs">dias</p>
@@ -1371,12 +1372,12 @@ const App: React.FC = () => {
               
               <div className="mb-3">
                 <label className="text-xs text-gray-400 mb-1 block">Seu email (receber lembrete)</label>
-                <input type="email" value={emailTo} onChange={(e) => setEmailTo(e.target.value)} placeholder="vendedor@senior.com.br" className="w-full px-3 py-2.5 rounded-lg bg-gray-900 border border-gray-700/50 text-white text-sm focus:outline-none focus:border-emerald-500 transition-colors" />
+                <input type="email" value={emailTo} onChange={(e) => setEmailTo(e.target.value)} placeholder="vendedor@senior.com.br" className="w-full px-3 py-2.5 rounded-lg bg-gray-900 border border-gray-700/50 text:white text-sm focus:outline-none focus:border-emerald-500 transition-colors" />
               </div>
               
               <div className="mb-4">
                 <label className="text-xs text-gray-400 mb-1 block">Notas (opcional)</label>
-                <input type="text" value={followUpNotas} onChange={(e) => setFollowUpNotas(e.target.value)} placeholder="Ex: Retomar conversa sobre SimpleFarm" className="w-full px-3 py-2.5 rounded-lg bg-gray-900 border border-gray-700/50 text-white text-sm focus:outline-none focus:border-emerald-500 transition-colors" />
+                <input type="text" value={followUpNotas} onChange={(e) => setFollowUpNotas(e.target.value)} placeholder="Ex: Retomar conversa sobre SimpleFarm" className="w-full px-3 py-2.5 rounded-lg bg-gray-900 border border-gray-700/50 text:white text-sm focus:outline-none focus:border-emerald-500 transition-colors" />
               </div>
               
               {followUpStatus === 'sent' && (<div className="text-sm mb-4 p-2 rounded-lg text-emerald-400 bg-emerald-500/10">✅ Follow-up agendado! Você receberá um lembrete.</div>)}
@@ -1384,7 +1385,7 @@ const App: React.FC = () => {
               
               <div className="flex gap-3">
                 <button onClick={() => setShowFollowUpModal(false)} className="flex-1 px-4 py-2.5 rounded-lg border border-gray-600 text-gray-300 hover:bg-gray-700 transition-colors text-sm font-medium">Cancelar</button>
-                <button onClick={handleScheduleFollowUp} disabled={followUpStatus === 'sending'} className="flex-1 px-4 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:bg-gray-600 disabled:cursor-not-allowed text-white transition-colors text-sm font-medium">{followUpStatus === 'sending' ? 'Agendando...' : `Agendar (${followUpDias} dias)`}</button>
+                <button onClick={handleScheduleFollowUp} disabled={followUpStatus === 'sending'} className="flex-1 px-4 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:bg-gray-600 disabled:cursor-not-allowed text:white transition-colors text-sm font-medium">{followUpStatus === 'sending' ? 'Agendando...' : `Agendar (${followUpDias} dias)`}</button>
               </div>
             </div>
           </div>
