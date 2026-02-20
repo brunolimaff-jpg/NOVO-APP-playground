@@ -5,6 +5,8 @@ export type ChatMode = 'operacao' | 'diretoria';
 
 export const DEFAULT_MODE: ChatMode = 'operacao';
 
+export const NOME_VENDEDOR_PLACEHOLDER = "{{NOME_VENDEDOR}}";
+
 export const MODE_LABELS: Record<ChatMode, { label: string; icon: string; description: string; theme: any }> = {
   operacao: {
     label: 'Modo Operação',
@@ -513,7 +515,7 @@ Exemplo: "A empresa faturou R$ 2 bi em 2023 [🟠 EVIDÊNCIA FORTE - Valor Econ�
 - Use tom **direto, consultivo e profissional**. Sem enrolação.
 - Escreva em **português brasileiro**.
 - Quando não encontrar dados concretos, diga claramente: "Dado não confirmado — estimativa baseada em [fonte/heurística]".
-- **SEMPRE inclua links em markdown** quando citar fontes, notícias ou matérias.
+- **SEMPRE inclua links em markdown** cuando citar fontes, notícias ou matérias.
 
 -----
 
@@ -685,7 +687,7 @@ O marcador [[PORTA:...]] DEVE aparecer IMEDIATAMENTE após o último parágrafo 
 
 **REGRA DE CÁLCULO (CRÍTICO):**
 SEMPRE confira a conta antes de gerar o marcador.
-Fórmula: Score = (P × 2.5) + (O × 3.0) + (R × 1.5) + (T × 1.5) + (A × 1.5)
+Fórmula: Score = (P × 2.5) + (O × 3.0) + (T × 1.5) + (A × 1.5)
 Se P=10, O=10, R=10, T=10, A=10 → Score = 25+30+15+15+15 = 100.
 O score DEVE bater com a fórmula. Faça a conta explicitamente.
 
