@@ -69,8 +69,6 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
   const [showActionsMenu, setShowActionsMenu] = useState(false);
   
   const [displayedSuggestions, setDisplayedSuggestions] = useState<string[]>([]);
-  const [currentStatus, setCurrentStatus] = useState<string | null>(null);
-  const [completedStatuses, setCompletedStatuses] = useState<string[]>([]);
 
   useLayoutEffect(() => {
     if (textareaRef.current) {
@@ -92,17 +90,11 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
       const lastMessage = messages[messages.length - 1];
       if (lastMessage.sender === Sender.Bot && !lastMessage.isThinking && !lastMessage.isError) {
         setDisplayedSuggestions(extractDisplayedSuggestions(lastMessage.text));
-        if (lastMessage.statuses && lastMessage.statuses.length > 0) {
-          setCompletedStatuses(lastMessage.statuses);
-          setCurrentStatus(lastMessage.statuses[lastMessage.statuses.length - 1]);
-        }
       }
     }
   }, [messages]);
 
   useEffect(() => {
-    setCompletedStatuses([]);
-    setCurrentStatus(null);
     setDisplayedSuggestions([]);
   }, [currentSession?.id]);
 
@@ -317,7 +309,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                   </div>
                 );
               })}
-              <LoadingSmart isLoading={isLoading} mode={mode} isDarkMode={isDarkMode} onStop={isLoading ? onStop : undefined} processing={processing} searchQuery={lastUserQuery} currentStatus={currentStatus} completedStatuses={completedStatuses} />
+              <LoadingSmart isLoading={isLoading} mode={mode} isDarkMode={isDarkMode} onStop={isLoading ? onStop : undefined} processing={processing} searchQuery={lastUserQuery} />
               <div ref={messagesEndRef} />
             </div>
           )}
