@@ -7,6 +7,7 @@ import { Message } from '../types';
 import { stripMarkdown, cleanSuggestionText } from '../utils/textCleaners';
 import { lookupCliente, formatarParaPrompt, benchmarkClientes, formatarBenchmarkParaPrompt } from './clientLookupService';
 import { addInvestigation } from '../components/InvestigationDashboard';
+import { CompetitorDetection, getContextoConcorrentesRegionais } from './competitorService';
 
 export interface GeminiRequestOptions {
   useGrounding?: boolean;
@@ -15,6 +16,7 @@ export interface GeminiRequestOptions {
   onText?: (text: string) => void;
   onStatus?: (status: string) => void;
   onScorePorta?: (score: ScorePortaData) => void;
+  onCompetitor?: (detection: CompetitorDetection) => void;
   nomeVendedor?: string;
 }
 
@@ -73,6 +75,55 @@ function sanitizeStreamText(text: string): string {
 }
 
 // ===================================================================
+// PARSER DE MARCADOR [[COMPETITOR:...]]
+// ===================================================================
+
+/**
+ * parseCompetitorMarker
+ * Extrai o primeiro marcador [[COMPETITOR:...]] encontrado no texto acumulado.
+ * Retorna null se não houver marcador.
+ * Formato: [[COMPETITOR:NOME_ERP:NIVEL_AMEACA:REVENDA_LOCAL:CONFIANCA]]
+ */
+function parseCompetitorMarker(content: string): CompetitorDetection | null {
+  const regex = /\[\[COMPETITOR:([^:\]]+):([^:\]]+):([^:\]]+):([^\]]+)\]\]/;
+  const match = content.match(regex);
+  if (!match) return null;
+  return {
+    encontrado: true,
+    nomeERP: match[1].trim(),
+    nivelAmeaca: match[2].trim() as 'alto' | 'medio' | 'baixo',
+    revendaLocal: match[3].trim(),
+    confianca: match[4].trim() as 'alta' | 'media' | 'baixa',
+  };
+}
+
+/**
+ * extractEstadoFromMessage
+ * Tenta detectar a UF mencionada na mensagem para enriquecer contexto regional.
+ * Padrão: MT (Mato Grosso — mercado principal).
+ */
+function extractEstadoFromMessage(message: string): string {
+  const ufsKnown: Record<string, string> = {
+    'mato grosso do sul': 'MS', 'mato grosso': 'MT',
+    'goiás': 'GO', 'goias': 'GO',
+    'pará': 'PA', 'para': 'PA',
+    'maranhão': 'MA', 'maranhao': 'MA',
+    'tocantins': 'TO', 'bahia': 'BA',
+    'minas gerais': 'MG', 'são paulo': 'SP',
+    'paraná': 'PR', 'parana': 'PR',
+    'rio grande do sul': 'RS',
+    ' MT ': 'MT', ' MS ': 'MS', ' GO ': 'GO',
+    ' PA ': 'PA', ' BA ': 'BA', ' MG ': 'MG',
+    ' SP ': 'SP', ' PR ': 'PR', ' RS ': 'RS',
+  };
+  const lower = message.toLowerCase();
+  for (const [key, uf] of Object.entries(ufsKnown)) {
+    if (lower.includes(key.toLowerCase())) return uf;
+  }
+  return 'MT'; // padrão: mercado principal
+}
+
+// ===================================================================
 // FUNÇÕES DE PARSING E CONTEXTO
 // ===================================================================
 
@@ -104,7 +155,7 @@ export function parseMarkers(content: string): ParsedContent {
     text = text.replace(portaMatch[0], '');
   }
 
-  // 3. Remove marcadores [[COMPETITOR:...]] (capturado pela UI, não exibido)
+  // 3. Remove marcadores [[COMPETITOR:...]] (capturado via onCompetitor callback, não exibido)
   text = text.replace(/\[\[COMPETITOR:[^\]]*\]\]/g, '');
 
   // 4. Remove qualquer outro marcador [[MARCADOR:...]] residual
@@ -319,17 +370,7 @@ export const generateLoadingCuriosities = async (context: string): Promise<strin
   try {
     const response = await ai.models.generateContent({
       model: ROUTER_MODEL_ID,
-      contents: `Gere 6 curiosidades REAIS e VARIADAS sobre "${context}" (máx 120 chars cada).
-
-REGRAS:
-- VARIE o formato: NÃO comece todas com o mesmo nome. Alterne entre fatos da empresa, do setor e da região
-- Inclua dados específicos: números, anos, locais
-- Exemplo BOM: "Sapezal (MT) é um dos maiores municípios produtores de soja do Brasil"
-- Exemplo BOM: "O setor de grãos movimenta R$ 400 bi por ano no Brasil"
-- Exemplo RUIM: "Forte presença em mercados internacionais" (quem? onde? quanto?)
-- No máximo 2 das 6 podem citar o nome da empresa diretamente
-
-Retorne um JSON Array de strings.`,
+      contents: `Gere 6 curiosidades REAIS e VARIADAS sobre "${context}" (máx 120 chars cada).\n\nREGRAS:\n- VARIE o formato: NÃO comece todas com o mesmo nome. Alterne entre fatos da empresa, do setor e da região\n- Inclua dados específicos: números, anos, locais\n- Exemplo BOM: "Sapezal (MT) é um dos maiores municípios produtores de soja do Brasil"\n- Exemplo BOM: "O setor de grãos movimenta R$ 400 bi por ano no Brasil"\n- Exemplo RUIM: "Forte presença em mercados internacionais" (quem? onde? quanto?)\n- No máximo 2 das 6 podem citar o nome da empresa diretamente\n\nRetorne um JSON Array de strings.`,
       config: { responseMimeType: 'application/json', temperature: 0.8 }
     });
     return JSON.parse(response.text || "[]");
@@ -369,7 +410,7 @@ export const sendMessageToGemini = async (
   systemInstruction: string, 
   options: GeminiRequestOptions = {}
 ): Promise<{ text: string; sources: Array<{title: string, url: string}>, suggestions: string[], scorePorta: ScorePortaData | null, statuses: string[] }> => {
-  const { useGrounding = true, thinkingMode = false, signal, onText, onStatus, onScorePorta, nomeVendedor } = options;
+  const { useGrounding = true, thinkingMode = false, signal, onText, onStatus, onScorePorta, onCompetitor, nomeVendedor } = options;
 
   // Injeta o nome do vendedor no system prompt (substitui {{NOME_VENDEDOR}})
   const nomeParaInjetar = nomeVendedor?.trim() || 'Vendedor';
@@ -405,6 +446,11 @@ export const sendMessageToGemini = async (
 
       enrichments.push(generateContextReminder(empresa, sessionId));
 
+      // Injeta concorrentes regionais com presença no estado detectado (sem chamada de API)
+      const estado = extractEstadoFromMessage(message);
+      const competitorContext = getContextoConcorrentesRegionais(estado);
+      if (competitorContext) enrichments.push(competitorContext);
+
       if (benchmark || message.includes('investigar')) {
         onStatus?.("Mapeando competidores e benchmarks do setor...");
         const keywords = await generateBenchmarkKeywords(empresa, message);
@@ -425,6 +471,7 @@ export const sendMessageToGemini = async (
     let rawAccumulator = '';
     let lastEmittedStatus = '';
     let lastEmittedScore: ScorePortaData | null = null;
+    let lastEmittedCompetitor: CompetitorDetection | null = null;
     let groundingChunks: any[] = [];
     let chunkCount = 0;
     let sourcesReported = 0;
@@ -476,6 +523,15 @@ export const sendMessageToGemini = async (
       if (parsed.scorePorta && parsed.scorePorta !== lastEmittedScore) {
         onScorePorta?.(parsed.scorePorta);
         lastEmittedScore = parsed.scorePorta;
+      }
+
+      // Detecta [[COMPETITOR:...]] no stream e emite callback para a UI
+      if (onCompetitor) {
+        const competitorData = parseCompetitorMarker(rawAccumulator);
+        if (competitorData && !lastEmittedCompetitor) {
+          onCompetitor(competitorData);
+          lastEmittedCompetitor = competitorData;
+        }
       }
 
       // Usa sanitizeStreamText para limpar TODOS os marcadores antes de exibir
