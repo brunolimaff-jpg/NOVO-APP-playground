@@ -244,7 +244,7 @@ const analyzeUserIntent = async (msg: string): Promise<{
     const response = await ai.models.generateContent({
       model: ROUTER_MODEL_ID,
       contents: prompt,
-      config: { temperature: 0, maxOutputTokens: 100 }
+      config: { temperature: 0, maxOutputTokens: 200 }
     });
     
     const text = (response.text || 'NONE|NAO|TATICA').trim().replace(/["'`]+/g, '');
@@ -268,7 +268,7 @@ const generateBenchmarkKeywords = async (empresaNome: string, contexto: string):
     const response = await ai.models.generateContent({
       model: ROUTER_MODEL_ID,
       contents: `Gere 5-8 palavras-chave do SETOR para pesquisar similares de "${empresaNome}". Contexto: "${contexto}". Separadas por vírgula.`,
-      config: { temperature: 0.1, maxOutputTokens: 80 }
+      config: { temperature: 0.1, maxOutputTokens: 200 }
     });
     return (response.text || "").split(',').map(k => k.trim()).filter(k => k.length > 1);
   } catch { return []; }
@@ -337,8 +337,10 @@ export const sendMessageToGemini = async (
 
     const selectedModel = rota === 'profunda' ? DEEP_RESEARCH_MODEL_ID : TACTICAL_MODEL_ID;
     
-    if (rota === 'profunda') {
-      onStatus?.("Modo Deep Research ativado. Uma varredura completa da web foi iniciada...");
+    const isDeepResearch = rota === 'profunda';
+
+    if (isDeepResearch) {
+      onStatus?.("Deep Research ativado — varredura completa da web iniciada...");
     }
 
     const chatSession = createChatSession(systemInstruction, history, selectedModel, useGrounding, thinkingMode);
@@ -346,16 +348,16 @@ export const sendMessageToGemini = async (
 
     let messageToSend = message;
     let enrichments: string[] = [];
-    
+
     const sessionId = currentCompanyContext?.sessionId;
-    
+
     if (empresa) {
-      onStatus?.(`Buscando histórico da ${empresa} na base interna...`);
+      onStatus?.(`Buscando histórico de ${empresa} na base interna...`);
       const lookup = await lookupCliente(empresa);
       enrichments.push(lookup.encontrado ? formatarParaPrompt(lookup) : `\n[Lookup: "${empresa}" não encontrado na base interna]\n`);
-      
+
       enrichments.push(generateContextReminder(empresa, sessionId));
-      
+
       if (benchmark || message.includes('investigar')) {
         onStatus?.("Mapeando competidores e benchmarks do setor...");
         const keywords = await generateBenchmarkKeywords(empresa, message);
@@ -363,18 +365,23 @@ export const sendMessageToGemini = async (
         if (bench.ok) enrichments.push(formatarBenchmarkParaPrompt(bench, empresa));
       }
     }
-    
+
     if (enrichments.length > 0) messageToSend = enrichments.join('\n') + `\n\nUSUÁRIO: ${message}`;
 
-    onStatus?.("Enviando para o modelo de IA...");
+    if (isDeepResearch) {
+      onStatus?.("IA varrendo a web — pode levar alguns minutos...");
+    } else {
+      onStatus?.("Gerando resposta...");
+    }
+
     const result = await chatSession.sendMessageStream({ message: messageToSend });
     let rawAccumulator = '';
     let lastEmittedStatus = '';
     let lastEmittedScore: ScorePortaData | null = null;
     let groundingChunks: any[] = [];
     let chunkCount = 0;
-    let lastRealStatus = '';
     let sourcesReported = 0;
+    let textMilestone = 0; // 0=nenhum, 1=2k, 2=6k, 3=12k
 
     for await (const chunk of result) {
       if (signal?.aborted) break;
@@ -383,9 +390,8 @@ export const sendMessageToGemini = async (
       chunkCount++;
 
       // Status real: primeiro chunk recebido
-      if (chunkCount === 1 && !lastRealStatus) {
-        onStatus?.("Modelo respondendo — primeiros dados recebidos...");
-        lastRealStatus = 'first_chunk';
+      if (chunkCount === 1) {
+        onStatus?.("Primeiros dados recebidos do modelo...");
       }
 
       if (chunk.candidates?.[0]?.groundingMetadata?.groundingChunks) {
@@ -396,19 +402,21 @@ export const sendMessageToGemini = async (
         const totalSources = groundingChunks.filter(c => c.web?.uri).length;
         if (totalSources > sourcesReported) {
           sourcesReported = totalSources;
-          onStatus?.(`${totalSources} fonte${totalSources > 1 ? 's' : ''} encontrada${totalSources > 1 ? 's' : ''} na web — cruzando dados...`);
-          lastRealStatus = 'sources';
+          onStatus?.(`${totalSources} fonte${totalSources > 1 ? 's' : ''} da web encontrada${totalSources > 1 ? 's' : ''} — analisando...`);
         }
       }
 
-      // Status real: progresso baseado no tamanho do texto gerado
+      // Status real: marcos de tamanho do dossiê
       const textLen = rawAccumulator.length;
-      if (textLen > 2000 && lastRealStatus !== 'building_large') {
-        onStatus?.("Dossiê em construção — análise detalhada em andamento...");
-        lastRealStatus = 'building_large';
-      } else if (textLen > 6000 && lastRealStatus !== 'almost_done') {
+      if (textLen > 12000 && textMilestone < 3) {
         onStatus?.("Finalizando dossiê — estruturando conclusões...");
-        lastRealStatus = 'almost_done';
+        textMilestone = 3;
+      } else if (textLen > 6000 && textMilestone < 2) {
+        onStatus?.("Dossiê avançado — compilando análise detalhada...");
+        textMilestone = 2;
+      } else if (textLen > 2000 && textMilestone < 1) {
+        onStatus?.("Dossiê em construção — gerando análise...");
+        textMilestone = 1;
       }
 
       const parsed = parseMarkers(rawAccumulator);
