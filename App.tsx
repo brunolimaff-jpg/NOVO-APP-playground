@@ -56,11 +56,9 @@ function extractCompanyName(title: string | null | undefined): string {
 // ============================================
 
 function convertMarkdownToHTML(md: string, includeSources: boolean = true): string {
-  // Coletar todos os links válidos ANTES de processar
   const allLinks = extractValidLinks(md);
   
   let html = md
-    // PORTA Score → HTML visual
     .replace(
       /\[\[PORTA:(\d+):P(\d+):O(\d+):R(\d+):T(\d+):A(\d+)\]\]/g,
       (_, score, p, o, r, t, a) => {
@@ -88,48 +86,35 @@ function convertMarkdownToHTML(md: string, includeSources: boolean = true): stri
         </div>`;
       }
     )
-    // Separadores
     .replace(/^-----+$/gm, '<hr>')
     .replace(/^---+$/gm, '<hr>')
-    // Blockquotes
     .replace(/^>\s*(.*$)/gm, '<blockquote>$1</blockquote>')
-    // Headers
     .replace(/^#### (.*$)/gm, '<h4>$1</h4>')
     .replace(/^### (.*$)/gm, '<h3>$1</h3>')
     .replace(/^## (.*$)/gm, '<h2>$1</h2>')
     .replace(/^# (.*$)/gm, '<h1>$1</h1>')
-    // Bold+italic, bold, italic
     .replace(/\*\*\*(.*?)\*\*\*/g, '<strong><em>$1</em></strong>')
     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
     .replace(/\*(.*?)\*/g, '<em>$1</em>')
-    // Links - PRESERVA COMO CLICÁVEIS
     .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (match, text, url) => {
-      // Se for URL fake, só mostra o texto em negrito
       if (url.includes('ai.studio') || url.includes('google.com/search') || url.includes('vertexai')) {
         return `<strong style="color:#059669;">${text}</strong>`;
       }
-      // URL válida → link clicável
       return `<a href="${url}" target="_blank" style="color:#059669;text-decoration:underline;">${text}</a>`;
     })
-    // Footnotes ^1 ^2 → badges
     .replace(/\^(\d+)/g, '<sup style="background:#059669;color:#fff;padding:1px 5px;border-radius:8px;font-size:10px;margin:0 1px;">$1</sup>')
-    // Listas
     .replace(/^[\-\*] (.*$)/gm, '<li>$1</li>')
     .replace(/^\d+\. (.*$)/gm, '<li>$1</li>')
-    // Parágrafos
     .replace(/\n\n/g, '</p><p>')
     .replace(/\n/g, '<br>');
 
-  // Agrupar <li> em <ul>
   html = html.replace(/(<li>[\s\S]*?<\/li>(?:\s*<li>[\s\S]*?<\/li>)*)/g, '<ul>$1</ul>');
   
-  // Agrupar blockquotes consecutivos
   html = html.replace(/(<blockquote>[\s\S]*?<\/blockquote>)(\s*<blockquote>[\s\S]*?<\/blockquote>)*/g, (match) => {
     const content = match.replace(/<\/?blockquote>/g, '');
     return '<blockquote>' + content + '</blockquote>';
   });
 
-  // ADICIONAR SEÇÃO DE FONTES NO FINAL (se houver links)
   if (includeSources && allLinks.length > 0) {
     html += formatSourcesForExport(allLinks);
   }
@@ -155,11 +140,9 @@ function collectFullReport(messages: any[]): { text: string; sections: string[];
   const sections: string[] = [];
   const allLinks: SourceRef[] = [];
 
-  // Primeira mensagem = dossiê principal
   const dossieText = botMessages[0].text || botMessages[0].content || '';
   sections.push(dossieText);
   
-  // Coletar links do dossiê
   const dossieLinks = extractAllLinksFromMarkdown(dossieText);
   dossieLinks.forEach(link => {
     if (!allLinks.find(l => l.url === link.url)) {
@@ -167,7 +150,6 @@ function collectFullReport(messages: any[]): { text: string; sections: string[];
     }
   });
 
-  // Mensagens seguintes = aprofundamentos
   for (let i = 1; i < botMessages.length; i++) {
     const botText = botMessages[i].text || botMessages[i].content || '';
     
@@ -187,7 +169,6 @@ function collectFullReport(messages: any[]): { text: string; sections: string[];
         : `\n\n---\n\n## 🔍 APROFUNDAMENTO #${i}\n\n`;
       sections.push(sectionHeader + botText);
       
-      // Coletar links do aprofundamento
       const sectionLinks = extractAllLinksFromMarkdown(botText);
       sectionLinks.forEach(link => {
         if (!allLinks.find(l => l.url === link.url)) {
@@ -441,9 +422,9 @@ const App: React.FC = () => {
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [isLoading, setIsLoading] = useState(false);
   const [loadingStatus, setLoadingStatus] = useState<string>('Iniciando análise');
+  const [loadingSeconds, setLoadingSeconds] = useState(0); 
   const [isInitialized, setIsInitialized] = useState(false);
   
-  // MUDANÇA 1: Forçar tema claro como padrão inicial
   const [isDarkMode, setIsDarkMode] = useState(() => {
     const savedTheme = localStorage.getItem(THEME_KEY);
     return savedTheme === 'dark';
@@ -545,6 +526,40 @@ const App: React.FC = () => {
     resetChatSession();
     document.title = `${APP_NAME} ${MODE_LABELS[mode].icon}`;
   }, [mode]);
+
+  // ============================================
+  // TIMER E MENSAGENS ENGRAÇADAS DE ESPERA
+  // ============================================
+
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (isLoading) {
+      interval = setInterval(() => {
+        setLoadingSeconds(prev => prev + 1);
+      }, 1000);
+    } else {
+      setLoadingSeconds(0);
+    }
+    return () => clearInterval(interval);
+  }, [isLoading]);
+
+  useEffect(() => {
+    if (!isLoading) return;
+    
+    const humorMsgs: Record<number, string> = {
+      60: "Pensando mais que o normal... a internet na roça tá devagar hoje 🚜💨",
+      90: "O dossiê é tão grande que o servidor foi tomar um café ☕🤖",
+      120: "Buscando informações até nas fofocas do sindicato rural 🕵️‍♂️🌽",
+      150: "Calma aí, o estagiário tropeçou no cabo do servidor 🔌😬",
+      180: "Quase lá! Negociando os dados com a Receita Federal 🤝💼",
+      240: "Isso que é uma capivara longa! Continuo cavando... ⛏️😅",
+      300: "A IA tá suando frio, mas não desistiu ainda! 💦🧠"
+    };
+
+    if (humorMsgs[loadingSeconds]) {
+      setLoadingStatus(humorMsgs[loadingSeconds]);
+    }
+  }, [loadingSeconds, isLoading]);
 
   // ============================================
   // SESSION MANAGEMENT
@@ -728,7 +743,6 @@ const App: React.FC = () => {
         { 
           signal,
           onText: () => {},
-          // MUDANÇA 2: Mostrar o status exato que o robô enviar em vez de mascarar
           onStatus: (newStatus) => { 
             setLoadingStatus(newStatus); 
           }
@@ -1243,7 +1257,6 @@ const App: React.FC = () => {
   // RENDER
   // ============================================
 
-  // MUDANÇA 3: Trava de segurança para impedir cliques antes da sincronização
   if (!isInitialized) {
     return (
       <div className={`flex h-screen w-full items-center justify-center ${isDarkMode ? 'bg-slate-950' : 'bg-slate-50'}`}>
