@@ -258,49 +258,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                                isDarkMode={isDarkMode}
                            />
 
-                           {msg.isSourcesOpen && displaySources.length > 0 && (
-                             <div className={`mt-3 p-4 rounded-xl border animate-slide-in ${isDarkMode ? 'bg-slate-800/80 border-slate-700' : 'bg-gradient-to-br from-slate-50 to-white border-slate-200'}`}>
-                               <div className="flex items-center justify-between mb-3 pb-2 border-b border-gray-500/20">
-                                 <div className="flex items-center gap-2">
-                                   <span className="text-lg">📚</span>
-                                   <span className={`font-bold ${isDarkMode ? 'text-slate-200' : 'text-slate-800'}`}>
-                                     Fontes e Referências
-                                   </span>
-                                 </div>
-                                 <span className={`text-xs px-2 py-1 rounded-full ${isDarkMode ? 'bg-emerald-900/50 text-emerald-300' : 'bg-emerald-100 text-emerald-700'}`}>
-                                   {displaySources.length} {displaySources.length === 1 ? 'fonte' : 'fontes'}
-                                 </span>
-                               </div>
-                               <div className="space-y-2">
-                                 {displaySources.map((s, i) => (
-                                   <div key={i} className="flex items-start gap-3 group">
-                                     <span className="flex-shrink-0 w-6 h-6 rounded-full bg-gradient-to-br from-emerald-500 to-emerald-600 text-white flex items-center justify-center text-xs font-bold mt-0.5 shadow-sm">
-                                       {i + 1}
-                                     </span>
-                                     <div className="flex-1 min-w-0">
-                                       {s.url && !isFakeUrl(s.url) ? (
-                                         <a 
-                                           href={s.url} 
-                                           target="_blank" 
-                                           rel="noopener noreferrer" 
-                                           className="block text-emerald-600 hover:text-emerald-500 hover:underline font-medium break-all leading-tight transition-colors"
-                                         >
-                                           {s.title}
-                                         </a>
-                                       ) : (
-                                         <span className="block text-emerald-600 font-medium break-all leading-tight">{s.title}</span>
-                                       )}
-                                       {s.url && !isFakeUrl(s.url) && (
-                                         <span className={`text-[10px] block mt-1 truncate opacity-60 ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
-                                           {s.url}
-                                         </span>
-                                       )}
-                                     </div>
-                                   </div>
-                                 ))}
-                               </div>
-                             </div>
-                           )}
+                           {/* Fontes agora ficam no CollapsibleSources dentro do MarkdownRenderer */}
                         </>
                       ) : (
                         <div className="whitespace-pre-wrap text-sm md:text-base leading-relaxed">{msg.text}</div>
