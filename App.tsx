@@ -422,7 +422,8 @@ const App: React.FC = () => {
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [isLoading, setIsLoading] = useState(false);
   const [loadingStatus, setLoadingStatus] = useState<string>('Iniciando análise');
-  const [loadingSeconds, setLoadingSeconds] = useState(0); 
+  const [completedLoadingStatuses, setCompletedLoadingStatuses] = useState<string[]>([]);
+  const [loadingSeconds, setLoadingSeconds] = useState(0);
   const [isInitialized, setIsInitialized] = useState(false);
   
   const [isDarkMode, setIsDarkMode] = useState(() => {
@@ -695,7 +696,8 @@ const App: React.FC = () => {
 
     setIsLoading(true);
     setLoadingStatus("Realizando pesquisa...");
-    setLastQuery(text); 
+    setCompletedLoadingStatuses([]);
+    setLastQuery(text);
     
     abortControllerRef.current = new AbortController();
     const signal = abortControllerRef.current.signal;
@@ -743,8 +745,15 @@ const App: React.FC = () => {
         { 
           signal,
           onText: () => {},
-          onStatus: (newStatus) => { 
-            setLoadingStatus(newStatus); 
+          onStatus: (newStatus) => {
+            setLoadingStatus(prev => {
+              if (prev && prev !== newStatus) {
+                setCompletedLoadingStatuses(completed =>
+                  completed.includes(prev) ? completed : [...completed, prev]
+                );
+              }
+              return newStatus;
+            });
           }
         }
       );
@@ -1315,7 +1324,7 @@ const App: React.FC = () => {
         userId={renderUserHeader() as any}
         onLogout={logout}
         lastUserQuery={lastQuery}
-        processing={{ stage: loadingStatus }} 
+        processing={{ stage: loadingStatus, completedStages: completedLoadingStatuses }}
       />
 
       {/* Email Modal */}

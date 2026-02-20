@@ -139,7 +139,6 @@ export interface ChatInterfaceProps {
   lastUserQuery?: string;
   processing?: {
     stage?: string;
-    stageIndex?: number;
-    stageTotal?: number;
+    completedStages?: string[];
   };
 }

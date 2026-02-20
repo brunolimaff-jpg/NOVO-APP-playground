@@ -64,6 +64,14 @@
         animation: slide-in 0.4s ease-out forwards;
       }
 
+      @keyframes shimmer {
+        0% { transform: translateX(-100%); }
+        100% { transform: translateX(100%); }
+      }
+      .animate-shimmer {
+        animation: shimmer 1.5s ease-in-out infinite;
+      }
+
       /* Print Styles for PDF Export */
       @media print {
         body {
