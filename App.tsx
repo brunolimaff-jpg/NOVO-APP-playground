@@ -544,21 +544,34 @@ const App: React.FC = () => {
     return () => clearInterval(interval);
   }, [isLoading]);
 
+  // Sub-status para etapa longa de geração do dossiê
   useEffect(() => {
     if (!isLoading) return;
-    
-    const humorMsgs: Record<number, string> = {
-      60: "Pensando mais que o normal... a internet na roça tá devagar hoje 🚜💨",
-      90: "O dossiê é tão grande que o servidor foi tomar um café ☕🤖",
-      120: "Buscando informações até nas fofocas do sindicato rural 🕵️‍♂️🌽",
-      150: "Calma aí, o estagiário tropeçou no cabo do servidor 🔌😬",
-      180: "Quase lá! Negociando os dados com a Receita Federal 🤝💼",
-      240: "Isso que é uma capivara longa! Continuo cavando... ⛏️😅",
-      300: "A IA tá suando frio, mas não desistiu ainda! 💦🧠"
+
+    // Só atualiza se ainda estiver na etapa de "Conectando ao modelo"
+    // Usa setLoadingStatus funcional para checar o status atual
+    const deepResearchSubSteps: Record<number, string> = {
+      30: "Modelo de IA processando — varredura da web em andamento...",
+      60: "Cruzando fontes públicas e bases de dados do setor...",
+      100: "Analisando quadro societário e estrutura do grupo...",
+      150: "Compilando dados financeiros e operacionais...",
+      200: "Consolidando dossiê — análise profunda leva mais tempo...",
+      260: "Finalizando cruzamento de dados — quase pronto...",
     };
 
-    if (humorMsgs[loadingSeconds]) {
-      setLoadingStatus(humorMsgs[loadingSeconds]);
+    const subStep = deepResearchSubSteps[loadingSeconds];
+    if (subStep) {
+      setLoadingStatus(prev => {
+        // Só injeta sub-status se estiver na etapa de IA ou em um sub-status anterior
+        const isInAIStep = prev?.includes("Conectando ao modelo") ||
+                           prev?.includes("Modelo de IA") ||
+                           prev?.includes("Cruzando fontes") ||
+                           prev?.includes("Analisando quadro") ||
+                           prev?.includes("Compilando dados") ||
+                           prev?.includes("Consolidando dossiê") ||
+                           prev?.includes("Finalizando cruzamento");
+        return isInAIStep ? subStep : prev;
+      });
     }
   }, [loadingSeconds, isLoading]);
 
