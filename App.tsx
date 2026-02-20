@@ -423,7 +423,6 @@ const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [loadingStatus, setLoadingStatus] = useState<string>('Iniciando análise');
   const [completedLoadingStatuses, setCompletedLoadingStatuses] = useState<string[]>([]);
-  const [loadingSeconds, setLoadingSeconds] = useState(0);
   const [isInitialized, setIsInitialized] = useState(false);
   
   const [isDarkMode, setIsDarkMode] = useState(() => {
@@ -527,53 +526,6 @@ const App: React.FC = () => {
     resetChatSession();
     document.title = `${APP_NAME} ${MODE_LABELS[mode].icon}`;
   }, [mode]);
-
-  // ============================================
-  // TIMER E MENSAGENS ENGRAÇADAS DE ESPERA
-  // ============================================
-
-  useEffect(() => {
-    let interval: NodeJS.Timeout;
-    if (isLoading) {
-      interval = setInterval(() => {
-        setLoadingSeconds(prev => prev + 1);
-      }, 1000);
-    } else {
-      setLoadingSeconds(0);
-    }
-    return () => clearInterval(interval);
-  }, [isLoading]);
-
-  // Sub-status para etapa longa de geração do dossiê
-  useEffect(() => {
-    if (!isLoading) return;
-
-    // Só atualiza se ainda estiver na etapa de "Conectando ao modelo"
-    // Usa setLoadingStatus funcional para checar o status atual
-    const deepResearchSubSteps: Record<number, string> = {
-      30: "Modelo de IA processando — varredura da web em andamento...",
-      60: "Cruzando fontes públicas e bases de dados do setor...",
-      100: "Analisando quadro societário e estrutura do grupo...",
-      150: "Compilando dados financeiros e operacionais...",
-      200: "Consolidando dossiê — análise profunda leva mais tempo...",
-      260: "Finalizando cruzamento de dados — quase pronto...",
-    };
-
-    const subStep = deepResearchSubSteps[loadingSeconds];
-    if (subStep) {
-      setLoadingStatus(prev => {
-        // Só injeta sub-status se estiver na etapa de IA ou em um sub-status anterior
-        const isInAIStep = prev?.includes("Conectando ao modelo") ||
-                           prev?.includes("Modelo de IA") ||
-                           prev?.includes("Cruzando fontes") ||
-                           prev?.includes("Analisando quadro") ||
-                           prev?.includes("Compilando dados") ||
-                           prev?.includes("Consolidando dossiê") ||
-                           prev?.includes("Finalizando cruzamento");
-        return isInAIStep ? subStep : prev;
-      });
-    }
-  }, [loadingSeconds, isLoading]);
 
   // ============================================
   // SESSION MANAGEMENT
