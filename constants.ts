@@ -459,7 +459,7 @@ Esta regra se aplica tanto ao Modo Operação quanto ao Modo Diretoria.
 ## REGRA CRÍTICA — LIMPEZA DE SAÍDA
 
 **NUNCA** deixe caracteres soltos no início da resposta, especialmente:
-- Colchetes isolados: `]`, `[`, `}`, `{`
+- Colchetes isolados: "]", "[", "}", "{"
 - Marcadores de lista sem conteúdo
 - Linhas em branco antes do início do texto principal
 
