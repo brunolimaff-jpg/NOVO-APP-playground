@@ -9,7 +9,7 @@ import LoadingSmart from './LoadingSmart';
 import ErrorMessageCard from './ErrorMessageCard';
 import EmptyStateHome from './EmptyStateHome';
 import MessageActionsBar from './MessageActionsBar';
-import DeepDiveTopics from './DeepDiveTopics';
+import { DeepDiveTopics } from './DeepDiveTopics';
 import InvestigationDashboard from './InvestigationDashboard';
 import SettingsDrawer from './SettingsDrawer';
 import ScorePorta from './ScorePorta';
