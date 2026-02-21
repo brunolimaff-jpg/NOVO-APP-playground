@@ -50,7 +50,7 @@ const EmptyStateHome: React.FC<EmptyStateHomeProps> = ({ mode, onSendMessage, on
     { icon: "🔔", label: "Alertas", desc: "O que mudou", prompt: "Verificar alertas e novidades da " },
   ];
 
-  // NOVO: 6 sugestões organizadas por categoria
+  // 6 sugestões organizadas por categoria
   const suggestionCategories = {
     investigar: mode === 'operacao' ? [
       { icon: "🤠", text: "Levanta a capivara completa do Grupo Scheffer" },
@@ -216,18 +216,18 @@ const EmptyStateHome: React.FC<EmptyStateHomeProps> = ({ mode, onSendMessage, on
           </div>
         </div>
 
-        {/* NOVO: Sugestões por Categoria (6 total) */}
+        {/* Sugestões por Categoria (Corrigido para onPreFill) */}
         <div className="mb-8">
           <h2 className={`text-xs font-bold uppercase tracking-wider mb-3 px-1 ${theme.heading}`}>
             💡 Sugestões
           </h2>
           
-          {/* Linha 1: Investigar + Concorrente (4 botões) */}
           <div className="space-y-2 mb-3">
             {[...suggestionCategories.investigar, ...suggestionCategories.concorrente].map((ex, i) => (
               <button
                 key={i}
-                onClick={() => onSendMessage(ex.text)}
+                // 👉 AQUI FOI CORRIGIDO: Agora ele preenche em vez de enviar!
+                onClick={() => onPreFill(ex.text)}
                 className={`w-full ${theme.exampleBg} border ${theme.exampleBorder} rounded-xl px-4 py-3 text-left ${theme.cardHoverBorder} ${theme.exampleHover} transition-all flex items-center gap-3 group`}
               >
                 <span className="text-xl flex-shrink-0">{ex.icon}</span>
@@ -238,12 +238,12 @@ const EmptyStateHome: React.FC<EmptyStateHomeProps> = ({ mode, onSendMessage, on
             ))}
           </div>
           
-          {/* Linha 2: Senior + Budget (4 botões em grid) */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
             {[...suggestionCategories.senior, ...suggestionCategories.budget].map((ex, i) => (
               <button
                 key={i}
-                onClick={() => onSendMessage(ex.text)}
+                // 👉 AQUI FOI CORRIGIDO TAMBÉM!
+                onClick={() => onPreFill(ex.text)}
                 className={`${theme.exampleBg} border ${theme.exampleBorder} rounded-xl px-4 py-3 text-left ${theme.cardHoverBorder} ${theme.exampleHover} transition-all flex items-center gap-2 group`}
               >
                 <span className="text-lg flex-shrink-0">{ex.icon}</span>
