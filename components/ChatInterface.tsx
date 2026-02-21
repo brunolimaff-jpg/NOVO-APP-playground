@@ -46,7 +46,12 @@ function extractDisplayedSuggestions(content?: string): string[] {
   return suggestions.slice(0, 4);
 }
 
-const ChatInterface: React.FC<ChatInterfaceProps> = ({
+// 👉 AQUI: Adicionei o onDeepDive na interface localmente para garantir que o TypeScript não reclame
+type ExtendedChatInterfaceProps = ChatInterfaceProps & {
+  onDeepDive?: (displayMessage: string, hiddenPrompt: string) => void;
+};
+
+const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
   currentSession, sessions, onNewSession, onSelectSession, onDeleteSession,
   isSidebarOpen, onToggleSidebar, messages, isLoading, hasMore,
   onSendMessage, onFeedback, onSendFeedback, onSectionFeedback, onLoadMore, 
@@ -54,7 +59,8 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
   onRegenerateSuggestions, onStop, onReportError, onSaveRemote, isSavingRemote, 
   remoteSaveStatus, isDarkMode, onToggleTheme, onToggleMessageSources, 
   exportStatus, exportError, pdfReportContent, onOpenEmailModal,
-  onOpenFollowUpModal, userId, onLogout, lastUserQuery, processing
+  onOpenFollowUpModal, userId, onLogout, lastUserQuery, processing,
+  onDeepDive // 👉 AQUI: Recebendo a função do App.tsx
 }) => {
   const { mode, setMode } = useMode();
   const { user, updateName } = useAuth();
@@ -254,17 +260,13 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                                 onRegenerateSuggestions={onRegenerateSuggestions}
                            />
 
-                           {/* DeepDiveTopics DENTRO do balão */}
-                           {isLast && !isLoading && (
+                           {/* 👉 AQUI: Chamada corrigida do DeepDiveTopics */}
+                           {isLast && !isLoading && onDeepDive && (
                              <DeepDiveTopics
-                               onDeepDive={handleActionClick}
-                               isDarkMode={isDarkMode}
-                               empresaContext={currentSession?.empresaAlvo || currentSession?.title}
+                               onSelectTopic={onDeepDive}
                              />
                            )}
 
-                           {/* FIX: sourcesCount=0 para remover Fontes duplicado do MessageActionsBar.
-                               As fontes já são exibidas pelo CollapsibleSources dentro do MarkdownRenderer. */}
                            <MessageActionsBar
                                content={msg.text}
                                sourcesCount={0}
