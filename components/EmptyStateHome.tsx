@@ -101,8 +101,8 @@ const EmptyStateHome: React.FC<EmptyStateHomeProps> = ({ mode, onSendMessage, on
   };
 
   return (
-    <div className="flex-1 overflow-auto animate-fade-in custom-scrollbar">
-      <div className="max-w-3xl mx-auto px-4 py-8">
+  <div className="w-full h-full animate-fade-in pb-10">
+    <div className="max-w-3xl mx-auto px-4 pt-4 md:pt-8">
         
         {/* Header */}
         <div className="text-center mb-8">
