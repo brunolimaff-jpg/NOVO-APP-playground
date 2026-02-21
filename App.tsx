@@ -165,20 +165,8 @@ function collectFullReport(messages: any[]): { text: string; sections: string[];
 
     if (botText.length > 50) {
       const sectionHeader = userQuestion 
-        ? `
-
----
-
-## 🔍 APROFUNDAMENTO: ${userQuestion}
-
-`
-        : `
-
----
-
-## 🔍 APROFUNDAMENTO #${i}
-
-`;
+        ? `\n\n---\n\n## 🔍 APROFUNDAMENTO: ${userQuestion}\n\n`
+        : `\n\n---\n\n## 🔍 APROFUNDAMENTO #${i}\n\n`;
       sections.push(sectionHeader + botText);
 
       const sectionLinks = extractAllLinksFromMarkdown(botText);
@@ -841,6 +829,24 @@ const App: React.FC = () => {
     await processMessage(text, sessionId, currentHistory); 
   };
 
+  // ============================================
+  // FUNÇÃO NOVA PARA OS BOTÕES (DEEP DIVE)
+  // ============================================
+  const handleDeepDive = async (displayMessage: string, hiddenPrompt: string) => {
+    const empresaContext = currentSession?.empresaAlvo || currentSession?.title || "a empresa desta conversa";
+    
+    // Injeta o contexto da sessão no prompt oculto para o Gemini não se perder
+    const finalPromptToAI = `
+      Com base em [${empresaContext}], execute o seguinte protocolo de ataque e investigação forense:
+      
+      ${hiddenPrompt}
+    `;
+
+    // Dispara a sua função que já existia passando: O que vai pro Gemini (finalPromptToAI) e o que vai pra tela (displayMessage)
+    await handleSendMessage(finalPromptToAI, displayMessage);
+  };
+
+
   const handleStopGeneration = useCallback(() => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
@@ -1274,6 +1280,10 @@ const App: React.FC = () => {
         isLoading={isLoading}
         hasMore={allMessages.length > visibleCount}
         onSendMessage={handleSendMessage}
+        
+        // 👉 AQUI ENTRA A FUNÇÃO NOVA QUE ADICIONAMOS:
+        onDeepDive={handleDeepDive} 
+        
         onFeedback={handleFeedback}
         onSendFeedback={handleSendFeedback}
         onSectionFeedback={handleSectionFeedback}
