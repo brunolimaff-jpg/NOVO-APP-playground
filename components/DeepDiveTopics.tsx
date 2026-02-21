@@ -12,7 +12,7 @@ interface DeepDiveTopicsProps {
 }
 
 export const DeepDiveTopics: React.FC<DeepDiveTopicsProps> = ({ onSelectTopic }) => {
-  const topics = [
+    const topics = [
     {
       id: 'raio-x',
       label: 'Raio-X Operacional',
@@ -33,6 +33,20 @@ export const DeepDiveTopics: React.FC<DeepDiveTopicsProps> = ({ onSelectTopic })
       tooltip: 'Buscar execuções fiscais, malha fina de LCDPR e passivos ambientais.',
       icon: '🚨',
       hiddenPrompt: PROMPT_RISCOS_COMPLIANCE_GOD_MODE
+    },
+    {
+      id: 'radar',
+      label: 'Teia Societária (M&A)',
+      tooltip: 'Vasculhar CNPJs cruzados, holdings, laranjas e estimar faturamento.',
+      icon: '🕸️',
+      hiddenPrompt: PROMPT_RADAR_EXPANSAO_GOD_MODE
+    },
+    {
+      id: 'rh-sindicatos',
+      label: 'RH, SST & Cultura',
+      tooltip: 'Mapear Headcount, sistemas de DP ocultos, CAEPF e risco FAP/RAT.',
+      icon: '👥',
+      hiddenPrompt: PROMPT_RH_SINDICATOS_GOD_MODE
     }
   ];
 
