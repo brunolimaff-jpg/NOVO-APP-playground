@@ -3,7 +3,7 @@ import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
 import rehypeRaw from 'rehype-raw';
-import mermaid from 'mermaid'; // Importação do motor de gráficos!
+import mermaid from 'mermaid';
 import { autoLinkSeniorTerms } from '../utils/seniorLinks';
 import { rewriteMarkdownLinksToGoogle } from '../utils/markdownLinks';
 import { cleanStatusMarkers } from '../utils/textCleaners';
@@ -24,7 +24,7 @@ interface FootnoteSource {
 }
 
 // ==========================================
-// RENDERIZADOR DE GRÁFICOS MERMAID
+// RENDERIZADOR DE GRÁFICOS MERMAID (FORÇA BRUTA)
 // ==========================================
 const MermaidGraph: React.FC<{ chart: string; isDarkMode: boolean }> = ({ chart, isDarkMode }) => {
   const [svg, setSvg] = useState<string>('');
@@ -43,7 +43,7 @@ const MermaidGraph: React.FC<{ chart: string; isDarkMode: boolean }> = ({ chart,
         setSvg(renderedSvg);
       } catch (error: any) {
         console.error('Erro ao renderizar Mermaid:', error);
-        setSvg(`<div class="text-red-500 text-sm border border-red-500/20 p-4 rounded-lg bg-red-500/10">Falha ao gerar o gráfico de teia societária. Verifique os dados.</div>`);
+        setSvg(`<div class="text-red-500 text-sm border border-red-500/20 p-4 rounded-lg bg-red-500/10 font-bold">⚠️ Falha ao gerar o Mapa Societário. O dado retornado pela IA foi incompatível com o gráfico.</div>`);
       }
     };
     renderChart();
@@ -51,17 +51,15 @@ const MermaidGraph: React.FC<{ chart: string; isDarkMode: boolean }> = ({ chart,
 
   return (
     <div 
-      className="flex justify-center my-8 overflow-x-auto w-full border border-slate-200 dark:border-slate-800 rounded-xl p-4 bg-white dark:bg-slate-900 shadow-sm"
+      className={`flex justify-center my-8 overflow-x-auto w-full border rounded-xl p-4 shadow-sm ${isDarkMode ? 'border-slate-800 bg-slate-900' : 'border-slate-200 bg-white'}`}
       dangerouslySetInnerHTML={{ __html: svg }} 
     />
   );
 };
 
-
 // ==========================================
 // COMPONENTES VISUAIS (PORTA E FONTES)
 // ==========================================
-
 const PortaScoreBadge: React.FC<{ score: number; p: number; o: number; r: number; t: number; a: number; isDarkMode: boolean; }> = ({ score, p, o, r, t, a, isDarkMode }) => {
   const isAlta = score >= 71;
   const isMedia = score >= 41 && score < 71;
@@ -141,14 +139,11 @@ const CollapsibleSources: React.FC<{ sources: FootnoteSource[]; isDarkMode: bool
   );
 };
 
-
 // ==========================================
 // RENDERIZADOR PRINCIPAL
 // ==========================================
-
 const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, isDarkMode, groundingSources, showCollapsibleSources = true }) => {
   
-  // Extrai as fontes de forma segura, sem destruir o texto!
   const { processedContent, urlToNumMap, footnoteSources } = useMemo(() => {
     let text = cleanStatusMarkers(content.replace(/\[\[STATUS:.*?\]\]\n?/g, '')).cleanText;
     text = fixFakeLinks(text);
@@ -161,7 +156,9 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, isDarkMode
       '<porta-score data-score="$1" data-p="$2" data-o="$3" data-r="$4" data-t="$5" data-a="$6"></porta-score>'
     );
 
-    // Mapeia os URLs para criar a lista de fontes, mas NÃO apaga o texto
+    // Transforma as referências brutas do Gemini [1], [2] em tags HTML bonitas
+    text = text.replace(/(?<!\[)\[(\d+)\](?!\()/g, '<footnote data-num="$1"></footnote>');
+
     const map = new Map<string, number>();
     const sources: FootnoteSource[] = [];
     let counter = 0;
@@ -178,7 +175,6 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, isDarkMode
       return num;
     };
 
-    // Alimenta o mapa com as fontes do Grounding (Google Search)
     if (groundingSources) {
       groundingSources.forEach(gs => getNum(gs.url, gs.title));
     }
@@ -211,42 +207,44 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, isDarkMode
             />;
           },
 
-          // INTERCEPTADOR DE LINKS (Corrige o problema do texto sendo engolido)
+          // @ts-ignore
+          'footnote': (props: any) => {
+             const num = props['data-num'];
+             return (
+               <sup className="inline-flex items-center justify-center w-[16px] h-[16px] rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400 text-[9px] font-extrabold ml-1 -translate-y-1 select-none">
+                 {num}
+               </sup>
+             );
+          },
+
           a: ({ href, children, ...props }) => {
             if (!href || isFakeUrl(href)) {
               return <strong className="text-emerald-600 dark:text-emerald-400 font-bold">{children}</strong>;
             }
-            
-            // Puxa o número da fonte
-            const num = urlToNumMap.get(href);
-            
             return (
-              <span className="inline-flex items-baseline gap-1">
-                <a 
-                  href={href} 
-                  target="_blank" 
-                  rel="noopener noreferrer" 
-                  className="text-emerald-600 dark:text-emerald-400 font-semibold hover:text-emerald-500 underline decoration-emerald-500/30 underline-offset-4 transition-colors break-words" 
-                  {...props}
-                >
-                  {children}
-                </a>
-                {num && (
-                  <sup className="inline-flex items-center justify-center w-[18px] h-[18px] rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400 text-[10px] font-extrabold cursor-pointer hover:scale-110 transition-transform select-none -translate-y-2">
-                    {num}
-                  </sup>
-                )}
-              </span>
+              <a 
+                href={href} 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="text-emerald-600 dark:text-emerald-400 font-semibold hover:text-emerald-500 underline decoration-emerald-500/30 underline-offset-4 transition-colors break-words" 
+                {...props}
+              >
+                {children}
+              </a>
             );
           },
 
-          // INTERCEPTADOR DE GRÁFICOS (Renderiza a Teia do Mermaid)
+          // INTERCEPTADOR DE GRÁFICOS (FORÇA BRUTA)
           code(props) {
             const {children, className, node, ...rest} = props;
             const match = /language-(\w+)/.exec(className || '');
+            const contentStr = String(children).trim();
             
-            if (match && match[1] === 'mermaid') {
-              return <MermaidGraph chart={String(children).replace(/\n$/, '')} isDarkMode={isDarkMode} />;
+            // Força a renderização do Mermaid se começar com 'graph TD'
+            const isMermaid = (match && match[1] === 'mermaid') || contentStr.startsWith('graph ') || contentStr.startsWith('pie ') || contentStr.startsWith('sequenceDiagram');
+
+            if (isMermaid) {
+              return <MermaidGraph chart={contentStr} isDarkMode={isDarkMode} />;
             }
             
             return match ? (
@@ -260,7 +258,7 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, isDarkMode
             );
           },
 
-          // TABELAS COM VISUAL PREMIUM
+          // TABELAS PREMIUM
           table: ({...props}) => (
             <div className={`overflow-x-auto my-6 border rounded-xl shadow-sm ${isDarkMode ? 'border-slate-700 bg-slate-900/50' : 'border-slate-200 bg-white'}`}>
               <table className="min-w-full text-sm text-left border-collapse" {...props} />
@@ -271,7 +269,6 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, isDarkMode
           td: ({...props}) => <td className={`px-5 py-3.5 border-b align-middle font-medium ${isDarkMode ? 'border-slate-800 text-slate-300' : 'border-slate-100 text-slate-700'}`} {...props} />,
           tr: ({...props}) => <tr className={`transition-colors ${isDarkMode ? 'hover:bg-slate-800/50' : 'hover:bg-slate-50/80'}`} {...props} />,
 
-          // TIPOGRAFIA BASE
           h1: ({...props}) => <h1 className={`text-xl md:text-2xl font-black ${theme.h1} mt-8 mb-4 tracking-tight`} {...props} />,
           h2: ({...props}) => <h2 className={`text-lg md:text-xl font-bold ${theme.h2} mt-8 mb-4 border-b border-emerald-500/20 pb-2`} {...props} />,
           h3: ({...props}) => <h3 className={`text-base md:text-lg font-bold ${theme.h3} mt-6 mb-3`} {...props} />,
@@ -281,7 +278,14 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, isDarkMode
           li: ({...props}) => <li className="pl-1" {...props} />,
           hr: ({...props}) => <hr className={`${theme.hr} my-8 border-t-2`} {...props} />,
           strong: ({...props}) => <strong className={`${theme.textBold} font-extrabold`} {...props} />,
-          blockquote: ({...props}) => <blockquote className="border-l-4 border-emerald-500 pl-4 py-1 my-4 bg-emerald-50 dark:bg-emerald-900/20 text-slate-700 dark:text-slate-300 italic rounded-r-lg" {...props} />,
+          
+          // BLOCKQUOTE CORRIGIDO (CONTRASTE ALTO)
+          blockquote: ({...props}) => (
+            <blockquote 
+              className="border-l-4 border-emerald-500 pl-5 py-3 my-5 bg-emerald-50 dark:bg-emerald-900/30 text-slate-800 dark:text-slate-200 font-medium italic rounded-r-xl shadow-sm" 
+              {...props} 
+            />
+          ),
         }}
       >
         {processedContent}
