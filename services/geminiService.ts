@@ -8,6 +8,7 @@ import { stripMarkdown, cleanSuggestionText } from '../utils/textCleaners';
 import { lookupCliente, formatarParaPrompt, benchmarkClientes, formatarBenchmarkParaPrompt } from './clientLookupService';
 import { addInvestigation } from '../components/InvestigationDashboard';
 import { CompetitorDetection, getContextoConcorrentesRegionais } from './competitorService';
+import { buscarContextoPinecone } from './ragService';
 
 export interface GeminiRequestOptions {
   useGrounding?: boolean;
@@ -56,48 +57,31 @@ Responda EXCLUSIVAMENTE em Português (Brasil) usando um Array JSON de strings.
 // LIMPEZA DE TEXTO — STREAMING E FINAL
 // ===================================================================
 
-/**
- * sanitizeStreamText
- * Remove TODOS os marcadores [[...]] do texto acumulado antes de exibir
- * na UI durante o streaming. Também remove ] soltos gerados por parsers
- * parciais de marcadores.
- */
 function sanitizeStreamText(text: string): string {
   return text
-    // Remove marcadores completos — ordem importa (mais específico primeiro)
     .replace(/\[\[COMPETITOR:[^\]]*\]\]/g, '')
     .replace(/\[\[PORTA:[^\]]*\]\]/g, '')
     .replace(/\[\[STATUS:[^\]]*\]\]/g, '')
-    // Remove qualquer outro [[MARCADOR:...]] completo
     .replace(/\[\[[A-Z_]+:[^\n]*?\]\]/g, '')
-    // Remove marcador parcial na última linha (stream ainda chegando)
     .replace(/\[\[?[A-Z_]*:?[^\n]*$/, '')
-    // Remove ] ou [ soltos no início (artefato de parse)
     .replace(/^(\s*\]\s*\n)+/, '')
     .replace(/^\s*\]/, '');
 }
 
-/**
- * enforceOpeningWithSeller
- * Garante que aberturas coloquiais como "Fala, time" sejam ajustadas
- * para um tom mais profissional, citando o vendedor quando possível.
- */
 function enforceOpeningWithSeller(rawText: string, nomeVendedor: string): string {
   if (!rawText) return rawText;
 
   const seller = nomeVendedor?.trim() || 'Vendedor';
 
-  // Não mexe em textos que começam com heading Markdown (#, ##, etc.)
   const trimmedStart = rawText.trimStart();
   if (/^#+\s/.test(trimmedStart)) {
     return rawText;
   }
 
-  // Trabalha em uma cópia aparada no início, preservando resto do conteúdo
   let text = trimmedStart;
   const forbiddenOpenings = [
-    /^fala[,!\.\s]*time[\.!?\s-]*/i,
-    /^fala[,!\.\s]*(pessoal|galera)[\.!?\s-]*/i,
+    /^fala[,!\.\s]*time[\.!?\s-]*/i,
+    /^fala[,!\.\s]*(pessoal|galera)[\.!?\s-]*/i,
   ];
 
   let replaced = false;
@@ -111,7 +95,6 @@ function enforceOpeningWithSeller(rawText: string, nomeVendedor: string): string
 
   if (!replaced) return rawText;
 
-  // Re-anexa os espaços iniciais que foram removidos em trimStart
   const leadingWhitespaceMatch = rawText.match(/^\s*/);
   const leadingWhitespace = leadingWhitespaceMatch ? leadingWhitespaceMatch[0] : '';
   return leadingWhitespace + text;
@@ -121,12 +104,6 @@ function enforceOpeningWithSeller(rawText: string, nomeVendedor: string): string
 // PARSER DE MARCADOR [[COMPETITOR:...]]
 // ===================================================================
 
-/**
- * parseCompetitorMarker
- * Extrai o primeiro marcador [[COMPETITOR:...]] encontrado no texto acumulado.
- * Retorna null se não houver marcador.
- * Formato: [[COMPETITOR:NOME_ERP:NIVEL_AMEACA:REVENDA_LOCAL:CONFIANCA]]
- */
 function parseCompetitorMarker(content: string): CompetitorDetection | null {
   const regex = /\[\[COMPETITOR:([^:\]]+):([^:\]]+):([^:\]]+):([^\]]+)\]\]/;
   const match = content.match(regex);
@@ -140,11 +117,6 @@ function parseCompetitorMarker(content: string): CompetitorDetection | null {
   };
 }
 
-/**
- * extractEstadoFromMessage
- * Tenta detectar a UF mencionada na mensagem para enriquecer contexto regional.
- * Padrão: MT (Mato Grosso — mercado principal).
- */
 function extractEstadoFromMessage(message: string): string {
   const ufsKnown: Record<string, string> = {
     'mato grosso do sul': 'MS', 'mato grosso': 'MT',
@@ -163,7 +135,7 @@ function extractEstadoFromMessage(message: string): string {
   for (const [key, uf] of Object.entries(ufsKnown)) {
     if (lower.includes(key.toLowerCase())) return uf;
   }
-  return 'MT'; // padrão: mercado principal
+  return 'MT';
 }
 
 // ===================================================================
@@ -175,7 +147,6 @@ export function parseMarkers(content: string): ParsedContent {
   const statuses: string[] = [];
   let scorePorta: ScorePortaData | null = null;
 
-  // 1. Extrai e remove marcadores [[STATUS:...]]
   const statusRegex = /\[\[STATUS:([^\]]+)\]\]/g;
   let statusMatch;
   while ((statusMatch = statusRegex.exec(content)) !== null) {
@@ -183,7 +154,6 @@ export function parseMarkers(content: string): ParsedContent {
     text = text.replace(statusMatch[0], '');
   }
 
-  // 2. Extrai e remove marcador [[PORTA:...]]
   const portaRegex = /\[\[PORTA:(\d+):P(\d+):O(\d+):R(\d+):T(\d+):A(\d+)\]\]/;
   const portaMatch = text.match(portaRegex);
   if (portaMatch) {
@@ -198,17 +168,10 @@ export function parseMarkers(content: string): ParsedContent {
     text = text.replace(portaMatch[0], '');
   }
 
-  // 3. Remove marcadores [[COMPETITOR:...]] (capturado via onCompetitor callback, não exibido)
   text = text.replace(/\[\[COMPETITOR:[^\]]*\]\]/g, '');
-
-  // 4. Remove qualquer outro marcador [[MARCADOR:...]] residual
   text = text.replace(/\[\[[A-Z_]+:[^\n]*?\]\]/g, '');
-
-  // 5. Limpa ] ou [ soltos no início (artefato de parse de marcadores)
   text = text.replace(/^(\s*\]\s*\n)+/, '');
   text = text.replace(/^\s*\]/, '');
-
-  // 6. Normaliza espaços/linhas em branco extras
   text = text.replace(/^\s*\n/gm, '\n').trim();
 
   return { text, statuses, scorePorta };
@@ -455,7 +418,6 @@ export const sendMessageToGemini = async (
 ): Promise<{ text: string; sources: Array<{title: string, url: string}>, suggestions: string[], scorePorta: ScorePortaData | null, statuses: string[] }> => {
   const { useGrounding = true, thinkingMode = false, signal, onText, onStatus, onScorePorta, onCompetitor, nomeVendedor } = options;
 
-  // Injeta o nome do vendedor no system prompt (substitui {{NOME_VENDEDOR}})
   const nomeParaInjetar = nomeVendedor?.trim() || 'Vendedor';
   const systemInstructionFinal = systemInstruction.replace(
     new RegExp(NOME_VENDEDOR_PLACEHOLDER.replace(/[{}]/g, '\\$&'), 'g'),
@@ -464,10 +426,13 @@ export const sendMessageToGemini = async (
 
   const apiCall = async () => {
     onStatus?.("Analisando complexidade do pedido...");
+
+    // ✅ RAG: Dispara busca no Pinecone em paralelo — não bloqueia o fluxo principal
+    const ragContextPromise = buscarContextoPinecone(message);
+
     const { empresa, benchmark, rota } = await analyzeUserIntent(message);
 
     const selectedModel = rota === 'profunda' ? DEEP_CHAT_MODEL_ID : TACTICAL_MODEL_ID;
-    
     const isDeepResearch = rota === 'profunda';
 
     if (isDeepResearch) {
@@ -489,7 +454,6 @@ export const sendMessageToGemini = async (
 
       enrichments.push(generateContextReminder(empresa, sessionId));
 
-      // Injeta concorrentes regionais com presença no estado detectado (sem chamada de API)
       const estado = extractEstadoFromMessage(message);
       const competitorContext = getContextoConcorrentesRegionais(estado);
       if (competitorContext) enrichments.push(competitorContext);
@@ -500,6 +464,20 @@ export const sendMessageToGemini = async (
         const bench = await benchmarkClientes(keywords);
         if (bench.ok) enrichments.push(formatarBenchmarkParaPrompt(bench, empresa));
       }
+    }
+
+    // ✅ RAG: Aguarda o resultado do Pinecone e injeta no contexto
+    const ragContext = await ragContextPromise;
+    if (ragContext) {
+      onStatus?.("Base de propostas TOTVS carregada — analisando estratégia...");
+      enrichments.push(`
+## INTELIGÊNCIA INTERNA — PROPOSTAS REAIS DA TOTVS
+Os trechos abaixo são de propostas comerciais reais da TOTVS extraídas da base de conhecimento interna.
+Use para identificar preços praticados, argumentos de venda, diferenciais e fraquezas táticas do concorrente.
+ATENÇÃO: Estes dados são REAIS e CONFIDENCIAIS — priorize-os sobre informações genéricas da web.
+
+${ragContext}
+      `);
     }
 
     if (enrichments.length > 0) messageToSend = enrichments.join('\n') + `\n\nUSUÁRIO: ${message}`;
@@ -568,7 +546,6 @@ export const sendMessageToGemini = async (
         lastEmittedScore = parsed.scorePorta;
       }
 
-      // Detecta [[COMPETITOR:...]] no stream e emite callback para a UI
       if (onCompetitor) {
         const competitorData = parseCompetitorMarker(rawAccumulator);
         if (competitorData && !lastEmittedCompetitor) {
@@ -577,7 +554,6 @@ export const sendMessageToGemini = async (
         }
       }
 
-      // Usa sanitizeStreamText para limpar TODOS os marcadores antes de exibir
       onText?.(sanitizeStreamText(rawAccumulator));
     }
 
@@ -682,8 +658,6 @@ REGRAS:
 - Responda em Português (Brasil).
 `;
 
-    // Versão frontend-safe: usa o mesmo fluxo do chat com grounding (googleSearch)
-    // evitando Interactions API (que causa CORS/preflight no browser).
     const chatSession = createChatSession(systemInstruction, [], DEEP_CHAT_MODEL_ID, true, false);
 
     const result = await chatSession.sendMessageStream({ message: prompt });
