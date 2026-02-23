@@ -342,8 +342,8 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
           </div>
         </div>
 
-                {/* ==========================================
-            WAR ROOM RENDERIZADA E CONECTADA (MODO NINJA)
+                        {/* ==========================================
+            WAR ROOM RENDERIZADA E CONECTADA (CORREÇÃO ABSOLUTA)
             ========================================== */}
         <WarRoom 
           isOpen={showWarRoom} 
@@ -352,14 +352,13 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
           onExecuteOSINT={async (prompt) => {
             try {
               const DEEP_RESEARCH_MODEL_ID = 'deep-research-pro-preview-12-2025';
-              const systemPrompt = "Você é um Diretor de Inteligência Competitiva de Elite e Hacker OSINT. Varra a web atrás das evidências solicitadas.";
+              const systemPrompt = "Você é um Diretor de Inteligência Competitiva e Hacker OSINT. Varra a web.";
               
-              // Usa a função que JÁ EXISTE no seu geminiService para montar o míssil
-              // createChatSession(systemInstruction, history, modelId, useGrounding, thinkingMode)
+              // Monta a sessão usando a sua função interna
               const chatSession = createChatSession(systemPrompt, [], DEEP_RESEARCH_MODEL_ID, true, false);
               
-              // Dispara contra o alvo
-              const result = await chatSession.sendMessageStream(prompt);
+              // O ERRO ESTAVA AQUI: Passando o objeto exatamente como seu geminiService exige
+              const result = await chatSession.sendMessageStream({ message: prompt } as any);
               
               let finalReport = '';
               for await (const chunk of result) {
@@ -368,7 +367,7 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
               
               return finalReport || "Nenhum dado retornado.";
             } catch (error: any) {
-              return `**⚠️ Falha na Conexão OSINT.**\n\nO motor engasgou ou a segurança do alvo bloqueou a varredura.\n\nDetalhe técnico: \`${error.message}\``;
+              return `**⚠️ Falha na Conexão OSINT.**\n\nDetalhe técnico: \`${error.message}\``;
             }
           }}
         />
