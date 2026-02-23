@@ -1,25 +1,32 @@
 import React, { useState } from 'react';
-import MarkdownRenderer from './MarkdownRenderer'; // Vamos reutilizar seu renderizador implacável
+import MarkdownRenderer from './MarkdownRenderer';
 
 interface WarRoomProps {
   isOpen: boolean;
   onClose: () => void;
   isDarkMode: boolean;
-  onExecuteOSINT: (prompt: string) => Promise<string>; // Função que vai chamar seu modelo Deep Research
+  onExecuteOSINT: (prompt: string, modelId: string) => Promise<string>; // <-- Agora recebe o modelo escolhido
 }
 
 type TabType = 'forense' | 'divida' | 'sangria' | 'sparring';
 
 const COMPETITORS = ['TOTVS', 'Sankhya', 'SAP', 'GAtec', 'Mega', 'CHB', 'Siagri', 'Liberali (Franquia)'];
 
+// Os 3 Motores que você mapeou
+const MODELS = [
+  { id: 'deep-research-pro-preview-12-2025', label: '🧠 Deep Research (Recomendado - Lento e Letal)' },
+  { id: 'gemini-3.1-pro-preview-customtools', label: '⚔️ Gemini 3.1 Pro (Tático - Moderado)' },
+  { id: 'gemini-2.5-flash', label: '⚡ Gemini 2.5 Flash (Superficial - Rápido)' }
+];
+
 export default function WarRoom({ isOpen, onClose, isDarkMode, onExecuteOSINT }: WarRoomProps) {
   const [target, setTarget] = useState<string>('TOTVS');
+  const [selectedModel, setSelectedModel] = useState<string>(MODELS[0].id); // Deep Research é o padrão!
   const [activeTab, setActiveTab] = useState<TabType>('forense');
   const [loadingAction, setLoadingAction] = useState<string | null>(null);
   const [results, setResults] = useState<Record<string, string>>({});
   const [sparringInput, setSparringInput] = useState('');
 
-  // Os Módulos de Ataque (Eles montam o mega prompt dinamicamente com base no Target)
   const osintModules = {
     forense: [
       { id: 'pricing', icon: '💰', title: 'Engenharia Reversa de Pricing', desc: 'Varre licitações e vazamentos para descobrir R$ da licença e valor da hora técnica.', 
@@ -48,11 +55,11 @@ export default function WarRoom({ isOpen, onClose, isDarkMode, onExecuteOSINT }:
   const handleRunOSINT = async (moduleId: string, title: string, prompt: string) => {
     setLoadingAction(moduleId);
     try {
-      // Aqui nós chamamos o seu motor Deep Research
-      const result = await onExecuteOSINT(prompt);
+      // Passa o prompt E o modelo escolhido
+      const result = await onExecuteOSINT(prompt, selectedModel);
       setResults(prev => ({ ...prev, [moduleId]: result }));
     } catch (error) {
-      setResults(prev => ({ ...prev, [moduleId]: '⚠️ Falha na varredura OSINT. O alvo pode ter blindado os dados ou a requisição falhou.' }));
+      setResults(prev => ({ ...prev, [moduleId]: '⚠️ Falha Crítica. Verifique a chave de API.' }));
     } finally {
       setLoadingAction(null);
     }
@@ -62,11 +69,11 @@ export default function WarRoom({ isOpen, onClose, isDarkMode, onExecuteOSINT }:
     if (!sparringInput.trim()) return;
     const moduleId = 'sparring-chat';
     setLoadingAction(moduleId);
-    const prompt = `Você é um Especialista de Vendas Sênior atacando o concorrente ${target}. O cliente me disse o seguinte: "${sparringInput}". 
-    Me dê o roteiro (Objection Handling) EXATO de contra-ataque para destruir essa objeção na mesa de negociação, usando falhas conhecidas do ${target}. Seja frio e tático.`;
+    const prompt = `Você é um Especialista de Vendas Sênior atacando o concorrente ${target}. O cliente me disse: "${sparringInput}". 
+    Me dê o roteiro de contra-ataque para destruir essa objeção na mesa de negociação, usando falhas do ${target}. Seja frio e tático.`;
     
     try {
-      const result = await onExecuteOSINT(prompt);
+      const result = await onExecuteOSINT(prompt, selectedModel);
       setResults(prev => ({ ...prev, [moduleId]: result }));
       setSparringInput('');
     } catch (error) {
@@ -93,24 +100,44 @@ export default function WarRoom({ isOpen, onClose, isDarkMode, onExecuteOSINT }:
             <span className="text-2xl">⚔️</span>
             <div>
               <h2 className={`font-black uppercase tracking-widest text-sm ${isDarkMode ? 'text-red-500' : 'text-red-700'}`}>The War Room</h2>
-              <p className={`text-[10px] uppercase font-bold ${textMuted}`}>Inteligência Competitiva & Dark OSINT</p>
+              <p className={`text-[10px] uppercase font-bold ${textMuted}`}>Inteligência Competitiva Avançada</p>
             </div>
           </div>
           <button onClick={onClose} className="p-2 rounded-lg hover:bg-red-500/10 text-red-500 transition-colors">✕</button>
         </div>
 
-        {/* SELETOR DE ALVO */}
-        <div className={`p-4 border-b ${panelBg}`}>
-          <label className={`block text-xs font-bold uppercase tracking-wider mb-2 ${textMuted}`}>Selecione o Inimigo (Target):</label>
-          <select 
-            value={target} 
-            onChange={(e) => setTarget(e.target.value)}
-            className={`w-full p-3 rounded-xl border text-sm font-bold outline-none focus:border-red-500 transition-colors appearance-none cursor-pointer ${
-              isDarkMode ? 'bg-slate-800 border-slate-700 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
-            }`}
-          >
-            {COMPETITORS.map(comp => <option key={comp} value={comp}>{comp}</option>)}
-          </select>
+        {/* CONTROLES DE ATAQUE (Alvo e Motor) */}
+        <div className={`p-4 border-b flex flex-col gap-3 ${panelBg}`}>
+          <div>
+            <label className={`block text-[10px] font-bold uppercase tracking-wider mb-1 ${textMuted}`}>1. Selecione o Inimigo (Alvo):</label>
+            <select 
+              value={target} 
+              onChange={(e) => setTarget(e.target.value)}
+              className={`w-full p-2.5 rounded-lg border text-sm font-bold outline-none focus:border-red-500 transition-colors cursor-pointer ${
+                isDarkMode ? 'bg-slate-800 border-slate-700 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
+              }`}
+            >
+              {COMPETITORS.map(comp => <option key={comp} value={comp}>{comp}</option>)}
+            </select>
+          </div>
+          
+          <div>
+            <label className={`block text-[10px] font-bold uppercase tracking-wider mb-1 ${textMuted}`}>2. Motor de Inteligência:</label>
+            <select 
+              value={selectedModel} 
+              onChange={(e) => setSelectedModel(e.target.value)}
+              className={`w-full p-2.5 rounded-lg border text-sm font-semibold outline-none transition-colors cursor-pointer ${
+                selectedModel.includes('deep-research') 
+                  ? 'bg-red-500/10 border-red-500/50 text-red-600 dark:text-red-400' 
+                  : (isDarkMode ? 'bg-slate-800 border-slate-700 text-slate-300' : 'bg-slate-50 border-slate-300 text-slate-700')
+              }`}
+            >
+              {MODELS.map(model => <option key={model.id} value={model.id}>{model.label}</option>)}
+            </select>
+            {selectedModel.includes('flash') && (
+              <p className="text-[10px] text-orange-500 mt-1 font-bold">⚠️ Aviso: O modelo Flash é rápido, mas pode não achar propostas em PDFs complexos.</p>
+            )}
+          </div>
         </div>
 
         {/* NAVEGAÇÃO DAS CÂMARAS */}
@@ -137,8 +164,6 @@ export default function WarRoom({ isOpen, onClose, isDarkMode, onExecuteOSINT }:
 
         {/* CONTEÚDO DINÂMICO */}
         <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
-          
-          {/* MÓDULOS OSINT (Forense, Dívida, Sangria) */}
           {activeTab !== 'sparring' && (
             <div className="space-y-4">
               {osintModules[activeTab as keyof typeof osintModules].map(mod => (
@@ -149,16 +174,16 @@ export default function WarRoom({ isOpen, onClose, isDarkMode, onExecuteOSINT }:
                         <span className="text-2xl mt-1">{mod.icon}</span>
                         <div>
                           <h3 className={`font-bold text-sm ${textMain}`}>{mod.title}</h3>
-                          <p className={`text-xs mt-1 ${textMuted}`}>{mod.desc}</p>
+                          <p className={`text-xs mt-1 leading-relaxed ${textMuted}`}>{mod.desc}</p>
                         </div>
                       </div>
                       <button 
                         onClick={() => handleRunOSINT(mod.id, mod.title, mod.prompt)}
                         disabled={loadingAction !== null}
-                        className={`px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider shrink-0 transition-all ${
+                        className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest shrink-0 transition-all ${
                           loadingAction === mod.id 
-                            ? 'bg-slate-700 text-slate-400 cursor-not-allowed'
-                            : 'bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white border border-red-500/20'
+                            ? 'bg-red-500 text-white animate-pulse'
+                            : 'bg-red-500/10 text-red-600 dark:text-red-400 hover:bg-red-500 hover:text-white border border-red-500/20'
                         }`}
                       >
                         {loadingAction === mod.id ? 'VARRENDO...' : 'EXECUTAR OSINT'}
@@ -166,7 +191,6 @@ export default function WarRoom({ isOpen, onClose, isDarkMode, onExecuteOSINT }:
                     </div>
                   </div>
 
-                  {/* RESULTADO (Renderizado implacávelmente) */}
                   {results[mod.id] && (
                     <div className={`p-5 border-t ${isDarkMode ? 'bg-slate-950/50 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
                       <MarkdownRenderer content={results[mod.id]} isDarkMode={isDarkMode} showCollapsibleSources={true} />
@@ -177,7 +201,6 @@ export default function WarRoom({ isOpen, onClose, isDarkMode, onExecuteOSINT }:
             </div>
           )}
 
-          {/* SPARRING MODE (Chat contra-ataque) */}
           {activeTab === 'sparring' && (
             <div className="h-full flex flex-col">
               <div className={`flex-1 rounded-xl border p-4 mb-4 overflow-y-auto ${panelBg}`}>
@@ -187,7 +210,7 @@ export default function WarRoom({ isOpen, onClose, isDarkMode, onExecuteOSINT }:
                   <div className="h-full flex flex-col items-center justify-center opacity-30 text-center">
                     <span className="text-6xl mb-4">🥊</span>
                     <p className="text-sm font-bold uppercase">Simulador de Objeções</p>
-                    <p className="text-xs">Digite a mentira que o concorrente contou e receba a resposta de abate.</p>
+                    <p className="text-xs">Digite a mentira que o concorrente contou na reunião.</p>
                   </div>
                 )}
               </div>
@@ -195,7 +218,7 @@ export default function WarRoom({ isOpen, onClose, isDarkMode, onExecuteOSINT }:
                 <textarea
                   value={sparringInput}
                   onChange={(e) => setSparringInput(e.target.value)}
-                  placeholder={`"O vendedor da ${target} disse que..."`}
+                  placeholder={`"A TOTVS garantiu que o módulo fiscal está pronto..."`}
                   className="flex-1 bg-transparent p-2 text-sm outline-none resize-none max-h-24 custom-scrollbar"
                   rows={2}
                 />
@@ -209,7 +232,6 @@ export default function WarRoom({ isOpen, onClose, isDarkMode, onExecuteOSINT }:
               </div>
             </div>
           )}
-
         </div>
       </div>
     </div>
