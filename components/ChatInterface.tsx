@@ -13,6 +13,7 @@ import { DeepDiveTopics } from './DeepDiveTopics';
 import InvestigationDashboard from './InvestigationDashboard';
 import SettingsDrawer from './SettingsDrawer';
 import ScorePorta from './ScorePorta';
+import WarRoom from './WarRoom'; // <-- WAR ROOM IMPORTADA AQUI
 import { cleanTitle, extractSources } from '../utils/textCleaners';
 import { isFakeUrl } from '../services/apiConfig';
 
@@ -72,6 +73,7 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
   const [showDashboard, setShowDashboard] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showActionsMenu, setShowActionsMenu] = useState(false);
+  const [showWarRoom, setShowWarRoom] = useState(false); // <-- ESTADO DA WAR ROOM
   
   const [displayedSuggestions, setDisplayedSuggestions] = useState<string[]>([]);
 
@@ -148,7 +150,6 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
   const hasReport = messages.some((m) => m.sender === Sender.Bot && !m.isThinking && !m.isError && (m.text?.length || 0) > 100);
 
   return (
-    // 1. h-[100dvh] garante que ocupe exatamente a tela visível, ignorando a barra de endereços do mobile
     <div className={`flex h-[100dvh] w-full overflow-hidden ${isDarkMode ? 'bg-slate-950' : 'bg-slate-50'}`}>
       <SessionsSidebar
         sessions={sessions} currentSessionId={currentSession?.id || null}
@@ -156,7 +157,6 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
         isOpen={isSidebarOpen} onCloseMobile={onToggleSidebar} isDarkMode={isDarkMode}
       />
 
-      {/* 2. min-h-0 no main previne que o flexbox estique além da tela */}
       <main className="flex-1 flex flex-col h-full min-h-0 relative w-full transition-all duration-300">
         
         {/* Cabeçalho fixo no topo */}
@@ -176,6 +176,16 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
                 <div className={`w-px h-4 mx-1 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-300'}`}></div>
               </>
             )}
+            
+            {/* BOTÃO DA WAR ROOM ⚔️ */}
+            <button 
+              onClick={() => setShowWarRoom(true)} 
+              className={`p-2 rounded-lg transition-all ${isDarkMode ? 'text-gray-500 hover:text-red-500 hover:bg-red-900/30' : 'text-gray-500 hover:text-red-600 hover:bg-red-50'}`} 
+              title="War Room: Inteligência Competitiva"
+            >
+              ⚔️
+            </button>
+
             <button onClick={() => { if (window.confirm("Limpar conversa?")) onClearChat(); }} className={`p-2 rounded-lg transition-all ${isDarkMode ? 'text-gray-500 hover:text-red-400 hover:bg-gray-800' : 'text-gray-400 hover:text-red-500 hover:bg-gray-100'}`} title="Limpar conversa">🗑️</button>
             <button onClick={() => setShowSettings(true)} className={`p-2 rounded-lg transition-all ${isDarkMode ? 'text-gray-500 hover:text-emerald-400 hover:bg-gray-800' : 'text-gray-400 hover:text-emerald-500 hover:bg-gray-100'}`} title="Configurações">⚙️</button>
           </div>
@@ -193,7 +203,7 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
           <InvestigationDashboard onClose={() => setShowDashboard(false)} onSelectEmpresa={(empresa) => { onSendMessage(`Investigar ${empresa}`); setShowDashboard(false); }} />
         )}
 
-        {/* 3. Área de Rolagem Central (Único lugar onde o scroll é permitido) */}
+        {/* 3. Área de Rolagem Central */}
         <div className="flex-1 min-h-0 overflow-y-auto p-4 md:p-6 scroll-smooth custom-scrollbar relative">
           {messages.length === 0 ? (
             <EmptyStateHome mode={mode} onSendMessage={onSendMessage} onPreFill={(text) => setInput(text)} isDarkMode={isDarkMode} />
@@ -276,7 +286,7 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
           )}
         </div>
 
-        {/* 4. Rodapé fixo (A barra de digitação nunca some da tela!) */}
+        {/* 4. Rodapé fixo */}
         <div className={`flex-shrink-0 p-3 pb-4 md:p-6 border-t ${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-white border-slate-200'} z-20`}>
           <div className="w-full max-w-5xl xl:max-w-6xl mx-auto px-1 md:px-6 lg:px-8 relative">
             
@@ -332,6 +342,21 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
             </div>
           </div>
         </div>
+
+        {/* ==========================================
+            RENDERIZAÇÃO DA WAR ROOM 
+            ========================================== */}
+        <WarRoom 
+          isOpen={showWarRoom} 
+          onClose={() => setShowWarRoom(false)} 
+          isDarkMode={isDarkMode} 
+          onExecuteOSINT={async (prompt) => {
+            // TODO: Aqui é onde você vai plugar a chamada para o seu `deep-research-pro-preview-12-2025`!
+            // Por enquanto, deixei um aviso e o retorno formatado só para a tela não quebrar.
+            return `### ⚠️ MOTOR DEEP RESEARCH DESCONECTADO \n\nA War Room está pronta para rodar. Conecte esta ação (\`onExecuteOSINT\`) ao seu serviço do Gemini na \`ChatInterface.tsx\` para ver os resultados reais da espionagem.\n\n**O Prompt que será engatilhado:**\n> ${prompt}`;
+          }}
+        />
+
       </main>
     </div>
   );
