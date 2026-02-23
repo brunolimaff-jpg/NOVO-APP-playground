@@ -342,8 +342,8 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
           </div>
         </div>
 
-        {/* ==========================================
-            WAR ROOM RENDERIZADA E CONECTADA
+                {/* ==========================================
+            WAR ROOM RENDERIZADA E CONECTADA (MODO NINJA)
             ========================================== */}
         <WarRoom 
           isOpen={showWarRoom} 
@@ -352,10 +352,23 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
           onExecuteOSINT={async (prompt) => {
             try {
               const DEEP_RESEARCH_MODEL_ID = 'deep-research-pro-preview-12-2025';
-              const result = await executeWarRoomOSINT(prompt, DEEP_RESEARCH_MODEL_ID);
-              return result;
+              const systemPrompt = "Você é um Diretor de Inteligência Competitiva de Elite e Hacker OSINT. Varra a web atrás das evidências solicitadas.";
+              
+              // Usa a função que JÁ EXISTE no seu geminiService para montar o míssil
+              // createChatSession(systemInstruction, history, modelId, useGrounding, thinkingMode)
+              const chatSession = createChatSession(systemPrompt, [], DEEP_RESEARCH_MODEL_ID, true, false);
+              
+              // Dispara contra o alvo
+              const result = await chatSession.sendMessageStream(prompt);
+              
+              let finalReport = '';
+              for await (const chunk of result) {
+                finalReport += chunk.text || "";
+              }
+              
+              return finalReport || "Nenhum dado retornado.";
             } catch (error: any) {
-              return `**⚠️ Falha na Conexão OSINT.**\n\nO motor rejeitou a chamada ou o site do alvo bloqueou a varredura.\n\nDetalhe técnico: \`${error.message}\``;
+              return `**⚠️ Falha na Conexão OSINT.**\n\nO motor engasgou ou a segurança do alvo bloqueou a varredura.\n\nDetalhe técnico: \`${error.message}\``;
             }
           }}
         />
