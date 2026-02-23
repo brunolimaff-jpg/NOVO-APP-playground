@@ -519,3 +519,27 @@ export const generateConsolidatedDossier = async (history: Message[], systemInst
     return response.text || "Erro na consolidação.";
   } catch (error) { throw normalizeAppError(error, 'GEMINI'); }
 };
+
+// ===================================================================
+// WAR ROOM / OSINT - Execução de prompts de inteligência competitiva
+// ===================================================================
+
+export const runWarRoomOSINT = async (prompt: string): Promise<string> => {
+  const DEEP_RESEARCH_MODEL_ID = 'deep-research-pro-preview-12-2025';
+  const systemPrompt = "Você é um Diretor de Inteligência Competitiva e Hacker OSINT. Varra a web inteira em busca de dados públicos para montar dossiês estratégicos de concorrentes. Use Deep Research para cruzar informações de tribunais, CVM, portais de carreira, fóruns e notícias.";
+
+  try {
+    const chatSession = createChatSession(systemPrompt, [], DEEP_RESEARCH_MODEL_ID, true, false);
+    const result = await chatSession.sendMessageStream({ message: prompt } as any);
+
+    let finalReport = '';
+    for await (const chunk of result) {
+      finalReport += chunk.text || "";
+    }
+
+    return finalReport || "Nenhum dado retornado pela varredura.";
+  } catch (error: any) {
+    console.error("[WarRoom OSINT] Erro:", error);
+    throw new Error(error.message || "Falha na conexão OSINT");
+  }
+};

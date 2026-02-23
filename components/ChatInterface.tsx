@@ -13,8 +13,10 @@ import DeepDiveTopics from './DeepDiveTopics';
 import InvestigationDashboard from './InvestigationDashboard';
 import SettingsDrawer from './SettingsDrawer';
 import ScorePorta from './ScorePorta';
+import WarRoom from './WarRoom';
 import { cleanTitle, extractSources } from '../utils/textCleaners';
 import { isFakeUrl } from '../services/apiConfig';
+import { runWarRoomOSINT } from '../services/geminiService';
 
 const QUICK_ACTIONS = [
   { icon: "🎯", label: "Comparar", prompt: "Compare com o principal concorrente dessa empresa" },
@@ -67,7 +69,8 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
   const [showDashboard, setShowDashboard] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showActionsMenu, setShowActionsMenu] = useState(false);
-  
+  const [showWarRoom, setShowWarRoom] = useState(false);
+
   const [displayedSuggestions, setDisplayedSuggestions] = useState<string[]>([]);
 
   useLayoutEffect(() => {
@@ -167,6 +170,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                 <div className={`w-px h-4 mx-1 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-300'}`}></div>
               </>
             )}
+            <button onClick={() => setShowWarRoom(true)} className={`p-2 rounded-lg transition-all ${isDarkMode ? 'text-gray-500 hover:text-red-400 hover:bg-gray-800' : 'text-gray-400 hover:text-red-500 hover:bg-gray-100'}`} title="War Room: Inteligência Competitiva">⚔️</button>
             <button onClick={() => { if (window.confirm("Limpar conversa?")) onClearChat(); }} className={`p-2 rounded-lg transition-all ${isDarkMode ? 'text-gray-500 hover:text-red-400 hover:bg-gray-800' : 'text-gray-400 hover:text-red-500 hover:bg-gray-100'}`} title="Limpar conversa">🗑️</button>
             <button onClick={() => setShowSettings(true)} className={`p-2 rounded-lg transition-all ${isDarkMode ? 'text-gray-500 hover:text-emerald-400 hover:bg-gray-800' : 'text-gray-400 hover:text-emerald-500 hover:bg-gray-100'}`} title="Configurações">⚙️</button>
           </div>
@@ -348,6 +352,20 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
             </div>
           </div>
         </div>
+
+        {/* WAR ROOM */}
+        <WarRoom
+          isOpen={showWarRoom}
+          onClose={() => setShowWarRoom(false)}
+          isDarkMode={isDarkMode}
+          onExecuteOSINT={async (prompt) => {
+            try {
+              return await runWarRoomOSINT(prompt);
+            } catch (error: any) {
+              return `**⚠️ Falha na Conexão OSINT.**\n\nDetalhe técnico: \`${error.message}\``;
+            }
+          }}
+        />
       </main>
     </div>
   );
