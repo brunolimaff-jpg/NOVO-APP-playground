@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import MarkdownRenderer from './MarkdownRenderer';
+import LoadingSmart from './LoadingSmart';
+import { ChatMode } from '../constants';
 
 interface WarRoomProps {
   isOpen: boolean;
@@ -10,37 +12,48 @@ interface WarRoomProps {
 
 type TabType = 'forense' | 'divida' | 'sangria' | 'sparring';
 
-const COMPETITORS = ['TOTVS', 'Sankhya', 'SAP', 'GAtec', 'Mega', 'CHB', 'Siagri', 'Liberali (Franquia)'];
+const COMPETITORS = [
+  // ERP & Agro
+  'TOTVS', 'Sankhya', 'SAP', 'Aliare', 'Agrotis', 'CHB', 'Oracle', 'Liberali (Franquia)',
+  // HCM & HR Tech
+  'LG Lugar de Gente', 'Sólides', 'Metadados', 'Apdata', 'ADP',
+  // Logística
+  'Intelipost', 'Senior (Legado/Concorrente)'
+];
+
+const SEGMENTS = ['ERP', 'HCM', 'Gestão de Campo', 'Logística'];
 
 export default function WarRoom({ isOpen, onClose, isDarkMode, onExecuteOSINT }: WarRoomProps) {
   const [target, setTarget] = useState<string>('TOTVS');
+  const [segment, setSegment] = useState<string>('ERP');
   const [activeTab, setActiveTab] = useState<TabType>('forense');
   const [loadingAction, setLoadingAction] = useState<string | null>(null);
   const [results, setResults] = useState<Record<string, string>>({});
   const [sparringInput, setSparringInput] = useState('');
 
+  // Prompts dinâmicos que cruzam o Inimigo (Target) com o Módulo (Segmento)
   const osintModules = {
     forense: [
-      { id: 'pricing', icon: '💰', title: 'Engenharia Reversa de Pricing', desc: 'Varre licitações e vazamentos para descobrir R$ da licença e valor da hora técnica.', 
-        prompt: `Execute a varredura GOD MODE de Pricing para o alvo: ${target}. Busque propostas, editais after:2024-12-31 e monte a tabela mestra de TCO e hora técnica.` },
-      { id: 'jusbrasil', icon: '⚖️', title: 'Bomba Trabalhista e Litígios', desc: 'Cruza o Jusbrasil buscando processos de ex-desenvolvedores e clientes pedindo rescisão.',
-        prompt: `Faça um Deep Research em tribunais e Jusbrasil sobre o alvo ${target}. Busque litígios de inexecução contratual e processos trabalhistas de desenvolvedores nos últimos 12 meses.` },
-      { id: 'cvm', icon: '🏦', title: 'Insider Dumping (CVM/B3)', desc: 'Monitora se diretores estão vendendo ações próprias em massa (fuga do barco).',
-        prompt: `Analise relatórios da CVM e B3 do alvo ${target} (se capital aberto). Os diretores estão vendendo ações próprias? Há indícios de sangria financeira?` }
+      { id: 'pricing', icon: '💰', title: 'Engenharia Reversa de Pricing', desc: `Varre licitações e vazamentos para descobrir TCO do módulo de ${segment}.`, 
+        prompt: `Execute a varredura GOD MODE de Pricing para o alvo: ${target}, focado exclusivamente no segmento/módulo de ${segment}. Busque propostas, editais after:2024-01-01 e monte a tabela de TCO e hora técnica.` },
+      { id: 'jusbrasil', icon: '⚖️', title: 'Bomba Trabalhista e Litígios', desc: `Busca processos de inexecução contratual em projetos de ${segment}.`,
+        prompt: `Faça um Deep Research em tribunais e Jusbrasil sobre o alvo ${target} no contexto de ${segment}. Busque litígios de falha na implantação e processos trabalhistas de desenvolvedores/consultores nos últimos 12 meses.` },
+      { id: 'cvm', icon: '🏦', title: 'Insider Dumping (CVM/B3)', desc: 'Monitora saúde financeira e movimentação de diretores.',
+        prompt: `Analise o mercado de negócios, relatórios da CVM e B3 do alvo ${target}. Como está a saúde financeira da divisão que atende ${segment}? Há fuga de diretores ou queda de ações?` }
     ],
     divida: [
-      { id: 'bugs', icon: '🦠', title: 'Autópsia de Suporte', desc: 'Raspa fóruns e ReclameAqui atrás dos piores bugs e quedas da última versão.',
-        prompt: `Faça OSINT em fóruns de desenvolvedores, Telegram, ReclameAqui sobre o sistema ${target}. Liste as maiores falhas técnicas, bugs e quebras de integração relatadas nos últimos 6 meses.` },
-      { id: 'vaporware', icon: '👻', title: 'Caça ao Vaporware', desc: 'Analisa se aquele módulo de IA que eles vendem realmente existe ou é powerpoint.',
-        prompt: `O alvo ${target} está prometendo inovação (IA, Nuvem Nativa). Faça Deep Research para provar se o produto existe ou é 'Vaporware'. Busque menções de devs em repositórios sobre integração com essas APIs.` },
-      { id: 'frankenstein', icon: '🧟', title: 'Efeito Frankenstein', desc: 'Mapeia as últimas M&As (compras) deles para provar que o sistema é uma colcha de retalhos.',
-        prompt: `Mapeie as últimas 5 aquisições (M&A) do alvo ${target}. Crie um argumento técnico mostrando como esses sistemas comprados geram dívida técnica e banco de dados fragmentado para o cliente.` }
+      { id: 'bugs', icon: '🦠', title: 'Autópsia de Suporte', desc: `Mapeia as piores falhas técnicas e bugs do módulo de ${segment}.`,
+        prompt: `Faça OSINT em fóruns de desenvolvedores, Telegram, ReclameAqui sobre o sistema ${target}, focando estritamente em ${segment}. Liste as maiores falhas técnicas e quebras relatadas recentemente.` },
+      { id: 'vaporware', icon: '👻', title: 'Caça ao Vaporware', desc: `Prova se as inovações prometidas em ${segment} existem ou são powerpoint.`,
+        prompt: `O alvo ${target} está vendendo inovações em ${segment} (ex: IA, Nuvem Nativa). Faça Deep Research para provar se o produto existe ou é 'Vaporware'. O que os desenvolvedores falam nos fóruns sobre isso?` },
+      { id: 'frankenstein', icon: '🧟', title: 'Efeito Frankenstein', desc: `Mapeia se o módulo de ${segment} foi comprado de outra empresa (M&A).`,
+        prompt: `Mapeie as últimas aquisições (M&A) do alvo ${target} relacionadas a ${segment}. Crie um argumento técnico mostrando como o sistema atual deles é uma 'colcha de retalhos' com banco de dados fragmentado.` }
     ],
     sangria: [
-      { id: 'vagas', icon: '🕵️', title: 'Paradoxo do Headcount', desc: 'Analisa vagas abertas para descobrir se a equipe de implantação debandou.',
-        prompt: `Analise o portal de carreiras e LinkedIn do alvo ${target}. Eles estão perdendo seniores e contratando apenas juniores para implantação? Monte a tese de risco para o cliente.` },
-      { id: 'churn', icon: '📉', title: 'Churn Silencioso (DNS)', desc: 'Descobre clientes grandes que desligaram o sistema deles recentemente.',
-        prompt: `Faça Deep Research (BuiltWith, DNS records) e notícias de negócios para encontrar empresas médias/grandes que abandonaram o ERP ${target} recentemente para ir para a concorrência.` }
+      { id: 'vagas', icon: '🕵️', title: 'Paradoxo do Headcount', desc: `Analisa a fuga de talentos na equipe técnica de ${segment}.`,
+        prompt: `Analise as vagas abertas e o LinkedIn do alvo ${target}. Eles estão perdendo consultores seniores especialistas em ${segment} e repondo com juniores? Crie a narrativa de risco para o projeto do cliente.` },
+      { id: 'churn', icon: '📉', title: 'Churn Silencioso', desc: `Descobre clientes que abandonaram o ${segment} deles para ir à concorrência.`,
+        prompt: `Faça Deep Research buscando notícias de mercado e relatos de empresas médias/grandes que abandonaram recentemente a solução de ${segment} da ${target}.` }
     ]
   };
 
@@ -60,8 +73,8 @@ export default function WarRoom({ isOpen, onClose, isDarkMode, onExecuteOSINT }:
     if (!sparringInput.trim()) return;
     const moduleId = 'sparring-chat';
     setLoadingAction(moduleId);
-    const prompt = `Você é um Especialista de Vendas Sênior atacando o concorrente ${target}. O cliente me disse: "${sparringInput}". 
-    Me dê o roteiro de contra-ataque para destruir essa objeção na mesa de negociação, usando falhas do ${target}. Seja frio e tático.`;
+    const prompt = `Você é um Especialista de Vendas Sênior atacando o concorrente ${target} no segmento de ${segment}. O cliente me disse: "${sparringInput}". 
+    Me dê o roteiro de contra-ataque letal e tático para destruir essa objeção na mesa de negociação, evidenciando as falhas conhecidas do ${target} em ${segment}.`;
     
     try {
       const result = await onExecuteOSINT(prompt);
@@ -91,24 +104,37 @@ export default function WarRoom({ isOpen, onClose, isDarkMode, onExecuteOSINT }:
             <span className="text-2xl">⚔️</span>
             <div>
               <h2 className={`font-black uppercase tracking-widest text-sm ${isDarkMode ? 'text-red-500' : 'text-red-700'}`}>The War Room</h2>
-              <p className={`text-[10px] uppercase font-bold ${textMuted}`}>Motor Travado: Deep Research 🧠</p>
             </div>
           </div>
           <button onClick={onClose} className="p-2 rounded-lg hover:bg-red-500/10 text-red-500 transition-colors">✕</button>
         </div>
 
-        {/* SELETOR DE ALVO */}
-        <div className={`p-4 border-b ${panelBg}`}>
-          <label className={`block text-[10px] font-bold uppercase tracking-wider mb-2 ${textMuted}`}>Selecione o Inimigo (Alvo):</label>
-          <select 
-            value={target} 
-            onChange={(e) => setTarget(e.target.value)}
-            className={`w-full p-3 rounded-lg border text-sm font-bold outline-none focus:border-red-500 transition-colors cursor-pointer ${
-              isDarkMode ? 'bg-slate-800 border-slate-700 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
-            }`}
-          >
-            {COMPETITORS.map(comp => <option key={comp} value={comp}>{comp}</option>)}
-          </select>
+        {/* SELETORES DE ATAQUE */}
+        <div className={`p-4 border-b flex gap-4 ${panelBg}`}>
+          <div className="flex-1">
+            <label className={`block text-[10px] font-bold uppercase tracking-wider mb-2 ${textMuted}`}>Alvo (Concorrente):</label>
+            <select 
+              value={target} 
+              onChange={(e) => setTarget(e.target.value)}
+              className={`w-full p-3 rounded-lg border text-sm font-bold outline-none focus:border-red-500 transition-colors cursor-pointer ${
+                isDarkMode ? 'bg-slate-800 border-slate-700 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'
+              }`}
+            >
+              {COMPETITORS.map(comp => <option key={comp} value={comp}>{comp}</option>)}
+            </select>
+          </div>
+          <div className="flex-1">
+            <label className={`block text-[10px] font-bold uppercase tracking-wider mb-2 ${textMuted}`}>Segmento em Disputa:</label>
+            <select 
+              value={segment} 
+              onChange={(e) => setSegment(e.target.value)}
+              className={`w-full p-3 rounded-lg border text-sm font-bold outline-none focus:border-blue-500 transition-colors cursor-pointer ${
+                isDarkMode ? 'bg-slate-800 border-slate-700 text-blue-400' : 'bg-slate-50 border-slate-300 text-blue-700'
+              }`}
+            >
+              {SEGMENTS.map(seg => <option key={seg} value={seg}>{seg}</option>)}
+            </select>
+          </div>
         </div>
 
         {/* NAVEGAÇÃO DAS CÂMARAS */}
@@ -162,7 +188,24 @@ export default function WarRoom({ isOpen, onClose, isDarkMode, onExecuteOSINT }:
                     </div>
                   </div>
 
-                  {results[mod.id] && (
+                  {/* LOADING INTEGRADOR */}
+                  {loadingAction === mod.id && (
+                    <div className={`p-4 border-t ${isDarkMode ? 'border-slate-800' : 'border-slate-200'}`}>
+                      <LoadingSmart 
+                        isLoading={true} 
+                        mode={'operacao' as ChatMode} 
+                        isDarkMode={isDarkMode} 
+                        searchQuery={target}
+                        processing={{ 
+                          stage: `Varrida OSINT em ${target} (${segment})...`, 
+                          completedStages: ["Preparando alvos", "Iniciando varredura profunda"] 
+                        }}
+                      />
+                    </div>
+                  )}
+
+                  {/* RESULTADOS DA PESQUISA */}
+                  {results[mod.id] && loadingAction !== mod.id && (
                     <div className={`p-5 border-t ${isDarkMode ? 'bg-slate-950/50 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
                       <MarkdownRenderer content={results[mod.id]} isDarkMode={isDarkMode} showCollapsibleSources={true} />
                     </div>
@@ -175,13 +218,25 @@ export default function WarRoom({ isOpen, onClose, isDarkMode, onExecuteOSINT }:
           {activeTab === 'sparring' && (
             <div className="h-full flex flex-col">
               <div className={`flex-1 rounded-xl border p-4 mb-4 overflow-y-auto ${panelBg}`}>
-                {results['sparring-chat'] ? (
+                {loadingAction === 'sparring-chat' && (
+                  <div className="mb-4">
+                    <LoadingSmart 
+                      isLoading={true} 
+                      mode={'operacao' as ChatMode} 
+                      isDarkMode={isDarkMode} 
+                      searchQuery={target}
+                      processing={{ stage: `Buscando falhas de ${target} em ${segment}...`, completedStages: [] }}
+                    />
+                  </div>
+                )}
+                
+                {results['sparring-chat'] && loadingAction !== 'sparring-chat' ? (
                   <MarkdownRenderer content={results['sparring-chat']} isDarkMode={isDarkMode} showCollapsibleSources={false} />
-                ) : (
+                ) : !loadingAction && (
                   <div className="h-full flex flex-col items-center justify-center opacity-30 text-center">
                     <span className="text-6xl mb-4">🥊</span>
                     <p className="text-sm font-bold uppercase">Simulador de Objeções</p>
-                    <p className="text-xs">Digite a mentira que o concorrente contou na reunião.</p>
+                    <p className="text-xs">Digite a mentira que o concorrente contou na reunião sobre {segment}.</p>
                   </div>
                 )}
               </div>
@@ -189,13 +244,13 @@ export default function WarRoom({ isOpen, onClose, isDarkMode, onExecuteOSINT }:
                 <textarea
                   value={sparringInput}
                   onChange={(e) => setSparringInput(e.target.value)}
-                  placeholder={`"A TOTVS garantiu que o módulo fiscal está pronto..."`}
+                  placeholder={`"A ${target} garantiu que o módulo de ${segment} está 100% pronto..."`}
                   className="flex-1 bg-transparent p-2 text-sm outline-none resize-none max-h-24 custom-scrollbar"
                   rows={2}
                 />
                 <button 
                   onClick={handleSparring}
-                  disabled={!sparringInput.trim() || loadingAction === 'sparring-chat'}
+                  disabled={!sparringInput.trim() || loadingAction !== null}
                   className="p-3 bg-red-600 hover:bg-red-500 text-white rounded-lg transition-colors font-bold text-xs uppercase"
                 >
                   {loadingAction === 'sparring-chat' ? '...' : 'Contra-atacar'}
