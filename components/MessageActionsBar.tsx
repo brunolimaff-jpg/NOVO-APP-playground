@@ -3,11 +3,9 @@ import React, { useState } from 'react';
 import { Feedback } from '../types';
 
 interface MessageActionsBarProps {
-  content: string; // O conteúdo completo da mensagem da IA
+  content: string;
   sourcesCount: number;
   currentFeedback?: Feedback;
-  // onFeedback agora é usado apenas para update otimista local se necessário, 
-  // mas o principal é o onSubmitFeedback
   onFeedback: (type: Feedback) => void;
   onSubmitFeedback: (type: Feedback, comment: string, content: string) => void;
   onToggleSources: () => void;
@@ -15,22 +13,122 @@ interface MessageActionsBarProps {
   isDarkMode: boolean;
 }
 
-// Basic markdown to HTML converter for PDF export fallback
+// ============================================================
+// CONVERSOR MARKDOWN → HTML (para renderização no PDF)
+// ============================================================
 function simpleMarkdownToHTML(md: string): string {
   return md
-    .replace(/^### (.*$)/gm, '<h3 style="color:#059669;margin-top:20px;font-size:14px;font-weight:bold;">$1</h3>')
-    .replace(/^## (.*$)/gm, '<h2 style="color:#059669;margin-top:25px;font-size:16px;font-weight:bold;border-bottom:1px solid #eee;padding-bottom:5px;">$1</h2>')
-    .replace(/^# (.*$)/gm, '<h1 style="color:#059669;margin-top:30px;font-size:18px;font-weight:bold;">$1</h1>')
-    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    // Headings
+    .replace(/^### (.*)$/gm, '<h3 style="color:#065f46;margin:18px 0 6px;font-size:13px;font-weight:700;letter-spacing:0.3px;">$1</h3>')
+    .replace(/^## (.*)$/gm, '<h2 style="color:#047857;margin:24px 0 8px;font-size:15px;font-weight:700;border-bottom:2px solid #d1fae5;padding-bottom:6px;">$1</h2>')
+    .replace(/^# (.*)$/gm, '<h1 style="color:#065f46;margin:28px 0 10px;font-size:18px;font-weight:800;">$1</h1>')
+    // Bold / Italic
+    .replace(/\*\*\*(.*?)\*\*\*/g, '<strong><em>$1</em></strong>')
+    .replace(/\*\*(.*?)\*\*/g, '<strong style="color:#065f46;">$1</strong>')
     .replace(/\*(.*?)\*/g, '<em>$1</em>')
-    .replace(/^- (.*$)/gm, '<li style="margin-left:20px;">$1</li>')
-    .replace(/^(\d+)\. (.*$)/gm, '<li style="margin-left:20px;">$2</li>')
-    .replace(/\n\n/g, '<br><br>')
-    .replace(/\n/g, '<br>')
-    .replace(/\[\^(\d+)\]/g, '<sup style="color:#059669;font-size:0.7em;">[$1]</sup>')
-    .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" style="color:#059669;text-decoration:none;">$1</a>');
+    // Horizontal rule
+    .replace(/^---$/gm, '<hr style="border:none;border-top:1px solid #d1fae5;margin:16px 0;">')
+    // Blockquote
+    .replace(/^> (.*)$/gm, '<blockquote style="border-left:3px solid #059669;margin:10px 0;padding:6px 12px;background:#f0fdf4;color:#374151;font-style:italic;font-size:11px;">$1</blockquote>')
+    // Code inline
+    .replace(/`([^`]+)`/g, '<code style="background:#f0fdf4;color:#065f46;padding:1px 5px;border-radius:3px;font-size:11px;font-family:monospace;">$1</code>')
+    // Lists
+    .replace(/^(\s*)[-•] (.*)$/gm, '<li style="margin:4px 0 4px 20px;padding-left:4px;">$2</li>')
+    .replace(/^(\s*)(\d+)\. (.*)$/gm, '<li style="margin:4px 0 4px 24px;list-style-type:decimal;padding-left:4px;">$3</li>')
+    // Wrap consecutive <li> in <ul>
+    .replace(/(<li[^>]*>.*<\/li>\n?)+/g, (match) => `<ul style="margin:6px 0;padding:0;">${match}</ul>`)
+    // Links
+    .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" style="color:#059669;text-decoration:underline;word-break:break-all;">$1</a>')
+    // Footnotes
+    .replace(/\[\^(\d+)\]/g, '<sup style="color:#059669;font-size:0.7em;font-weight:600;">[$1]</sup>')
+    // Paragraphs
+    .replace(/\n\n/g, '</p><p style="margin:0 0 10px;">')
+    .replace(/\n/g, '<br>');
 }
 
+// ============================================================
+// GERADOR DE HTML COMPLETO DO PDF
+// ============================================================
+function buildPdfHTML(content: string): string {
+  const now = new Date();
+  const dataFormatada = now.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+  const horaFormatada = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  const body = simpleMarkdownToHTML(content);
+
+  return `
+    <div style="
+      font-family: 'Segoe UI', Arial, sans-serif;
+      color: #1f2937;
+      line-height: 1.7;
+      max-width: 780px;
+      margin: 0 auto;
+      padding: 0;
+      background: #ffffff;
+    ">
+      <!-- CABEÇALHO -->
+      <div style="
+        background: linear-gradient(135deg, #065f46 0%, #059669 100%);
+        padding: 28px 36px 22px;
+        margin-bottom: 28px;
+        border-radius: 0 0 12px 12px;
+      ">
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <div>
+            <div style="font-size:22px;font-weight:800;color:#ffffff;letter-spacing:-0.5px;">
+              🌿 Senior Scout 360
+            </div>
+            <div style="font-size:11px;color:#a7f3d0;margin-top:4px;letter-spacing:0.5px;">
+              INTELIGÊNCIA COMERCIAL · AGRONEGÓCIO
+            </div>
+          </div>
+          <div style="text-align:right;">
+            <div style="font-size:10px;color:#a7f3d0;">Emitido em</div>
+            <div style="font-size:12px;font-weight:600;color:#ffffff;">${dataFormatada}</div>
+            <div style="font-size:10px;color:#a7f3d0;">${horaFormatada} (horário local)</div>
+          </div>
+        </div>
+        <!-- Barra de aviso -->
+        <div style="
+          margin-top:16px;
+          background:rgba(255,255,255,0.12);
+          border-radius:6px;
+          padding:8px 14px;
+          font-size:10px;
+          color:#d1fae5;
+          letter-spacing:0.2px;
+        ">
+          ⚠️ Uso interno — Documento de apoio à prospecção. Não distribuir externamente.
+        </div>
+      </div>
+
+      <!-- CORPO DO CONTEÚDO -->
+      <div style="padding: 0 36px 12px; font-size: 12px; color: #1f2937;">
+        <p style="margin:0 0 10px;">${body}</p>
+      </div>
+
+      <!-- RODAPÉ -->
+      <div style="
+        margin: 28px 36px 0;
+        border-top: 2px solid #d1fae5;
+        padding-top: 14px;
+        display: flex;
+        justify-content: space-between;
+        font-size: 9px;
+        color: #9ca3af;
+      ">
+        <span>Senior Scout 360 — Plataforma de Inteligência Comercial</span>
+        <span>Gerado automaticamente via IA · ${dataFormatada}</span>
+      </div>
+
+      <!-- ESPAÇO FINAL -->
+      <div style="height: 24px;"></div>
+    </div>
+  `;
+}
+
+// ============================================================
+// COMPONENTE
+// ============================================================
 const MessageActionsBar: React.FC<MessageActionsBarProps> = ({
   content,
   sourcesCount,
@@ -43,7 +141,7 @@ const MessageActionsBar: React.FC<MessageActionsBarProps> = ({
 }) => {
   const [copyState, setCopyState] = useState<'idle' | 'copied'>('idle');
   const [showCommentBox, setShowCommentBox] = useState(false);
-  const [comment, setComment] = useState("");
+  const [comment, setComment] = useState('');
   const [feedbackSubmitted, setFeedbackSubmitted] = useState<Feedback | null>(currentFeedback || null);
 
   const textColor = isDarkMode ? 'text-slate-400' : 'text-slate-500';
@@ -59,17 +157,15 @@ const MessageActionsBar: React.FC<MessageActionsBarProps> = ({
     } catch (err) {
       console.warn('Clipboard API failed, trying fallback...', err);
       try {
-        const textArea = document.createElement("textarea");
+        const textArea = document.createElement('textarea');
         textArea.value = content;
-        textArea.style.position = "fixed";
-        textArea.style.left = "-9999px";
-        textArea.style.top = "0";
+        textArea.style.cssText = 'position:fixed;left:-9999px;top:0;';
         document.body.appendChild(textArea);
         textArea.focus();
         textArea.select();
-        const successful = document.execCommand('copy');
+        const ok = document.execCommand('copy');
         document.body.removeChild(textArea);
-        if (successful) {
+        if (ok) {
           setCopyState('copied');
           setTimeout(() => setCopyState('idle'), 2000);
         }
@@ -79,56 +175,53 @@ const MessageActionsBar: React.FC<MessageActionsBarProps> = ({
     }
   };
 
-  // FIX 2: Generate PDF with formatted content instead of raw markdown
+  // ============================================================
+  // EXPORTAR PDF — Layout premium
+  // ============================================================
   const handleDownload = () => {
     try {
-        const element = document.createElement('div');
-        // Use simple markdown to html conversion for better PDF formatting
-        const htmlContent = simpleMarkdownToHTML(content);
-        
-        element.innerHTML = `
-          <div style="font-family: 'Segoe UI', Arial, sans-serif; padding: 40px; color: #1a1a1a; line-height: 1.6; max-width: 800px; margin: 0 auto;">
-            <div style="text-align: center; margin-bottom: 30px; padding-bottom: 15px; border-bottom: 2px solid #059669;">
-               <h1 style="font-size: 20px; font-weight: bold; margin: 0; color: #059669;">Senior Scout 360</h1>
-               <p style="font-size: 11px; color: #666; margin-top: 5px;">Relatório gerado em ${new Date().toLocaleDateString('pt-BR')}</p>
-            </div>
-            <div style="font-size: 12px;">${htmlContent}</div>
-            <div style="margin-top: 40px; border-top: 1px solid #eee; padding-top: 15px; font-size: 10px; color: #999; text-align: center;">
-               Gerado por Senior Scout 360 - Investigação Completa
-            </div>
-          </div>
-        `;
-        
-        const opt = {
-            margin: [10, 15, 10, 15],
-            filename: `scout_report_${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.pdf`,
-            image: { type: 'jpeg', quality: 0.98 },
-            html2canvas: { scale: 2, backgroundColor: '#ffffff' },
-            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-        };
+      // @ts-ignore
+      if (!window.html2pdf) {
+        alert('Erro: biblioteca de PDF não carregada. Recarregue a página.');
+        return;
+      }
 
-        // @ts-ignore
-        if (window.html2pdf) {
-            // @ts-ignore
-            window.html2pdf().set(opt).from(element).save();
-        } else {
-            console.error("html2pdf library not loaded");
-            alert("Erro: Biblioteca de PDF não carregada.");
-        }
+      const container = document.createElement('div');
+      container.innerHTML = buildPdfHTML(content);
+
+      const filename = `scout360_${new Date().toISOString().slice(0, 10)}_${Date.now()}.pdf`;
+
+      const opt = {
+        margin: [0, 0, 0, 0],
+        filename,
+        image: { type: 'jpeg', quality: 0.97 },
+        html2canvas: {
+          scale: 2,
+          backgroundColor: '#ffffff',
+          useCORS: true,
+          logging: false,
+        },
+        jsPDF: {
+          unit: 'mm',
+          format: 'a4',
+          orientation: 'portrait',
+        },
+        pagebreak: { mode: ['avoid-all', 'css', 'legacy'] },
+      };
+
+      // @ts-ignore
+      window.html2pdf().set(opt).from(container).save();
     } catch (e) {
-        console.error("Error generating PDF", e);
-        alert("Erro ao gerar PDF.");
+      console.error('Erro ao gerar PDF:', e);
+      alert('Erro ao gerar PDF. Tente novamente.');
     }
   };
 
   const handleShare = async () => {
     if (navigator.share) {
       try {
-        await navigator.share({
-          title: 'Senior Scout 360 - Dossiê',
-          text: content,
-        });
-      } catch (err) {
+        await navigator.share({ title: 'Senior Scout 360 — Dossiê', text: content });
+      } catch {
         handleCopy();
       }
     } else {
@@ -136,29 +229,26 @@ const MessageActionsBar: React.FC<MessageActionsBarProps> = ({
     }
   };
 
-  // Lógica de Feedback
   const handleLike = () => {
-    onFeedback('up'); // Update local state immediately
-    onSubmitFeedback('up', '', content); // Send remote
+    onFeedback('up');
+    onSubmitFeedback('up', '', content);
     setFeedbackSubmitted('up');
     setShowCommentBox(false);
   };
 
-  const handleDislikeStart = () => {
-    setShowCommentBox(true);
-  };
+  const handleDislikeStart = () => setShowCommentBox(true);
 
   const submitDislike = () => {
-    onFeedback('down'); // Update local
-    onSubmitFeedback('down', comment, content); // Send remote
+    onFeedback('down');
+    onSubmitFeedback('down', comment, content);
     setFeedbackSubmitted('down');
     setShowCommentBox(false);
-    setComment("");
+    setComment('');
   };
 
   const cancelDislike = () => {
     setShowCommentBox(false);
-    setComment("");
+    setComment('');
   };
 
   return (
@@ -168,17 +258,16 @@ const MessageActionsBar: React.FC<MessageActionsBarProps> = ({
           <button
             onClick={handleShare}
             className={`flex items-center gap-1.5 px-2 py-1.5 rounded-md transition-all ${hoverColor} hover:${activeBg}`}
-            title="Compartilhar (ou Copiar link)"
+            title="Compartilhar (ou Copiar)"
           >
             <span>🔗</span>
             <span className="hidden sm:inline">Compartilhar</span>
           </button>
 
-          {/* FIX 2: Icon and label update */}
           <button
             onClick={handleDownload}
             className={`flex items-center gap-1.5 px-2 py-1.5 rounded-md transition-all ${hoverColor} hover:${activeBg}`}
-            title="Baixar arquivo PDF"
+            title="Baixar PDF premium"
           >
             <span>📕</span>
             <span className="hidden sm:inline">PDF</span>
@@ -196,28 +285,45 @@ const MessageActionsBar: React.FC<MessageActionsBarProps> = ({
           <button
             onClick={onToggleSources}
             disabled={sourcesCount === 0}
-            className={`flex items-center gap-1.5 px-2 py-1.5 rounded-md transition-all ${sourcesCount === 0 ? 'opacity-50 cursor-not-allowed' : `${hoverColor} hover:${activeBg}`} ${isSourcesVisible ? `${activeBg} text-emerald-500` : ''}`}
-            title={sourcesCount > 0 ? "Ver fontes utilizadas" : "Nenhuma fonte citada"}
+            className={`flex items-center gap-1.5 px-2 py-1.5 rounded-md transition-all ${
+              sourcesCount === 0
+                ? 'opacity-50 cursor-not-allowed'
+                : `${hoverColor} hover:${activeBg}`
+            } ${isSourcesVisible ? `${activeBg} text-emerald-500` : ''}`}
+            title={sourcesCount > 0 ? 'Ver fontes utilizadas' : 'Nenhuma fonte citada'}
           >
             <span>📚</span>
-            <span className="hidden sm:inline">Fontes {sourcesCount > 0 && `(${sourcesCount})`}</span>
+            <span className="hidden sm:inline">
+              Fontes {sourcesCount > 0 && `(${sourcesCount})`}
+            </span>
           </button>
         </div>
 
         <div className="flex items-center gap-1">
-          {feedbackSubmitted === 'up' && <span className="text-[10px] text-emerald-500 mr-1 animate-fade-in">Obrigado!</span>}
-          {feedbackSubmitted === 'down' && <span className="text-[10px] text-red-400 mr-1 animate-fade-in">Feedback enviado</span>}
-          
+          {feedbackSubmitted === 'up' && (
+            <span className="text-[10px] text-emerald-500 mr-1 animate-fade-in">Obrigado!</span>
+          )}
+          {feedbackSubmitted === 'down' && (
+            <span className="text-[10px] text-red-400 mr-1 animate-fade-in">Feedback enviado</span>
+          )}
           <button
             onClick={handleLike}
-            className={`p-1.5 rounded-md transition-all ${feedbackSubmitted === 'up' ? 'text-emerald-500 bg-emerald-500/10' : `${textColor} ${hoverColor} hover:${activeBg}`}`}
+            className={`p-1.5 rounded-md transition-all ${
+              feedbackSubmitted === 'up'
+                ? 'text-emerald-500 bg-emerald-500/10'
+                : `${textColor} ${hoverColor} hover:${activeBg}`
+            }`}
             title="Resposta útil"
           >
             👍
           </button>
           <button
             onClick={handleDislikeStart}
-            className={`p-1.5 rounded-md transition-all ${feedbackSubmitted === 'down' ? 'text-red-500 bg-red-500/10' : `${textColor} ${hoverColor} hover:${activeBg}`}`}
+            className={`p-1.5 rounded-md transition-all ${
+              feedbackSubmitted === 'down'
+                ? 'text-red-500 bg-red-500/10'
+                : `${textColor} ${hoverColor} hover:${activeBg}`
+            }`}
             title="Resposta não útil"
           >
             👎
@@ -225,9 +331,14 @@ const MessageActionsBar: React.FC<MessageActionsBarProps> = ({
         </div>
       </div>
 
-      {/* Caixa de Comentário para Dislike */}
       {showCommentBox && (
-        <div className={`p-3 rounded-lg text-xs animate-slide-in ${isDarkMode ? 'bg-slate-800/80 border border-slate-700' : 'bg-slate-50 border border-slate-200'}`}>
+        <div
+          className={`p-3 rounded-lg text-xs animate-slide-in ${
+            isDarkMode
+              ? 'bg-slate-800/80 border border-slate-700'
+              : 'bg-slate-50 border border-slate-200'
+          }`}
+        >
           <p className={`mb-2 font-medium ${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>
             O que não ficou bom nesta resposta?
           </p>
@@ -236,14 +347,20 @@ const MessageActionsBar: React.FC<MessageActionsBarProps> = ({
             onChange={(e) => setComment(e.target.value)}
             placeholder="Ex: Informação desatualizada, alucinação, link quebrado..."
             className={`w-full p-2 rounded mb-2 resize-none focus:outline-none focus:ring-1 focus:ring-emerald-500 ${
-              isDarkMode ? 'bg-slate-900 text-white placeholder-slate-500 border-slate-700' : 'bg-white text-slate-800 placeholder-slate-400 border-slate-300'
+              isDarkMode
+                ? 'bg-slate-900 text-white placeholder-slate-500 border-slate-700'
+                : 'bg-white text-slate-800 placeholder-slate-400 border-slate-300'
             }`}
             rows={2}
           />
           <div className="flex justify-end gap-2">
             <button
               onClick={cancelDislike}
-              className={`px-3 py-1.5 rounded transition-colors ${isDarkMode ? 'text-slate-400 hover:text-slate-200 hover:bg-slate-700' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200'}`}
+              className={`px-3 py-1.5 rounded transition-colors ${
+                isDarkMode
+                  ? 'text-slate-400 hover:text-slate-200 hover:bg-slate-700'
+                  : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200'
+              }`}
             >
               Cancelar
             </button>
