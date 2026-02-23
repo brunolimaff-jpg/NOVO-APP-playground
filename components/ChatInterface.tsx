@@ -16,9 +16,7 @@ import ScorePorta from './ScorePorta';
 import WarRoom from './WarRoom';
 import { cleanTitle, extractSources } from '../utils/textCleaners';
 import { isFakeUrl } from '../services/apiConfig';
-
-// Substitua o import antigo por este:
-import { createChatSession } from '../services/geminiService';
+import { runDeepResearchOSINT } from '../services/geminiService';
 
 const QUICK_ACTIONS = [
   { icon: "🎯", label: "Comparar", prompt: "Compare com o principal concorrente dessa empresa" },
