@@ -13,9 +13,12 @@ import { DeepDiveTopics } from './DeepDiveTopics';
 import InvestigationDashboard from './InvestigationDashboard';
 import SettingsDrawer from './SettingsDrawer';
 import ScorePorta from './ScorePorta';
-import WarRoom from './WarRoom'; // <-- WAR ROOM IMPORTADA AQUI
+import WarRoom from './WarRoom';
 import { cleanTitle, extractSources } from '../utils/textCleaners';
 import { isFakeUrl } from '../services/apiConfig';
+
+// 👇 A IMPORTAÇÃO QUE FALTAVA ESTÁ AQUI:
+import { executeWarRoomOSINT } from '../services/geminiService';
 
 const QUICK_ACTIONS = [
   { icon: "🎯", label: "Comparar", prompt: "Compare com o principal concorrente dessa empresa" },
@@ -73,7 +76,7 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
   const [showDashboard, setShowDashboard] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showActionsMenu, setShowActionsMenu] = useState(false);
-  const [showWarRoom, setShowWarRoom] = useState(false); // <-- ESTADO DA WAR ROOM
+  const [showWarRoom, setShowWarRoom] = useState(false); 
   
   const [displayedSuggestions, setDisplayedSuggestions] = useState<string[]>([]);
 
@@ -159,7 +162,6 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
 
       <main className="flex-1 flex flex-col h-full min-h-0 relative w-full transition-all duration-300">
         
-        {/* Cabeçalho fixo no topo */}
         <header className={`h-14 flex-shrink-0 flex items-center justify-between px-3 py-2 border-b backdrop-blur-md z-10 ${isDarkMode ? 'bg-gray-900/80 border-gray-800' : 'bg-white/80 border-gray-200'}`}>
           <div className="flex items-center gap-3 min-w-0 overflow-hidden">
             <button onClick={onToggleSidebar} className={`p-2 rounded-lg transition-colors flex-shrink-0 ${isDarkMode ? 'text-gray-400 hover:text-white hover:bg-gray-800' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'}`}>
@@ -177,7 +179,6 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
               </>
             )}
             
-            {/* BOTÃO DA WAR ROOM ⚔️ */}
             <button 
               onClick={() => setShowWarRoom(true)} 
               className={`p-2 rounded-lg transition-all ${isDarkMode ? 'text-gray-500 hover:text-red-500 hover:bg-red-900/30' : 'text-gray-500 hover:text-red-600 hover:bg-red-50'}`} 
@@ -203,7 +204,6 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
           <InvestigationDashboard onClose={() => setShowDashboard(false)} onSelectEmpresa={(empresa) => { onSendMessage(`Investigar ${empresa}`); setShowDashboard(false); }} />
         )}
 
-        {/* 3. Área de Rolagem Central */}
         <div className="flex-1 min-h-0 overflow-y-auto p-4 md:p-6 scroll-smooth custom-scrollbar relative">
           {messages.length === 0 ? (
             <EmptyStateHome mode={mode} onSendMessage={onSendMessage} onPreFill={(text) => setInput(text)} isDarkMode={isDarkMode} />
@@ -286,7 +286,6 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
           )}
         </div>
 
-        {/* 4. Rodapé fixo */}
         <div className={`flex-shrink-0 p-3 pb-4 md:p-6 border-t ${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-white border-slate-200'} z-20`}>
           <div className="w-full max-w-5xl xl:max-w-6xl mx-auto px-1 md:px-6 lg:px-8 relative">
             
@@ -343,8 +342,8 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
           </div>
         </div>
 
-                                {/* ==========================================
-            RENDERIZAÇÃO DA WAR ROOM (TRAVADA NO DEEP RESEARCH)
+        {/* ==========================================
+            WAR ROOM RENDERIZADA E CONECTADA
             ========================================== */}
         <WarRoom 
           isOpen={showWarRoom} 
@@ -352,10 +351,7 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
           isDarkMode={isDarkMode} 
           onExecuteOSINT={async (prompt) => {
             try {
-              // A Constante do Deep Research cravada aqui
               const DEEP_RESEARCH_MODEL_ID = 'deep-research-pro-preview-12-2025';
-              
-              // Chama o serviço passando a constante travada
               const result = await executeWarRoomOSINT(prompt, DEEP_RESEARCH_MODEL_ID);
               return result;
             } catch (error: any) {
