@@ -5,7 +5,7 @@ interface WarRoomProps {
   isOpen: boolean;
   onClose: () => void;
   isDarkMode: boolean;
-  onExecuteOSINT: (prompt: string) => Promise<string>; // <-- Agora só manda o prompt!
+  onExecuteOSINT: (prompt: string) => Promise<string>;
 }
 
 type TabType = 'forense' | 'divida' | 'sangria' | 'sparring';
@@ -47,10 +47,10 @@ export default function WarRoom({ isOpen, onClose, isDarkMode, onExecuteOSINT }:
   const handleRunOSINT = async (moduleId: string, title: string, prompt: string) => {
     setLoadingAction(moduleId);
     try {
-      const result = await onExecuteOSINT(prompt); // Apenas o prompt, a arma já está travada no Deep Research
+      const result = await onExecuteOSINT(prompt);
       setResults(prev => ({ ...prev, [moduleId]: result }));
     } catch (error) {
-      setResults(prev => ({ ...prev, [moduleId]: '⚠️ Falha Crítica na Varredura.' }));
+      setResults(prev => ({ ...prev, [moduleId]: '⚠️ Falha Crítica na Varredura. Verifique os logs do console.' }));
     } finally {
       setLoadingAction(null);
     }
@@ -97,7 +97,7 @@ export default function WarRoom({ isOpen, onClose, isDarkMode, onExecuteOSINT }:
           <button onClick={onClose} className="p-2 rounded-lg hover:bg-red-500/10 text-red-500 transition-colors">✕</button>
         </div>
 
-        {/* SELETOR DE ALVO (Único controle) */}
+        {/* SELETOR DE ALVO */}
         <div className={`p-4 border-b ${panelBg}`}>
           <label className={`block text-[10px] font-bold uppercase tracking-wider mb-2 ${textMuted}`}>Selecione o Inimigo (Alvo):</label>
           <select 
