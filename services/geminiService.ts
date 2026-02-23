@@ -662,29 +662,25 @@ export const generateConsolidatedDossier = async (history: Message[], systemInst
 };
 
 // ===================================================================
-// MOTOR WAR ROOM: INTERACTIONS API (Exclusivo para Deep Research)
+// WAR ROOM / OSINT - Execução de prompts de inteligência competitiva
 // ===================================================================
-export const runDeepResearchOSINT = async (prompt: string): Promise<string> => {
+
+export const runWarRoomOSINT = async (prompt: string): Promise<string> => {
+  const DEEP_RESEARCH_MODEL_ID = 'deep-research-pro-preview-12-2025';
+  const systemPrompt = "Você é um Diretor de Inteligência Competitiva e Hacker OSINT. Varra a web inteira em busca de dados públicos para montar dossiês estratégicos de concorrentes. Use Deep Research para cruzar informações de tribunais, CVM, portais de carreira, fóruns e notícias.";
+
   try {
-    const ai = getGenAI(); // Puxa a sua chave que já funciona no backend
-    
-    // O modelo Deep Research SÓ funciona usando o novo endpoint .interactions.
-    // Usamos (ai as any) para evitar que o TypeScript bloqueie a compilação, 
-    // já que essa API é um Preview beta recente da Google.
-    const response = await (ai as any).interactions.create({
-      model: 'deep-research-pro-preview-12-2025',
-      input: prompt
-    });
+    const chatSession = createChatSession(systemPrompt, [], DEEP_RESEARCH_MODEL_ID, true, false);
+    const result = await chatSession.sendMessageStream({ message: prompt } as any);
 
-    // A resposta na Interactions API vem em um formato de array diferente
-    const finalReport = response.text 
-      || response.outputs?.[response.outputs?.length - 1]?.text 
-      || response.outputs?.[0]?.content?.parts?.[0]?.text;
+    let finalReport = '';
+    for await (const chunk of result) {
+      finalReport += chunk.text || "";
+    }
 
-    return finalReport || "A varredura foi concluída, mas o modelo não retornou texto.";
+    return finalReport || "Nenhum dado retornado pela varredura.";
   } catch (error: any) {
-    console.error("Erro crítico no Deep Research:", error);
-    throw new Error(error.message || JSON.stringify(error));
+    console.error("[WarRoom OSINT] Erro:", error);
+    throw new Error(error.message || "Falha na conexão OSINT");
   }
 };
-

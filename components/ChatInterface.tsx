@@ -16,7 +16,7 @@ import ScorePorta from './ScorePorta';
 import WarRoom from './WarRoom';
 import { cleanTitle, extractSources } from '../utils/textCleaners';
 import { isFakeUrl } from '../services/apiConfig';
-import { runDeepResearchOSINT } from '../services/geminiService';
+import { runWarRoomOSINT } from '../services/geminiService';
 
 const QUICK_ACTIONS = [
   { icon: "🎯", label: "Comparar", prompt: "Compare com o principal concorrente dessa empresa" },
@@ -74,8 +74,7 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
   const [showDashboard, setShowDashboard] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showActionsMenu, setShowActionsMenu] = useState(false);
-  const [showWarRoom, setShowWarRoom] = useState(false); 
-  
+  const [showWarRoom, setShowWarRoom] = useState(false);
   const [displayedSuggestions, setDisplayedSuggestions] = useState<string[]>([]);
 
   useLayoutEffect(() => {
@@ -176,15 +175,7 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
                 <div className={`w-px h-4 mx-1 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-300'}`}></div>
               </>
             )}
-            
-            <button 
-              onClick={() => setShowWarRoom(true)} 
-              className={`p-2 rounded-lg transition-all ${isDarkMode ? 'text-gray-500 hover:text-red-500 hover:bg-red-900/30' : 'text-gray-500 hover:text-red-600 hover:bg-red-50'}`} 
-              title="War Room: Inteligência Competitiva"
-            >
-              ⚔️
-            </button>
-
+            <button onClick={() => setShowWarRoom(true)} className={`p-2 rounded-lg transition-all ${isDarkMode ? 'text-gray-500 hover:text-red-400 hover:bg-gray-800' : 'text-gray-400 hover:text-red-500 hover:bg-gray-100'}`} title="War Room: Inteligência Competitiva">⚔️</button>
             <button onClick={() => { if (window.confirm("Limpar conversa?")) onClearChat(); }} className={`p-2 rounded-lg transition-all ${isDarkMode ? 'text-gray-500 hover:text-red-400 hover:bg-gray-800' : 'text-gray-400 hover:text-red-500 hover:bg-gray-100'}`} title="Limpar conversa">🗑️</button>
             <button onClick={() => setShowSettings(true)} className={`p-2 rounded-lg transition-all ${isDarkMode ? 'text-gray-500 hover:text-emerald-400 hover:bg-gray-800' : 'text-gray-400 hover:text-emerald-500 hover:bg-gray-100'}`} title="Configurações">⚙️</button>
           </div>
@@ -340,36 +331,19 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
           </div>
         </div>
 
-                        {/* ==========================================
-            WAR ROOM RENDERIZADA E CONECTADA (CORREÇÃO ABSOLUTA)
-            ========================================== */}
-        <WarRoom 
-          isOpen={showWarRoom} 
-          onClose={() => setShowWarRoom(false)} 
-          isDarkMode={isDarkMode} 
+        {/* WAR ROOM */}
+        <WarRoom
+          isOpen={showWarRoom}
+          onClose={() => setShowWarRoom(false)}
+          isDarkMode={isDarkMode}
           onExecuteOSINT={async (prompt) => {
             try {
-              const DEEP_RESEARCH_MODEL_ID = 'deep-research-pro-preview-12-2025';
-              const systemPrompt = "Você é um Diretor de Inteligência Competitiva e Hacker OSINT. Varra a web.";
-              
-              // Monta a sessão usando a sua função interna
-              const chatSession = createChatSession(systemPrompt, [], DEEP_RESEARCH_MODEL_ID, true, false);
-              
-              // O ERRO ESTAVA AQUI: Passando o objeto exatamente como seu geminiService exige
-              const result = await chatSession.sendMessageStream({ message: prompt } as any);
-              
-              let finalReport = '';
-              for await (const chunk of result) {
-                finalReport += chunk.text || "";
-              }
-              
-              return finalReport || "Nenhum dado retornado.";
+              return await runWarRoomOSINT(prompt);
             } catch (error: any) {
               return `**⚠️ Falha na Conexão OSINT.**\n\nDetalhe técnico: \`${error.message}\``;
             }
           }}
         />
-
       </main>
     </div>
   );
