@@ -18,7 +18,8 @@
     "remark-breaks": "4",
     "rehype-raw": "7",
     "framer-motion": "^12.34.2",
-    "mermaid": "^10.9.1"
+    "mermaid": "^10.9.1",
+    "@pinecone-database/pinecone": "^2.2.2"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",
