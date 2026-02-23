@@ -226,7 +226,7 @@ export function generateContextReminder(companyName: string | null, sessionId?: 
   if (currentCompanyContext && currentCompanyContext.empresa !== companyName) {
     console.warn(`[CONTEXTO] Mudança detectada: "${currentCompanyContext.empresa}" → "${companyName}"`);
     currentCompanyContext = { empresa: companyName, sessionId: sessionId || 'unknown', timestamp: now };
-    return `\n\n⚠️ [TROCA DE CONTEXTO DETECTADA]: O usuário mudou de "${currentCompanyContext.empresa}" para "${companyName}".\n- IGNORE TODOS os dados de empresas anteriores.\n- NÃO mencione nenhuma empresa que não seja "${companyName}".\n- Se encontrar dados de outra empresa no histórico, DESCARTE.\n- Foco 100% em: ${companyName}\n`;
+    return `\n\n⚠️ [TROCA DE CONTEXTO DETECTADA]: O usuário mudou de "${companyName}".\n- IGNORE TODOS os dados de empresas anteriores.\n- NÃO mencione nenhuma empresa que não seja "${companyName}".\n- Se encontrar dados de outra empresa no histórico, DESCARTE.\n- Foco 100% em: ${companyName}\n`;
   }
   currentCompanyContext = { empresa: companyName, sessionId: sessionId || 'unknown', timestamp: now };
   return `\n\n📌 [CONTEXTO ATIVO]: Você está investigando a empresa "${companyName}".\n- Mantenha foco TOTAL nesta empresa.\n- NÃO misture com dados de outras empresas.\n- Se detectar inconsistência, ALERTAR: "⚠️ Dados inconsistentes detectados. Mantendo foco em ${companyName}."\n- NUNCA cite nomes de empresas que não foram mencionados pelo usuário.\n`;
@@ -668,49 +668,50 @@ export const generateConsolidatedDossier = async (history: Message[], systemInst
 // WAR ROOM / OSINT - Execução de prompts de inteligência competitiva
 // ===================================================================
 
-const OSINT_POLL_INTERVAL_MS = 8000;
-const OSINT_MAX_POLL_ATTEMPTS = 90; // ~12 min max
-
 export const runWarRoomOSINT = async (prompt: string): Promise<string> => {
   const ai = getGenAI();
 
   try {
-    // Deep Research é um "agent", não um "model" — requer a Interactions API
-    const interaction = await ai.interactions.create({
-      agent: DEEP_RESEARCH_MODEL_ID,
-      input: prompt,
-      background: true,
-    });
+    const systemInstruction = `
+Você é um analista de pesquisa OSINT e inteligência competitiva.
 
-    console.log(`[WarRoom OSINT] Interaction criada: ${interaction.id} — status: ${interaction.status}`);
+REGRAS:
+- Use somente fontes públicas e legítimas.
+- Quando citar algo, inclua links markdown clicáveis.
+- Se não encontrar, diga explicitamente o que não foi possível confirmar.
+- Responda em Português (Brasil).
+`;
 
-    // Polling até conclusão
-    let current = interaction;
-    let attempts = 0;
-    while (current.status === 'in_progress' && attempts < OSINT_MAX_POLL_ATTEMPTS) {
-      await new Promise(r => setTimeout(r, OSINT_POLL_INTERVAL_MS));
-      current = await ai.interactions.get(current.id);
-      attempts++;
-      console.log(`[WarRoom OSINT] Poll #${attempts} — status: ${current.status}`);
+    // Versão frontend-safe: usa o mesmo fluxo do chat com grounding (googleSearch)
+    // evitando Interactions API (que causa CORS/preflight no browser).
+    const chatSession = createChatSession(systemInstruction, [], DEEP_CHAT_MODEL_ID, true, false);
+
+    const result = await chatSession.sendMessageStream({ message: prompt });
+    let rawAccumulator = '';
+    let groundingChunks: any[] = [];
+
+    for await (const chunk of result) {
+      const chunkText = chunk.text || '';
+      rawAccumulator += chunkText;
+
+      const newChunks = chunk.candidates?.[0]?.groundingMetadata?.groundingChunks;
+      if (newChunks?.length) {
+        groundingChunks = [...groundingChunks, ...newChunks];
+      }
     }
 
-    if (current.status === 'completed' && current.outputs) {
-      const report = current.outputs
-        .filter((o: any) => o.type === 'text' && o.text)
-        .map((o: any) => o.text)
-        .join('\n\n');
-      return report || "Varredura concluída, mas sem texto no relatório.";
+    const finalParsed = parseMarkers(rawAccumulator);
+    let report = (finalParsed.text || '').trim();
+
+    const sources = groundingChunks
+      .filter(c => c.web?.uri)
+      .map(c => ({ title: getReadableTitle(c.web), url: c.web.uri }));
+
+    if (sources.length) {
+      report += `\n\n## Fontes\n` + sources.slice(0, 12).map(s => `- [${s.title}](${s.url})`).join('\n');
     }
 
-    if (current.status === 'failed' || current.status === 'cancelled') {
-      throw new Error(`Deep Research finalizou com status: ${current.status}`);
-    }
-
-    if (attempts >= OSINT_MAX_POLL_ATTEMPTS) {
-      throw new Error("Timeout: a varredura Deep Research excedeu o tempo máximo.");
-    }
-
-    return "Nenhum dado retornado pela varredura.";
+    return report || "Varredura concluída, mas sem texto no relatório.";
   } catch (error: any) {
     console.error("[WarRoom OSINT] Erro:", error);
     throw new Error(error.message || "Falha na conexão OSINT");
