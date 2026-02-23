@@ -31,29 +31,40 @@ export default function WarRoom({ isOpen, onClose, isDarkMode, onExecuteOSINT }:
   const [results, setResults] = useState<Record<string, string>>({});
   const [sparringInput, setSparringInput] = useState('');
 
-  // Prompts dinâmicos que cruzam o Inimigo (Target) com o Módulo (Segmento)
+    // Prompts dinâmicos com INJEÇÃO DE GOOGLE DORKS (Shadow IT, Scribd, Drive e Jusbrasil)
   const osintModules = {
     forense: [
-      { id: 'pricing', icon: '💰', title: 'Engenharia Reversa de Pricing', desc: `Varre licitações e vazamentos para descobrir TCO do módulo de ${segment}.`, 
-        prompt: `Execute a varredura GOD MODE de Pricing para o alvo: ${target}, focado exclusivamente no segmento/módulo de ${segment}. Busque propostas, editais after:2024-01-01 e monte a tabela de TCO e hora técnica.` },
-      { id: 'jusbrasil', icon: '⚖️', title: 'Bomba Trabalhista e Litígios', desc: `Busca processos de inexecução contratual em projetos de ${segment}.`,
-        prompt: `Faça um Deep Research em tribunais e Jusbrasil sobre o alvo ${target} no contexto de ${segment}. Busque litígios de falha na implantação e processos trabalhistas de desenvolvedores/consultores nos últimos 12 meses.` },
-      { id: 'cvm', icon: '🏦', title: 'Insider Dumping (CVM/B3)', desc: 'Monitora saúde financeira e movimentação de diretores.',
-        prompt: `Analise o mercado de negócios, relatórios da CVM e B3 do alvo ${target}. Como está a saúde financeira da divisão que atende ${segment}? Há fuga de diretores ou queda de ações?` }
+      { id: 'pricing', icon: '💰', title: 'Caça de Propostas Vazadas', desc: `Força a IA a usar Google Dorks para achar PDFs de orçamentos no Scribd, Drive e DocDroid.`, 
+        prompt: `Execute OSINT Forense Avançado de Pricing para o alvo: ${target} (${segment}). 
+        REGRAS DE BUSCA (USE DORKS): Pesquise obrigatoriamente usando (site:scribd.com OR site:docdroid.net OR site:slideshare.net OR site:drive.google.com) AND "${target}" AND ("proposta comercial" OR "orçamento" OR "escopo" OR "tabela de preços" OR "R$"). Use filetype:pdf. 
+        Como empresas privadas não usam Diário Oficial, procure contratos B2B que vazaram na web para estimar o TCO e valor da hora técnica.` },
+      
+      { id: 'jusbrasil', icon: '⚖️', title: 'Litígios e Inexecução (Tribunais)', desc: `Mergulha no Jusbrasil caçando processos onde o cliente processou o ERP por falha.`,
+        prompt: `Faça Deep Research focado em jurisprudência. Use o dork: site:jusbrasil.com.br "${target}" AND ("inexecução contratual" OR "falha na implantação" OR "lucros cessantes" OR "rescisão"). 
+        Mapeie litígios recentes (após 2022) onde clientes de ${segment} processaram o alvo. Extraia as reclamações técnicas expostas nos autos do processo e, se citado nos autos, o valor original do contrato.` },
+      
+      { id: 'cvm', icon: '🏦', title: 'Saúde Financeira e M&A', desc: 'Monitora movimentações suspeitas de capital, fusões e investidores por trás da marca.',
+        prompt: `Analise a estrutura corporativa do alvo ${target}. Para alvos menores/regionais, pesquise se eles foram adquiridos por algum fundo de investimento ou se operam "pendurados" em plataformas maiores (ex: a Liberali opera add-ons sobre o SAP B1). Qual o risco financeiro de longo prazo para um cliente que contrata esse sistema para ${segment}?` }
     ],
     divida: [
-      { id: 'bugs', icon: '🦠', title: 'Autópsia de Suporte', desc: `Mapeia as piores falhas técnicas e bugs do módulo de ${segment}.`,
-        prompt: `Faça OSINT em fóruns de desenvolvedores, Telegram, ReclameAqui sobre o sistema ${target}, focando estritamente em ${segment}. Liste as maiores falhas técnicas e quebras relatadas recentemente.` },
-      { id: 'vaporware', icon: '👻', title: 'Caça ao Vaporware', desc: `Prova se as inovações prometidas em ${segment} existem ou são powerpoint.`,
-        prompt: `O alvo ${target} está vendendo inovações em ${segment} (ex: IA, Nuvem Nativa). Faça Deep Research para provar se o produto existe ou é 'Vaporware'. O que os desenvolvedores falam nos fóruns sobre isso?` },
-      { id: 'frankenstein', icon: '🧟', title: 'Efeito Frankenstein', desc: `Mapeia se o módulo de ${segment} foi comprado de outra empresa (M&A).`,
-        prompt: `Mapeie as últimas aquisições (M&A) do alvo ${target} relacionadas a ${segment}. Crie um argumento técnico mostrando como o sistema atual deles é uma 'colcha de retalhos' com banco de dados fragmentado.` }
+      { id: 'bugs', icon: '🦠', title: 'Fóruns de Devs e Shadow IT', desc: `Raspa o GitHub e fóruns obscuros para achar o que os devs escondem.`,
+        prompt: `Vá além do marketing. Faça OSINT em comunidades (site:github.com OR site:stackoverflow.com OR site:reddit.com) AND "${target}" AND ("bug" OR "integration" OR "error" OR "API"). 
+        No segmento de ${segment}, quais são as gambiarras técnicas (Shadow IT) que os clientes do ${target} são forçados a fazer porque o sistema nativo não funciona?` },
+      
+      { id: 'vaporware', icon: '👻', title: 'O Falso Nativo (A Mentira Comercial)', desc: `Prova se o sistema é próprio ou um puxadinho de outro ERP maior.`,
+        prompt: `Investigue a arquitetura real do ${target} para ${segment}. Use dorks em PDFs vazados. 
+        O sistema deles é verdadeiramente nativo ou eles vendem um "Add-on" que precisa ser acoplado em ERPs gigantes (como o SAP Business One) gerando custo de licenciamento duplo para o cliente? Detalhe essa dívida técnica.` },
+      
+      { id: 'frankenstein', icon: '🧟', title: 'Efeito Frankenstein', desc: `Mapeia se o módulo foi comprado de outra empresa e tem bancos de dados separados.`,
+        prompt: `Pesquise o histórico de aquisições (M&A) do alvo ${target}. O módulo de ${segment} que eles vendem foi desenvolvido "dentro de casa" ou eles compraram uma startup terceirizada e enveloparam com a marca deles? Prove como isso gera problemas de integração e bases de dados não unificadas.` }
     ],
     sangria: [
-      { id: 'vagas', icon: '🕵️', title: 'Paradoxo do Headcount', desc: `Analisa a fuga de talentos na equipe técnica de ${segment}.`,
-        prompt: `Analise as vagas abertas e o LinkedIn do alvo ${target}. Eles estão perdendo consultores seniores especialistas em ${segment} e repondo com juniores? Crie a narrativa de risco para o projeto do cliente.` },
-      { id: 'churn', icon: '📉', title: 'Churn Silencioso', desc: `Descobre clientes que abandonaram o ${segment} deles para ir à concorrência.`,
-        prompt: `Faça Deep Research buscando notícias de mercado e relatos de empresas médias/grandes que abandonaram recentemente a solução de ${segment} da ${target}.` }
+      { id: 'vagas', icon: '🕵️', title: 'Sangria de Consultores Sêniores', desc: `Analisa o LinkedIn e vagas abertas para descobrir se a equipe de implantação debandou.`,
+        prompt: `Use OSINT em portais de emprego (site:glassdoor.com.br OR site:gupy.io OR LinkedIn). O alvo ${target} está abrindo dezenas de vagas de urgência para ${segment}? 
+        Procure reviews de ex-funcionários detonando prazos surreais e código legado. Monte o argumento: "A equipe sênior deles saiu, seu projeto será laboratório para juniores."` },
+      
+      { id: 'churn', icon: '📉', title: 'O Ralo de Clientes (Churn)', desc: `Mapeia empresas que usavam o sistema, mas migraram recentemente.`,
+        prompt: `Faça Deep Research cruzando notícias de TI agro e ferramentas de stack. Busque por empresas do agronegócio ou ${segment} que substituíram o ${target} pela concorrência nos últimos 24 meses. Se não achar casos públicos, busque por vagas nessas usinas exigindo "Migração de sistema ${target}".` }
     ]
   };
 
