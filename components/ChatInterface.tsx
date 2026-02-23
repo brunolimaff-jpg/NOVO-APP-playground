@@ -343,40 +343,45 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
           </div>
         </div>
 
-                {/* ==========================================
-            RENDERIZAÇÃO DA WAR ROOM (AGORA CONECTADA!)
+                        {/* ==========================================
+            RENDERIZAÇÃO DA WAR ROOM (AGORA CEGA-PROVA)
             ========================================== */}
         <WarRoom 
           isOpen={showWarRoom} 
           onClose={() => setShowWarRoom(false)} 
           isDarkMode={isDarkMode} 
-          onExecuteOSINT={async (prompt) => {
+          onExecuteOSINT={async (prompt, selectedModel) => {
             try {
-              // Importação dinâmica do SDK mais novo que está no seu package.json
               const { GoogleGenAI } = await import('@google/genai');
               
-              // Puxa a sua chave de API do .env (ajuste o nome se a sua variável for diferente)
-              const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY || import.meta.env.VITE_GOOGLE_API_KEY });
+              // ⚠️ CAÇA À CHAVE DE API: Ele tenta todas as combinações comuns do Vite
+              const apiKey = 
+                import.meta.env.VITE_GEMINI_API_KEY || 
+                import.meta.env.VITE_GOOGLE_API_KEY || 
+                import.meta.env.VITE_API_KEY || 
+                import.meta.env.GEMINI_API_KEY; // Fallback caso não use VITE_
               
-              // O Motor God Mode que você mapeou
-              const DEEP_RESEARCH_MODEL_ID = 'deep-research-pro-preview-12-2025';
+              if (!apiKey) {
+                return `**⚠️ ERRO FATAL: Chave de API não encontrada.**\n\nO motor precisa de combustível. Verifique se no seu arquivo \`.env\` (na raiz do projeto) existe a linha:\n\`VITE_GEMINI_API_KEY=sua_chave_aqui\`\n\n*Nota: Após alterar o .env, você precisa reiniciar o servidor (parar o terminal e rodar npm run dev de novo).*`;
+              }
 
-              // Dispara o míssil sem sujar o chat principal
+              const ai = new GoogleGenAI({ apiKey: apiKey });
+
+              // Dispara o míssil usando o MODELO QUE O USUÁRIO ESCOLHEU na War Room
               const response = await ai.models.generateContent({
-                model: DEEP_RESEARCH_MODEL_ID,
+                model: selectedModel,
                 contents: prompt,
                 config: {
-                  // Ferramenta de busca na web ATIVADA para vasculhar a concorrência
                   tools: [{ googleSearch: {} }], 
-                  temperature: 0.2, // Frio, calculista e analítico (sem invenções)
+                  temperature: 0.2, 
                 }
               });
 
               return response.text || "Nenhuma inteligência retornada.";
 
             } catch (error: any) {
-              console.error("Erro no Motor Deep Research:", error);
-              return `**⚠️ Falha no Deep Research:** O motor não conseguiu retornar os dados. \n\nDetalhe do erro: ${error.message}`;
+              console.error("Erro no Motor OSINT:", error);
+              return `**⚠️ Falha na Operação OSINT.**\n\nO motor engasgou ou a API rejeitou a chamada.\n\nDetalhe técnico: \`${error.message}\``;
             }
           }}
         />
