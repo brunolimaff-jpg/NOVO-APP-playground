@@ -1,12 +1,13 @@
 import { GoogleGenAI, Chat, Content, Type } from "@google/genai";
 import { AppError, ReportType, Sender, ScorePortaData, ParsedContent } from '../types';
-import { ChatMode } from '../constants';
+import { ChatMode, NOME_VENDEDOR_PLACEHOLDER } from '../constants';
 import { normalizeAppError } from '../utils/errorHelpers';
 import { withAutoRetry } from '../utils/retry';
 import { Message } from '../types';
-import { stripMarkdown, cleanSuggestionText, cleanStatusMarkers } from '../utils/textCleaners';
+import { stripMarkdown, cleanSuggestionText } from '../utils/textCleaners';
 import { lookupCliente, formatarParaPrompt, benchmarkClientes, formatarBenchmarkParaPrompt } from './clientLookupService';
 import { addInvestigation } from '../components/InvestigationDashboard';
+import { CompetitorDetection, getContextoConcorrentesRegionais } from './competitorService';
 
 export interface GeminiRequestOptions {
   useGrounding?: boolean;
@@ -15,6 +16,8 @@ export interface GeminiRequestOptions {
   onText?: (text: string) => void;
   onStatus?: (status: string) => void;
   onScorePorta?: (score: ScorePortaData) => void;
+  onCompetitor?: (detection: CompetitorDetection) => void;
+  nomeVendedor?: string;
 }
 
 // ===================================================================
@@ -47,6 +50,120 @@ Responda EXCLUSIVAMENTE em Português (Brasil) usando um Array JSON de strings.
 `;
 
 // ===================================================================
+// LIMPEZA DE TEXTO — STREAMING E FINAL
+// ===================================================================
+
+/**
+ * sanitizeStreamText
+ * Remove TODOS os marcadores [[...]] do texto acumulado antes de exibir
+ * na UI durante o streaming. Também remove ] soltos gerados por parsers
+ * parciais de marcadores.
+ */
+function sanitizeStreamText(text: string): string {
+  return text
+    // Remove marcadores completos — ordem importa (mais específico primeiro)
+    .replace(/\[\[COMPETITOR:[^\]]*\]\]/g, '')
+    .replace(/\[\[PORTA:[^\]]*\]\]/g, '')
+    .replace(/\[\[STATUS:[^\]]*\]\]/g, '')
+    // Remove qualquer outro [[MARCADOR:...]] completo
+    .replace(/\[\[[A-Z_]+:[^\n]*?\]\]/g, '')
+    // Remove marcador parcial na última linha (stream ainda chegando)
+    .replace(/\[\[?[A-Z_]*:?[^\n]*$/, '')
+    // Remove ] ou [ soltos no início (artefato de parse)
+    .replace(/^(\s*\]\s*\n)+/, '')
+    .replace(/^\s*\]/, '');
+}
+
+/**
+ * enforceOpeningWithSeller
+ * Garante que aberturas coloquiais como "Fala, time" sejam ajustadas
+ * para um tom mais profissional, citando o vendedor quando possível.
+ */
+function enforceOpeningWithSeller(rawText: string, nomeVendedor: string): string {
+  if (!rawText) return rawText;
+
+  const seller = nomeVendedor?.trim() || 'Vendedor';
+
+  // Não mexe em textos que começam com heading Markdown (#, ##, etc.)
+  const trimmedStart = rawText.trimStart();
+  if (/^#+\s/.test(trimmedStart)) {
+    return rawText;
+  }
+
+  // Trabalha em uma cópia aparada no início, preservando resto do conteúdo
+  let text = trimmedStart;
+  const forbiddenOpenings = [
+    /^fala[,!\.\s]*time[\.!?\s-]*/i,
+    /^fala[,!\.\s]*(pessoal|galera)[\.!?\s-]*/i,
+  ];
+
+  let replaced = false;
+  for (const re of forbiddenOpenings) {
+    if (re.test(text)) {
+      text = text.replace(re, `${seller}, `);
+      replaced = true;
+      break;
+    }
+  }
+
+  if (!replaced) return rawText;
+
+  // Re-anexa os espaços iniciais que foram removidos em trimStart
+  const leadingWhitespaceMatch = rawText.match(/^\s*/);
+  const leadingWhitespace = leadingWhitespaceMatch ? leadingWhitespaceMatch[0] : '';
+  return leadingWhitespace + text;
+}
+
+// ===================================================================
+// PARSER DE MARCADOR [[COMPETITOR:...]]
+// ===================================================================
+
+/**
+ * parseCompetitorMarker
+ * Extrai o primeiro marcador [[COMPETITOR:...]] encontrado no texto acumulado.
+ * Retorna null se não houver marcador.
+ * Formato: [[COMPETITOR:NOME_ERP:NIVEL_AMEACA:REVENDA_LOCAL:CONFIANCA]]
+ */
+function parseCompetitorMarker(content: string): CompetitorDetection | null {
+  const regex = /\[\[COMPETITOR:([^:\]]+):([^:\]]+):([^:\]]+):([^\]]+)\]\]/;
+  const match = content.match(regex);
+  if (!match) return null;
+  return {
+    encontrado: true,
+    nomeERP: match[1].trim(),
+    nivelAmeaca: match[2].trim() as 'alto' | 'medio' | 'baixo',
+    revendaLocal: match[3].trim(),
+    confianca: match[4].trim() as 'alta' | 'media' | 'baixa',
+  };
+}
+
+/**
+ * extractEstadoFromMessage
+ * Tenta detectar a UF mencionada na mensagem para enriquecer contexto regional.
+ * Padrão: MT (Mato Grosso — mercado principal).
+ */
+function extractEstadoFromMessage(message: string): string {
+  const ufsKnown: Record<string, string> = {
+    'mato grosso do sul': 'MS', 'mato grosso': 'MT',
+    'goiás': 'GO', 'goias': 'GO',
+    'pará': 'PA', 'para': 'PA',
+    'maranhão': 'MA', 'maranhao': 'MA',
+    'tocantins': 'TO', 'bahia': 'BA',
+    'minas gerais': 'MG', 'são paulo': 'SP',
+    'paraná': 'PR', 'parana': 'PR',
+    'rio grande do sul': 'RS',
+    ' MT ': 'MT', ' MS ': 'MS', ' GO ': 'GO',
+    ' PA ': 'PA', ' BA ': 'BA', ' MG ': 'MG',
+    ' SP ': 'SP', ' PR ': 'PR', ' RS ': 'RS',
+  };
+  const lower = message.toLowerCase();
+  for (const [key, uf] of Object.entries(ufsKnown)) {
+    if (lower.includes(key.toLowerCase())) return uf;
+  }
+  return 'MT'; // padrão: mercado principal
+}
+
+// ===================================================================
 // FUNÇÕES DE PARSING E CONTEXTO
 // ===================================================================
 
@@ -55,6 +172,7 @@ export function parseMarkers(content: string): ParsedContent {
   const statuses: string[] = [];
   let scorePorta: ScorePortaData | null = null;
 
+  // 1. Extrai e remove marcadores [[STATUS:...]]
   const statusRegex = /\[\[STATUS:([^\]]+)\]\]/g;
   let statusMatch;
   while ((statusMatch = statusRegex.exec(content)) !== null) {
@@ -62,6 +180,7 @@ export function parseMarkers(content: string): ParsedContent {
     text = text.replace(statusMatch[0], '');
   }
 
+  // 2. Extrai e remove marcador [[PORTA:...]]
   const portaRegex = /\[\[PORTA:(\d+):P(\d+):O(\d+):R(\d+):T(\d+):A(\d+)\]\]/;
   const portaMatch = text.match(portaRegex);
   if (portaMatch) {
@@ -76,7 +195,19 @@ export function parseMarkers(content: string): ParsedContent {
     text = text.replace(portaMatch[0], '');
   }
 
+  // 3. Remove marcadores [[COMPETITOR:...]] (capturado via onCompetitor callback, não exibido)
+  text = text.replace(/\[\[COMPETITOR:[^\]]*\]\]/g, '');
+
+  // 4. Remove qualquer outro marcador [[MARCADOR:...]] residual
+  text = text.replace(/\[\[[A-Z_]+:[^\n]*?\]\]/g, '');
+
+  // 5. Limpa ] ou [ soltos no início (artefato de parse de marcadores)
+  text = text.replace(/^(\s*\]\s*\n)+/, '');
+  text = text.replace(/^\s*\]/, '');
+
+  // 6. Normaliza espaços/linhas em branco extras
   text = text.replace(/^\s*\n/gm, '\n').trim();
+
   return { text, statuses, scorePorta };
 }
 
@@ -177,7 +308,7 @@ function getReadableTitle(source: { uri?: string; title?: string }): string {
 export const createChatSession = (
   systemInstruction: string, 
   history: Message[],
-  modelId: string, // Agora recebe o modelo dinamicamente
+  modelId: string,
   useGrounding: boolean = true,
   thinkingMode: boolean = false 
 ): Chat => {
@@ -279,17 +410,7 @@ export const generateLoadingCuriosities = async (context: string): Promise<strin
   try {
     const response = await ai.models.generateContent({
       model: ROUTER_MODEL_ID,
-      contents: `Gere 6 curiosidades REAIS e VARIADAS sobre "${context}" (máx 120 chars cada).
-
-REGRAS:
-- VARIE o formato: NÃO comece todas com o mesmo nome. Alterne entre fatos da empresa, do setor e da região
-- Inclua dados específicos: números, anos, locais
-- Exemplo BOM: "Sapezal (MT) é um dos maiores municípios produtores de soja do Brasil"
-- Exemplo BOM: "O setor de grãos movimenta R$ 400 bi por ano no Brasil"
-- Exemplo RUIM: "Forte presença em mercados internacionais" (quem? onde? quanto?)
-- No máximo 2 das 6 podem citar o nome da empresa diretamente
-
-Retorne um JSON Array de strings.`,
+      contents: `Gere 6 curiosidades REAIS e VARIADAS sobre "${context}" (máx 120 chars cada).\n\nREGRAS:\n- VARIE o formato: NÃO comece todas com o mesmo nome. Alterne entre fatos da empresa, do setor e da região\n- Inclua dados específicos: números, anos, locais\n- Exemplo BOM: "Sapezal (MT) é um dos maiores municípios produtores de soja do Brasil"\n- Exemplo BOM: "O setor de grãos movimenta R$ 400 bi por ano no Brasil"\n- Exemplo RUIM: "Forte presença em mercados internacionais" (quem? onde? quanto?)\n- No máximo 2 das 6 podem citar o nome da empresa diretamente\n\nRetorne um JSON Array de strings.`,
       config: { responseMimeType: 'application/json', temperature: 0.8 }
     });
     return JSON.parse(response.text || "[]");
@@ -329,7 +450,14 @@ export const sendMessageToGemini = async (
   systemInstruction: string, 
   options: GeminiRequestOptions = {}
 ): Promise<{ text: string; sources: Array<{title: string, url: string}>, suggestions: string[], scorePorta: ScorePortaData | null, statuses: string[] }> => {
-  const { useGrounding = true, thinkingMode = false, signal, onText, onStatus, onScorePorta } = options;
+  const { useGrounding = true, thinkingMode = false, signal, onText, onStatus, onScorePorta, onCompetitor, nomeVendedor } = options;
+
+  // Injeta o nome do vendedor no system prompt (substitui {{NOME_VENDEDOR}})
+  const nomeParaInjetar = nomeVendedor?.trim() || 'Vendedor';
+  const systemInstructionFinal = systemInstruction.replace(
+    new RegExp(NOME_VENDEDOR_PLACEHOLDER.replace(/[{}]/g, '\\$&'), 'g'),
+    nomeParaInjetar
+  );
 
   const apiCall = async () => {
     onStatus?.("Analisando complexidade do pedido...");
@@ -343,7 +471,7 @@ export const sendMessageToGemini = async (
       onStatus?.("Deep Research ativado — varredura completa da web iniciada...");
     }
 
-    const chatSession = createChatSession(systemInstruction, history, selectedModel, useGrounding, thinkingMode);
+    const chatSession = createChatSession(systemInstructionFinal, history, selectedModel, useGrounding, thinkingMode);
     if (signal?.aborted) throw new Error("Request aborted");
 
     let messageToSend = message;
@@ -357,6 +485,11 @@ export const sendMessageToGemini = async (
       enrichments.push(lookup.encontrado ? formatarParaPrompt(lookup) : `\n[Lookup: "${empresa}" não encontrado na base interna]\n`);
 
       enrichments.push(generateContextReminder(empresa, sessionId));
+
+      // Injeta concorrentes regionais com presença no estado detectado (sem chamada de API)
+      const estado = extractEstadoFromMessage(message);
+      const competitorContext = getContextoConcorrentesRegionais(estado);
+      if (competitorContext) enrichments.push(competitorContext);
 
       if (benchmark || message.includes('investigar')) {
         onStatus?.("Mapeando competidores e benchmarks do setor...");
@@ -378,10 +511,11 @@ export const sendMessageToGemini = async (
     let rawAccumulator = '';
     let lastEmittedStatus = '';
     let lastEmittedScore: ScorePortaData | null = null;
+    let lastEmittedCompetitor: CompetitorDetection | null = null;
     let groundingChunks: any[] = [];
     let chunkCount = 0;
     let sourcesReported = 0;
-    let textMilestone = 0; // 0=nenhum, 1=2k, 2=6k, 3=12k
+    let textMilestone = 0;
 
     for await (const chunk of result) {
       if (signal?.aborted) break;
@@ -389,7 +523,6 @@ export const sendMessageToGemini = async (
       rawAccumulator += chunkText;
       chunkCount++;
 
-      // Status real: primeiro chunk recebido
       if (chunkCount === 1) {
         onStatus?.("Primeiros dados recebidos do modelo...");
       }
@@ -398,7 +531,6 @@ export const sendMessageToGemini = async (
         const newChunks = chunk.candidates[0].groundingMetadata.groundingChunks;
         groundingChunks = [...groundingChunks, ...newChunks];
 
-        // Status real: fontes encontradas na web
         const totalSources = groundingChunks.filter(c => c.web?.uri).length;
         if (totalSources > sourcesReported) {
           sourcesReported = totalSources;
@@ -406,7 +538,6 @@ export const sendMessageToGemini = async (
         }
       }
 
-      // Status real: marcos de tamanho do dossiê
       const textLen = rawAccumulator.length;
       if (textLen > 12000 && textMilestone < 3) {
         onStatus?.("Finalizando dossiê — estruturando conclusões...");
@@ -421,7 +552,6 @@ export const sendMessageToGemini = async (
 
       const parsed = parseMarkers(rawAccumulator);
 
-      // Status real: markers do próprio modelo [[STATUS: ...]]
       if (parsed.statuses.length > 0) {
         const lastStatus = parsed.statuses[parsed.statuses.length - 1];
         if (lastStatus !== lastEmittedStatus) {
@@ -435,13 +565,24 @@ export const sendMessageToGemini = async (
         lastEmittedScore = parsed.scorePorta;
       }
 
-      const { cleanText } = cleanStatusMarkers(rawAccumulator);
-      onText?.(cleanText.replace(/\[\[?S?T?A?T?U?S?:?.*$/, ''));
+      // Detecta [[COMPETITOR:...]] no stream e emite callback para a UI
+      if (onCompetitor) {
+        const competitorData = parseCompetitorMarker(rawAccumulator);
+        if (competitorData && !lastEmittedCompetitor) {
+          onCompetitor(competitorData);
+          lastEmittedCompetitor = competitorData;
+        }
+      }
+
+      // Usa sanitizeStreamText para limpar TODOS os marcadores antes de exibir
+      onText?.(sanitizeStreamText(rawAccumulator));
     }
 
     const finalParsed = parseMarkers(rawAccumulator);
+    const finalText = enforceOpeningWithSeller(finalParsed.text, nomeParaInjetar);
+
     return {
-      text: finalParsed.text,
+      text: finalText,
       sources: groundingChunks.filter(c => c.web?.uri).map(c => ({ title: getReadableTitle(c.web), url: c.web.uri })),
       suggestions: [],
       scorePorta: finalParsed.scorePorta,

@@ -30,7 +30,7 @@ interface LastAction {
 
 function extractCompanyName(title: string | null | undefined): string {
   if (!title) return 'Empresa';
-  
+
   const patterns = [
     /completa?\s+d[oa]s?\s+(.*)/i,
     /(?:empresa|grupo|companhia)\s+(.*)/i,
@@ -39,7 +39,7 @@ function extractCompanyName(title: string | null | undefined): string {
     /(?:dossiê?\s+d[oa]s?\s+)(.*)/i,
     /(?:capivara\s+d[oa]s?\s+)(.*)/i,
   ];
-  
+
   for (const pattern of patterns) {
     const match = title.match(pattern);
     if (match && match[1]) {
@@ -47,7 +47,7 @@ function extractCompanyName(title: string | null | undefined): string {
       if (name.length > 2 && name.length < 60) return name;
     }
   }
-  
+
   return title.replace(/\.{3}$/, '').trim();
 }
 
@@ -57,7 +57,7 @@ function extractCompanyName(title: string | null | undefined): string {
 
 function convertMarkdownToHTML(md: string, includeSources: boolean = true): string {
   const allLinks = extractValidLinks(md);
-  
+
   let html = md
     .replace(
       /\[\[PORTA:(\d+):P(\d+):O(\d+):R(\d+):T(\d+):A(\d+)\]\]/g,
@@ -109,7 +109,7 @@ function convertMarkdownToHTML(md: string, includeSources: boolean = true): stri
     .replace(/\n/g, '<br>');
 
   html = html.replace(/(<li>[\s\S]*?<\/li>(?:\s*<li>[\s\S]*?<\/li>)*)/g, '<ul>$1</ul>');
-  
+
   html = html.replace(/(<blockquote>[\s\S]*?<\/blockquote>)(\s*<blockquote>[\s\S]*?<\/blockquote>)*/g, (match) => {
     const content = match.replace(/<\/?blockquote>/g, '');
     return '<blockquote>' + content + '</blockquote>';
@@ -142,7 +142,7 @@ function collectFullReport(messages: any[]): { text: string; sections: string[];
 
   const dossieText = botMessages[0].text || botMessages[0].content || '';
   sections.push(dossieText);
-  
+
   const dossieLinks = extractAllLinksFromMarkdown(dossieText);
   dossieLinks.forEach(link => {
     if (!allLinks.find(l => l.url === link.url)) {
@@ -152,7 +152,7 @@ function collectFullReport(messages: any[]): { text: string; sections: string[];
 
   for (let i = 1; i < botMessages.length; i++) {
     const botText = botMessages[i].text || botMessages[i].content || '';
-    
+
     const botIndex = messages.indexOf(botMessages[i]);
     let userQuestion = '';
     for (let j = botIndex - 1; j >= 0; j--) {
@@ -168,7 +168,7 @@ function collectFullReport(messages: any[]): { text: string; sections: string[];
         ? `\n\n---\n\n## 🔍 APROFUNDAMENTO: ${userQuestion}\n\n`
         : `\n\n---\n\n## 🔍 APROFUNDAMENTO #${i}\n\n`;
       sections.push(sectionHeader + botText);
-      
+
       const sectionLinks = extractAllLinksFromMarkdown(botText);
       sectionLinks.forEach(link => {
         if (!allLinks.find(l => l.url === link.url)) {
@@ -193,7 +193,7 @@ function detectInconsistencies(sections: string[]): string {
 
   const patterns = [
     { label: 'Faturamento', regex: /faturamento[^:]*?:?\s*(?:R\$\s*)?(\d[\d.,]*\s*(?:mi|bi|mil|trilh)[a-zõã]*)/gi },
-    { label: 'Área/Hectares', regex: /(\d[\d.,]*)\s*(?:mil\s+)?(?:hectares|ha\b)/gi },
+    { label: 'Área/Hectares', regex: /(\d[\d.,]*)\s*(?:mil\s+)?(?:hectares|ha)/gi },
     { label: 'Funcionários', regex: /(\d[\d.,]*)\s*(?:mil\s+)?(?:funcionários|colaboradores|empregados)/gi },
     { label: 'Receita', regex: /receita[^:]*?:?\s*(?:R\$\s*)?(\d[\d.,]*\s*(?:mi|bi|mil|trilh)[a-zõã]*)/gi },
     { label: 'Unidades', regex: /(\d[\d.,]*)\s*(?:unidades|filiais|fábricas|plantas|usinas)/gi },
@@ -424,12 +424,12 @@ const App: React.FC = () => {
   const [loadingStatus, setLoadingStatus] = useState<string>('Iniciando análise');
   const [completedLoadingStatuses, setCompletedLoadingStatuses] = useState<string[]>([]);
   const [isInitialized, setIsInitialized] = useState(false);
-  
+
   const [isDarkMode, setIsDarkMode] = useState(() => {
     const savedTheme = localStorage.getItem(THEME_KEY);
     return savedTheme === 'dark';
   });
-  
+
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [lastQuery, setLastQuery] = useState<string>(""); 
   const [isSavingRemote, setIsSavingRemote] = useState(false);
@@ -464,7 +464,7 @@ const App: React.FC = () => {
     const initApp = async () => {
       const savedSessions = localStorage.getItem(SESSIONS_STORAGE_KEY);
       const savedTheme = localStorage.getItem(THEME_KEY);
-      
+
       let localSessions: ChatSession[] = [];
       if (savedSessions) {
         try {
@@ -663,10 +663,10 @@ const App: React.FC = () => {
     setLoadingStatus("Realizando pesquisa...");
     setCompletedLoadingStatuses([]);
     setLastQuery(text);
-    
+
     abortControllerRef.current = new AbortController();
     const signal = abortControllerRef.current.signal;
-    
+
     lastActionRef.current = { type: 'sendMessage', payload: { text } };
 
     let historyToPass: Message[] = [];
@@ -699,7 +699,7 @@ const App: React.FC = () => {
       messages: [...s.messages.filter(m => !m.isError), botMessagePlaceholder],
       updatedAt: new Date().toISOString()
     } : s));
-    
+
     setVisibleCount(prev => prev + 1);
 
     try {
@@ -719,7 +719,8 @@ const App: React.FC = () => {
               }
               return newStatus;
             });
-          }
+          },
+          nomeVendedor: typeof user?.displayName === 'string' ? user.displayName : 'Vendedor',
         }
       );
 
@@ -747,7 +748,7 @@ const App: React.FC = () => {
       if (!investigationLogged && responseText.length > 500) {
         setInvestigationLogged(true);
         const titleToLog = extractCompanyName(text);
-        
+
         fetch(BACKEND_URL, {
           method: 'POST',
           redirect: 'follow',
@@ -792,7 +793,7 @@ const App: React.FC = () => {
   const handleSendMessage = async (text: string, displayText?: string) => {
     let sessionId = currentSessionId;
     let currentHistory: Message[] = [];
-    
+
     if (!sessionId) {
       sessionId = uuidv4();
       const immediateTitle = cleanTitle(extractCompanyName(displayText || text));
@@ -810,14 +811,14 @@ const App: React.FC = () => {
       const session = sessions.find(s => s.id === sessionId);
       currentHistory = session ? [...session.messages] : [];
     }
-    
+
     const userMessage: Message = {
       id: uuidv4(), 
       sender: Sender.User, 
       text: displayText || text, 
       timestamp: new Date()
     };
-    
+
     setSessions(prev => prev.map(s => 
       s.id === sessionId 
         ? { ...s, messages: [...s.messages, userMessage], updatedAt: new Date().toISOString() } 
@@ -827,6 +828,24 @@ const App: React.FC = () => {
 
     await processMessage(text, sessionId, currentHistory); 
   };
+
+  // ============================================
+  // FUNÇÃO NOVA PARA OS BOTÕES (DEEP DIVE)
+  // ============================================
+  const handleDeepDive = async (displayMessage: string, hiddenPrompt: string) => {
+    const empresaContext = currentSession?.empresaAlvo || currentSession?.title || "a empresa desta conversa";
+    
+    // Injeta o contexto da sessão no prompt oculto para o Gemini não se perder
+    const finalPromptToAI = `
+      Com base em [${empresaContext}], execute o seguinte protocolo de ataque e investigação forense:
+      
+      ${hiddenPrompt}
+    `;
+
+    // Dispara a sua função que já existia passando: O que vai pro Gemini (finalPromptToAI) e o que vai pra tela (displayMessage)
+    await handleSendMessage(finalPromptToAI, displayMessage);
+  };
+
 
   const handleStopGeneration = useCallback(() => {
     if (abortControllerRef.current) {
@@ -890,7 +909,7 @@ const App: React.FC = () => {
 
     try {
       const newSuggestions = await generateNewSuggestions(contextText, oldSuggestions);
-      
+
       updateCurrentSession(session => ({
         ...session,
         messages: session.messages.map(msg => 
@@ -900,7 +919,7 @@ const App: React.FC = () => {
     } catch (e: any) {
       console.warn("Suggestion regeneration failed...", e);
       alert(e.message || "Falha na conexão com a IA. As perguntas anteriores foram mantidas.");
-      
+
       updateCurrentSession(session => ({
         ...session,
         messages: session.messages.map(msg => 
@@ -912,7 +931,7 @@ const App: React.FC = () => {
 
   const handleReportError = async (messageId: string, error: AppError) => {
     if (!currentSession) return;
-    
+
     const errorPayload = JSON.stringify({
       code: error.code,
       source: error.source,
@@ -958,9 +977,9 @@ const App: React.FC = () => {
     const dataStr = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
     const horaStr = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
     const totalSections = sections.length;
-    
+
     const htmlContent = fixFakeLinksHTML(convertMarkdownToHTML(finalText, true));
-    
+
     let sourcesHTML = '';
     if (allLinks.length > 0) {
       sourcesHTML = formatSourcesForExport(allLinks);
@@ -1028,13 +1047,13 @@ const App: React.FC = () => {
 
   const handleExportConversation = async (format: ExportFormat, reportType: ReportType) => {
     if (!currentSession) return;
-    
+
     setExportStatus('loading');
     setExportError(null);
 
     try {
       const contentMarkdown = await generateConsolidatedDossier(currentSession.messages, systemInstruction, mode, reportType);
-      
+
       const safeTitle = cleanTitle(currentSession.title).replace(/[^a-z0-9]/gi, '_').substring(0, 50);
       const dateStr = new Date().toISOString().slice(0, 10);
       const reportSuffix = reportType === 'executive' ? 'EXEC' : reportType === 'tech' ? 'FICHA' : 'DOSSIE';
@@ -1051,7 +1070,7 @@ const App: React.FC = () => {
         setExportStatus('success');
         setTimeout(() => setExportStatus('idle'), 3000);
       }
-      
+
     } catch (error: any) {
       console.error("Export Error:", error);
       setExportError(error.message || "Falha ao gerar o arquivo. Tente novamente.");
@@ -1068,7 +1087,7 @@ const App: React.FC = () => {
     setEmailStatus('sending');
 
     try {
-      const { text: fullText, sections, allLinks } = collectFullReport(allMessages);
+      const { text: fullText, sections } = collectFullReport(allMessages);
 
       if (!fullText || fullText.length < 100) {
         setEmailStatus('error');
@@ -1134,7 +1153,7 @@ const App: React.FC = () => {
           empresa: cleanTitle(extractCompanyName(currentSession?.title)),
           vendedor: user?.displayName || 'Vendedor',
           dias: followUpDias,
-          emailVendedor: emailTo || user?.displayName?.includes('@') ? user.displayName : '',
+          emailVendedor: emailTo || (user?.displayName?.includes('@') ? user.displayName : ''),
           notas: followUpNotas,
           score: currentSession?.scoreOportunidade || '',
           produtos: '',
@@ -1261,6 +1280,10 @@ const App: React.FC = () => {
         isLoading={isLoading}
         hasMore={allMessages.length > visibleCount}
         onSendMessage={handleSendMessage}
+        
+        // 👉 AQUI ENTRA A FUNÇÃO NOVA QUE ADICIONAMOS:
+        onDeepDive={handleDeepDive} 
+        
         onFeedback={handleFeedback}
         onSendFeedback={handleSendFeedback}
         onSectionFeedback={handleSectionFeedback}
@@ -1302,7 +1325,7 @@ const App: React.FC = () => {
             <div className="bg-gray-800 border border-gray-700 rounded-2xl p-6 max-w-md w-full shadow-xl pointer-events-auto">
               <h3 className="text-lg font-bold text-white mb-1">📧 Enviar Dossiê por Email</h3>
               <p className="text-sm text-gray-400 mb-4">O dossiê será enviado formatado diretamente para o email informado.</p>
-              
+
               <div className="space-y-3 mb-4">
                 <div>
                   <label className="text-xs text-gray-400 mb-1 block">Email do destinatário</label>
@@ -1325,7 +1348,7 @@ const App: React.FC = () => {
                   />
                 </div>
               </div>
-              
+
               {emailStatus && (
                 <div className="text-sm mb-4 p-2 rounded-lg text-emerald-400 bg-emerald-500/10">
                   {emailStatus === 'sending' && '⏳ Enviando...'}
@@ -1333,7 +1356,7 @@ const App: React.FC = () => {
                   {emailStatus === 'error' && '❌ Erro ao enviar. Verifique o email e tente novamente.'}
                 </div>
               )}
-              
+
               <div className="flex gap-3">
                 <button onClick={() => { setShowEmailModal(false); setEmailStatus(null); }} className="flex-1 px-4 py-2.5 rounded-lg border border-gray-600 text-gray-300 hover:bg-gray-700 transition-colors text-sm font-medium">Cancelar</button>
                 <button onClick={handleSendEmail} disabled={emailStatus === 'sending' || !emailTo.includes('@')} className="flex-1 px-4 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:bg-gray-600 disabled:cursor-not-allowed text-white transition-colors text-sm font-medium">{emailStatus === 'sending' ? 'Enviando...' : 'Enviar'}</button>
@@ -1355,7 +1378,7 @@ const App: React.FC = () => {
                   ? `Lembrete para retomar contato com ${cleanTitle(extractCompanyName(currentSession.title))}`
                   : 'Selecione o prazo para o lembrete'}
               </p>
-              
+
               <div className="grid grid-cols-4 gap-2 mb-4">
                 {[3, 7, 15, 30].map(d => (
                   <button
@@ -1368,20 +1391,20 @@ const App: React.FC = () => {
                   </button>
                 ))}
               </div>
-              
+
               <div className="mb-3">
                 <label className="text-xs text-gray-400 mb-1 block">Seu email (receber lembrete)</label>
                 <input type="email" value={emailTo} onChange={(e) => setEmailTo(e.target.value)} placeholder="vendedor@senior.com.br" className="w-full px-3 py-2.5 rounded-lg bg-gray-900 border border-gray-700/50 text-white text-sm focus:outline-none focus:border-emerald-500 transition-colors" />
               </div>
-              
+
               <div className="mb-4">
                 <label className="text-xs text-gray-400 mb-1 block">Notas (opcional)</label>
                 <input type="text" value={followUpNotas} onChange={(e) => setFollowUpNotas(e.target.value)} placeholder="Ex: Retomar conversa sobre SimpleFarm" className="w-full px-3 py-2.5 rounded-lg bg-gray-900 border border-gray-700/50 text-white text-sm focus:outline-none focus:border-emerald-500 transition-colors" />
               </div>
-              
+
               {followUpStatus === 'sent' && (<div className="text-sm mb-4 p-2 rounded-lg text-emerald-400 bg-emerald-500/10">✅ Follow-up agendado! Você receberá um lembrete.</div>)}
               {followUpStatus === 'error' && (<div className="text-sm mb-4 p-2 rounded-lg text-red-400 bg-red-500/10">❌ Erro ao agendar. Tente novamente.</div>)}
-              
+
               <div className="flex gap-3">
                 <button onClick={() => setShowFollowUpModal(false)} className="flex-1 px-4 py-2.5 rounded-lg border border-gray-600 text-gray-300 hover:bg-gray-700 transition-colors text-sm font-medium">Cancelar</button>
                 <button onClick={handleScheduleFollowUp} disabled={followUpStatus === 'sending'} className="flex-1 px-4 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:bg-gray-600 disabled:cursor-not-allowed text-white transition-colors text-sm font-medium">{followUpStatus === 'sending' ? 'Agendando...' : `Agendar (${followUpDias} dias)`}</button>

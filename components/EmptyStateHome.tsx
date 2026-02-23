@@ -31,11 +31,11 @@ const EmptyStateHome: React.FC<EmptyStateHomeProps> = ({ mode, onSendMessage, on
   const heroContent = {
     diretoria: {
       title: APP_NAME,
-      subtitle: "Inteligência comercial estratégica para contas do agronegócio.",
+      subtitle: "Inteligência comercial estratégica para contas complexas.",
     },
     operacao: {
       title: "Modo Operação 🛻",
-      subtitle: "Inteligência comercial direto ao ponto — sem rodeio, sem enrolação.",
+      subtitle: "Inteligência forense direto ao ponto — sem rodeio, sem enrolação.",
     }
   };
 
@@ -50,34 +50,31 @@ const EmptyStateHome: React.FC<EmptyStateHomeProps> = ({ mode, onSendMessage, on
     { icon: "🔔", label: "Alertas", desc: "O que mudou", prompt: "Verificar alertas e novidades da " },
   ];
 
-  // NOVO: 6 sugestões organizadas por categoria
+  // As 8 sugestões Lethal God Mode com os maiores alvos do mercado
   const suggestionCategories = {
-    investigar: mode === 'operacao' ? [
+    linha1: [
       { icon: "🤠", text: "Levanta a capivara completa do Grupo Scheffer" },
-      { icon: "💸", text: "Onde a COFCO está perdendo eficiência logística?" },
-    ] : [
-      { icon: "🏢", text: "Investigar Grupo Amaggi com foco em riscos" },
-      { icon: "🏭", text: "Mapear dores operacionais em usina de etanol" },
+      { icon: "🚛", text: "Onde a COFCO está perdendo eficiência logística?" },
     ],
-    concorrente: [
-      { icon: "⚔️", text: "Compare TOTVS vs Senior para esse perfil" },
-      { icon: "🎯", text: "Onde a CHB perde para GAtec em usinas?" },
+    linha2: [
+      { icon: "🕸️", text: "Mapeie a teia societária e holdings do Grupo Amaggi" },
+      { icon: "💻", text: "Qual ERP e sistema de DP a Raízen usa atualmente?" },
     ],
-    senior: [
-      { icon: "✨", text: "Como o ERP Senior melhoraria essa operação?" },
-      { icon: "🌱", text: "Quais módulos GAtec são ideais e por quê?" },
+    linha3: [
+      { icon: "🚨", text: "Rastreie multas no MPT e risco FAP/RAT da BP Bunge" },
+      { icon: "🩸", text: "Busque risco de malha fina de LCDPR nos sócios da Bom Futuro" },
     ],
-    budget: [
-      { icon: "💰", text: "Qual o budget para implementação completa?" },
-      { icon: "📊", text: "Qual o ROI potencial em 12 meses?" },
+    linha4: [
+      { icon: "🌍", text: "Analise o risco de embargo ambiental (EUDR) na SLC Agrícola" },
+      { icon: "⚔️", text: "Como tirar a TOTVS e o Secullum da operação da São Martinho?" },
     ],
   };
 
   const steps = [
-    { num: "1", icon: "💬", title: "Fala a empresa", desc: "Nome, CNPJ ou descreve a situação." },
-    { num: "2", icon: "🔎", title: "Scout investiga", desc: "Puxa dados fiscais, societários, tech e cruza com base Senior." },
-    { num: "3", icon: "🎯", title: "Você recebe o dossiê", desc: "Score, gaps de cross-sell e script de abordagem." },
-    { num: "4", icon: "🔬", title: "Aprofunda", desc: "Use os botões de drill-down para detalhar." },
+    { num: "1", icon: "🎯", title: "O Alvo", desc: "Digite o nome do grupo, CNPJ ou descreva o cenário." },
+    { num: "2", icon: "🔍", title: "A Varredura", desc: "O Scout cruza web search, diários oficiais, QSA, IBAMA e vagas." },
+    { num: "3", icon: "🧠", title: "A Inteligência", desc: "Você recebe a teia de CNPJs, a pilha de software atual e o passivo financeiro." },
+    { num: "4", icon: "⚡", title: "O Ataque", desc: "Use os botões de Dossiê para gerar a argumentação letal pro C-Level." },
   ];
 
   const theme = {
@@ -101,8 +98,8 @@ const EmptyStateHome: React.FC<EmptyStateHomeProps> = ({ mode, onSendMessage, on
   };
 
   return (
-    <div className="flex-1 overflow-auto animate-fade-in custom-scrollbar">
-      <div className="max-w-3xl mx-auto px-4 py-8">
+    <div className="w-full h-full animate-fade-in pb-10">
+      <div className="max-w-3xl mx-auto px-4 pt-4 md:pt-8">
         
         {/* Header */}
         <div className="text-center mb-8">
@@ -120,30 +117,20 @@ const EmptyStateHome: React.FC<EmptyStateHomeProps> = ({ mode, onSendMessage, on
 
         {/* Card PORTA */}
         <div className={`w-full max-w-2xl mx-auto mb-8 rounded-2xl border p-5 md:p-6 ${
-          isDarkMode 
-            ? 'bg-slate-900/50 border-emerald-500/20' 
-            : 'bg-white border-emerald-200'
+          isDarkMode ? 'bg-slate-900/50 border-emerald-500/20' : 'bg-white border-emerald-200'
         }`}>
           <div className="flex items-center gap-2 mb-4">
             <span className="text-lg">🎯</span>
-            <h3 className={`text-sm font-bold uppercase tracking-wider ${
-              isDarkMode ? 'text-emerald-400' : 'text-emerald-600'
-            }`}>
+            <h3 className={`text-sm font-bold uppercase tracking-wider ${isDarkMode ? 'text-emerald-400' : 'text-emerald-600'}`}>
               Metodologia P.O.R.T.A.
             </h3>
-            <span className={`text-xs px-2 py-0.5 rounded-full ${
-              isDarkMode ? 'bg-emerald-500/10 text-emerald-400' : 'bg-emerald-50 text-emerald-600'
-            }`}>
+            <span className={`text-xs px-2 py-0.5 rounded-full ${isDarkMode ? 'bg-emerald-500/10 text-emerald-400' : 'bg-emerald-50 text-emerald-600'}`}>
               Score 0–100
             </span>
           </div>
-
-          <p className={`text-xs mb-4 leading-relaxed ${
-            isDarkMode ? 'text-slate-400' : 'text-slate-500'
-          }`}>
+          <p className={`text-xs mb-4 leading-relaxed ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
             Como avaliamos a compatibilidade de cada conta:
           </p>
-
           <div className="space-y-2.5 mb-5">
             {[
               { letter: 'P', label: 'Porte Real', desc: 'Estrutura societária + hectares' },
@@ -157,21 +144,12 @@ const EmptyStateHome: React.FC<EmptyStateHomeProps> = ({ mode, onSendMessage, on
                   {letter}
                 </span>
                 <div className="flex-1 min-w-0">
-                  <span className={`text-sm font-semibold ${
-                    isDarkMode ? 'text-white' : 'text-slate-800'
-                  }`}>
-                    {label}
-                  </span>
-                  <span className={`text-xs ml-2 ${
-                    isDarkMode ? 'text-slate-500' : 'text-slate-400'
-                  }`}>
-                    {desc}
-                  </span>
+                  <span className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>{label}</span>
+                  <span className={`text-xs ml-2 ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>{desc}</span>
                 </div>
               </div>
             ))}
           </div>
-
           <div className="flex gap-2 mb-4">
             <div className="flex-1 text-center py-1.5 rounded-lg bg-red-500/10 border border-red-500/20">
               <p className="text-xs font-bold text-red-400">0 — 40</p>
@@ -186,10 +164,7 @@ const EmptyStateHome: React.FC<EmptyStateHomeProps> = ({ mode, onSendMessage, on
               <p className="text-[10px] text-emerald-400/70">Alta</p>
             </div>
           </div>
-
-          <p className={`text-[11px] text-center italic ${
-            isDarkMode ? 'text-slate-500' : 'text-slate-400'
-          }`}>
+          <p className={`text-[11px] text-center italic ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>
             "Não é o tamanho que define o fit, é a complexidade."
           </p>
         </div>
@@ -216,38 +191,20 @@ const EmptyStateHome: React.FC<EmptyStateHomeProps> = ({ mode, onSendMessage, on
           </div>
         </div>
 
-        {/* NOVO: Sugestões por Categoria (6 total) */}
+        {/* Sugestões God Mode */}
         <div className="mb-8">
           <h2 className={`text-xs font-bold uppercase tracking-wider mb-3 px-1 ${theme.heading}`}>
-            💡 Sugestões
+            💡 Arsenal de Sugestões
           </h2>
-          
-          {/* Linha 1: Investigar + Concorrente (4 botões) */}
-          <div className="space-y-2 mb-3">
-            {[...suggestionCategories.investigar, ...suggestionCategories.concorrente].map((ex, i) => (
+          <div className="space-y-2">
+            {[...suggestionCategories.linha1, ...suggestionCategories.linha2, ...suggestionCategories.linha3, ...suggestionCategories.linha4].map((ex, i) => (
               <button
                 key={i}
-                onClick={() => onSendMessage(ex.text)}
+                onClick={() => onPreFill(ex.text)}
                 className={`w-full ${theme.exampleBg} border ${theme.exampleBorder} rounded-xl px-4 py-3 text-left ${theme.cardHoverBorder} ${theme.exampleHover} transition-all flex items-center gap-3 group`}
               >
                 <span className="text-xl flex-shrink-0">{ex.icon}</span>
-                <span className={`text-sm ${theme.textSecondary} group-hover:${theme.textPrimary} transition-colors`}>
-                  "{ex.text}"
-                </span>
-              </button>
-            ))}
-          </div>
-          
-          {/* Linha 2: Senior + Budget (4 botões em grid) */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-            {[...suggestionCategories.senior, ...suggestionCategories.budget].map((ex, i) => (
-              <button
-                key={i}
-                onClick={() => onSendMessage(ex.text)}
-                className={`${theme.exampleBg} border ${theme.exampleBorder} rounded-xl px-4 py-3 text-left ${theme.cardHoverBorder} ${theme.exampleHover} transition-all flex items-center gap-2 group`}
-              >
-                <span className="text-lg flex-shrink-0">{ex.icon}</span>
-                <span className={`text-xs ${theme.textSecondary} group-hover:${theme.textPrimary} transition-colors`}>
+                <span className={`text-sm font-medium ${theme.textSecondary} group-hover:${theme.textPrimary} transition-colors`}>
                   "{ex.text}"
                 </span>
               </button>
@@ -255,25 +212,22 @@ const EmptyStateHome: React.FC<EmptyStateHomeProps> = ({ mode, onSendMessage, on
           </div>
         </div>
 
-        {/* Mini Tutorial */}
+        {/* Como funciona */}
         <div className="mb-8">
           <h2 className={`text-xs font-bold uppercase tracking-wider mb-3 px-1 ${theme.heading}`}>
-            📖 Como funciona
+            📖 Como funciona o OSINT
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {steps.map((step) => (
-              <div
-                key={step.num}
-                className={`${theme.tutorialBg} border ${theme.tutorialBorder} rounded-xl p-3`}
-              >
+              <div key={step.num} className={`${theme.tutorialBg} border ${theme.tutorialBorder} rounded-xl p-3`}>
                 <div className="flex items-center gap-2 mb-1">
-                  <span className={`${mode === 'operacao' ? 'bg-orange-600' : 'bg-green-600'} text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center flex-shrink-0`}>
+                  <span className={`${mode === 'operacao' ? 'bg-orange-600' : 'bg-green-600'} text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center flex-shrink-0`}>
                     {step.num}
                   </span>
                   <span className={`text-sm font-bold ${theme.textPrimary}`}>{step.title}</span>
-                  <span className="text-lg">{step.icon}</span>
+                  <span className="text-base">{step.icon}</span>
                 </div>
-                <p className={`text-xs ${theme.textSecondary} ml-7`}>{step.desc}</p>
+                <p className={`text-xs leading-relaxed ${theme.textSecondary} ml-6`}>{step.desc}</p>
               </div>
             ))}
           </div>
@@ -282,37 +236,37 @@ const EmptyStateHome: React.FC<EmptyStateHomeProps> = ({ mode, onSendMessage, on
         {/* O que faz vs não faz */}
         <div className="mb-8">
           <h2 className={`text-xs font-bold uppercase tracking-wider mb-3 px-1 ${theme.heading}`}>
-            ℹ️ O que o Scout faz e não faz
+            ℹ️ Limites da Plataforma
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div className={`${theme.checkBg} border ${theme.checkBorder} rounded-xl p-3`}>
-              <div className="text-sm font-bold text-green-500 mb-2">✅ Faz</div>
-              <ul className={`text-xs ${theme.textSecondary} space-y-1.5`}>
-                <li>🔍 Investiga em 10 fases (fiscal, gente, tech, risco...)</li>
-                <li>🏭 Cruza com a base de clientes Senior</li>
-                <li>⚔️ Monta estratégia contra concorrência</li>
-                <li>🎯 Calcula score de oportunidade</li>
-                <li>📞 Gera script de abordagem</li>
-                <li>📡 Identifica tendências e benchmark</li>
+            <div className={`${theme.checkBg} border ${theme.checkBorder} rounded-xl p-4`}>
+              <div className="text-sm font-bold text-green-600 dark:text-green-500 mb-3 flex items-center gap-2">
+                ✅ Superpoderes Ativos
+              </div>
+              <ul className={`text-xs ${theme.textSecondary} space-y-2`}>
+                <li><strong className={theme.textPrimary}>🕸️ Teia Societária:</strong> Mapeia holdings, laranjas e matrizes cruzadas em até 3 camadas.</li>
+                <li><strong className={theme.textPrimary}>💻 Pilha Tech:</strong> Rastreia o software atual (ERP/HR) via vagas e vazamentos.</li>
+                <li><strong className={theme.textPrimary}>🚨 Passivo Oculto:</strong> Expõe dívida ativa, FAP/RAT, multas do MPT e Lista Suja.</li>
+                <li><strong className={theme.textPrimary}>🌐 Deep Research:</strong> Acesso em tempo real à internet e cruzamento de bases.</li>
               </ul>
             </div>
-            <div className={`${theme.crossBg} border ${theme.crossBorder} rounded-xl p-3`}>
-              <div className="text-sm font-bold text-red-500 mb-2">❌ Não faz</div>
-              <ul className={`text-xs ${theme.textSecondary} space-y-1.5`}>
-                <li>🚫 Não inventa dados — se não acha, avisa</li>
-                <li>🚫 Não chuta nome de executivo sem fonte</li>
-                <li>🚫 Não usa argumentos genéricos</li>
-                <li>🚫 Não substitui a visita presencial</li>
-                <li>🚫 Não acessa dados sigilosos internos</li>
-                <li>🚫 Não gera proposta comercial oficial</li>
+            <div className={`${theme.crossBg} border ${theme.crossBorder} rounded-xl p-4`}>
+              <div className="text-sm font-bold text-red-600 dark:text-red-500 mb-3 flex items-center gap-2">
+                ❌ Limites Éticos (Guardrails)
+              </div>
+              <ul className={`text-xs ${theme.textSecondary} space-y-2`}>
+                <li><strong className={theme.textPrimary}>🚫 Alucinação Zero:</strong> Não inventa CNPJs. Se não achar na web pública, ele avisa.</li>
+                <li><strong className={theme.textPrimary}>🚫 Sigilo:</strong> Não invade painéis sob senha, sistemas fechados ou contas bancárias.</li>
+                <li><strong className={theme.textPrimary}>🚫 Fator Humano:</strong> Não substitui o relacionamento e a leitura de cenário do Executivo.</li>
+                <li><strong className={theme.textPrimary}>🚫 LGPD:</strong> Não quebra privacidade buscando dados médicos ou sensíveis de pessoas físicas.</li>
               </ul>
             </div>
           </div>
         </div>
 
         {/* Footer */}
-        <div className={`text-center text-xs ${theme.textSecondary} mt-4 pb-4 opacity-50`}>
-          Senior Scout 360 — v4.7
+        <div className={`text-center text-xs font-bold ${theme.textSecondary} mt-6 pb-12 opacity-40 uppercase tracking-widest`}>
+          SENIOR SCOUT 360 — INTELIGÊNCIA FORENSE
         </div>
 
       </div>

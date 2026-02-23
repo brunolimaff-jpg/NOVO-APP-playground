@@ -1,8 +1,9 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
 import rehypeRaw from 'rehype-raw';
+import mermaid from 'mermaid';
 import { autoLinkSeniorTerms } from '../utils/seniorLinks';
 import { rewriteMarkdownLinksToGoogle } from '../utils/markdownLinks';
 import { cleanStatusMarkers } from '../utils/textCleaners';
@@ -22,114 +23,74 @@ interface FootnoteSource {
   url: string;
 }
 
-// --- Superscript footnote badge ---
-const FootnoteBadge: React.FC<{ num: number }> = ({ num }) => (
-  <sup style={{
-    color: '#059669',
-    fontSize: '0.7em',
-    fontWeight: 700,
-    cursor: 'default',
-    marginLeft: '1px',
-    verticalAlign: 'super',
-    lineHeight: 1,
-  }}>
-    [{num}]
-  </sup>
-);
+// ==========================================
+// RENDERIZADOR DE GRÁFICOS MERMAID
+// ==========================================
+const MermaidGraph: React.FC<{ chart: string; isDarkMode: boolean }> = ({ chart, isDarkMode }) => {
+  const [svg, setSvg] = useState<string>('');
 
-// --- PORTA Score ---
-const PortaScoreBadge: React.FC<{
-  score: number; p: number; o: number; r: number; t: number; a: number; isDarkMode: boolean;
-}> = ({ score, p, o, r, t, a, isDarkMode }) => {
-  const isAlta = score >= 71;
-  const isMedia = score >= 41 && score < 71;
-  const barColor = isAlta ? '#059669' : isMedia ? '#eab308' : '#ef4444';
-  const barBg = isAlta ? 'rgba(5,150,105,0.15)' : isMedia ? 'rgba(234,179,8,0.15)' : 'rgba(239,68,68,0.15)';
-  const label = isAlta ? 'Alta Compatibilidade' : isMedia ? 'Média Compatibilidade' : 'Baixa Compatibilidade';
-  const emoji = isAlta ? '🟢' : isMedia ? '🟡' : '🔴';
-  const pillars = [
-    { letter: 'P', value: p }, { letter: 'O', value: o },
-    { letter: 'R', value: r }, { letter: 'T', value: t }, { letter: 'A', value: a },
-  ];
+  useEffect(() => {
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: isDarkMode ? 'dark' : 'default',
+      securityLevel: 'loose',
+    });
+
+    const renderChart = async () => {
+      try {
+        const id = `mermaid-${Math.random().toString(36).substring(2, 9)}`;
+        const { svg: renderedSvg } = await mermaid.render(id, chart);
+        setSvg(renderedSvg);
+      } catch (error: any) {
+        console.error('Erro ao renderizar Mermaid:', error);
+        setSvg(`<div class="text-red-500 text-sm border border-red-500/20 p-4 rounded-lg bg-red-500/10 font-bold">⚠️ Falha ao gerar o Mapa Societário. O dado retornado pela IA foi incompatível com o gráfico.</div>`);
+      }
+    };
+    renderChart();
+  }, [chart, isDarkMode]);
 
   return (
-    <div style={{ margin: '20px 0 12px', padding: '16px 20px', borderRadius: '12px', border: `1.5px solid ${barColor}40`, background: isDarkMode ? '#0f172a' : '#ffffff' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span style={{ fontSize: '16px' }}>🎯</span>
-          <span style={{ fontSize: '12px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: isDarkMode ? '#94a3b8' : '#64748b' }}>PORTA</span>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
-          <span style={{ fontSize: '28px', fontWeight: 800, color: barColor, lineHeight: 1 }}>{score}</span>
-          <span style={{ fontSize: '14px', fontWeight: 600, color: isDarkMode ? '#475569' : '#94a3b8' }}>/100</span>
-        </div>
-      </div>
-      <div style={{ width: '100%', height: '8px', borderRadius: '4px', background: barBg, marginBottom: '8px', overflow: 'hidden' }}>
-        <div style={{ width: `${Math.min(score, 100)}%`, height: '100%', borderRadius: '4px', background: barColor }} />
-      </div>
-      <div style={{ marginBottom: '12px' }}>
-        <span style={{ fontSize: '13px', fontWeight: 600, color: barColor }}>{emoji} {label}</span>
-      </div>
-      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-        {pillars.map(({ letter, value }) => (
-          <div key={letter} style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 10px', borderRadius: '20px', background: isDarkMode ? '#1e293b' : '#f1f5f9', fontSize: '12px' }}>
-            <span style={{ fontWeight: 700, color: '#059669', fontSize: '11px' }}>{letter}</span>
-            <span style={{ fontWeight: 600, color: isDarkMode ? '#e2e8f0' : '#334155' }}>{value}</span>
-          </div>
-        ))}
-      </div>
-    </div>
+    <div 
+      className={`flex justify-center my-8 overflow-x-auto w-full border rounded-xl p-4 shadow-sm ${isDarkMode ? 'border-slate-800 bg-slate-900' : 'border-slate-200 bg-white'}`}
+      dangerouslySetInnerHTML={{ __html: svg }} 
+    />
   );
 };
 
-// --- Collapsible Fontes ---
+// ==========================================
+// FONTES RETRÁTEIS (RODAPÉ)
+// ==========================================
 const CollapsibleSources: React.FC<{ sources: FootnoteSource[]; isDarkMode: boolean }> = ({ sources, isDarkMode }) => {
   const [isOpen, setIsOpen] = useState(false);
   if (!sources || sources.length === 0) return null;
 
   return (
-    <div style={{ marginTop: '16px' }}>
+    <div className="mt-6 border-t border-slate-200 dark:border-slate-800 pt-6">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        style={{
-          display: 'inline-flex', alignItems: 'center', gap: '6px',
-          padding: '6px 14px', borderRadius: '20px',
-          border: `1px solid ${isDarkMode ? '#334155' : '#e2e8f0'}`,
-          background: isDarkMode ? '#1e293b' : '#f8fafc',
-          color: isDarkMode ? '#94a3b8' : '#64748b',
-          fontSize: '12px', fontWeight: 600, cursor: 'pointer',
-        }}
+        className={`flex items-center gap-2 px-4 py-2 rounded-full border text-xs font-bold transition-colors ${isDarkMode ? 'border-slate-700 bg-slate-800 text-slate-300 hover:bg-slate-700' : 'border-slate-300 bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
       >
-        <span style={{ fontSize: '14px' }}>📚</span>
-        <span>Fontes ({sources.length})</span>
-        <span style={{ display: 'inline-block', transition: 'transform 0.2s', transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)', fontSize: '10px' }}>▼</span>
+        <span className="text-sm">📚</span> Fontes Verificadas ({sources.length})
+        <span className={`transform transition-transform text-[10px] ${isOpen ? 'rotate-180' : ''}`}>▼</span>
       </button>
 
       {isOpen && (
-        <div style={{
-          marginTop: '10px', padding: '12px 16px', borderRadius: '12px',
-          border: `1px solid ${isDarkMode ? '#334155' : '#e2e8f0'}`,
-          background: isDarkMode ? '#0f172a' : '#ffffff',
-          display: 'flex', flexDirection: 'column', gap: '8px',
-        }}>
+        <div className={`mt-3 p-4 rounded-xl border flex flex-col gap-3 ${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}>
           {sources.map((s) => (
-            <div key={s.num} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
-              <span style={{
-                flexShrink: 0, width: '20px', height: '20px', borderRadius: '50%',
-                background: '#059669', color: '#fff', display: 'flex', alignItems: 'center',
-                justifyContent: 'center', fontSize: '10px', fontWeight: 700, marginTop: '1px',
-              }}>{s.num}</span>
-              <div style={{ flex: 1, minWidth: 0 }}>
+            <div key={s.num} className="flex items-start gap-3">
+              <span className="shrink-0 w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[10px] font-bold mt-0.5">
+                {s.num}
+              </span>
+              <div className="flex-1 min-w-0">
                 {s.url && !isFakeUrl(s.url) ? (
-                  <a href={s.url} target="_blank" rel="noopener noreferrer"
-                    style={{ color: '#059669', fontWeight: 500, fontSize: '13px', textDecoration: 'none', wordBreak: 'break-word' }}>
+                  <a href={s.url} target="_blank" rel="noopener noreferrer" className="text-emerald-600 dark:text-emerald-400 font-semibold text-sm hover:underline break-words">
                     {s.title}
                   </a>
                 ) : (
-                  <span style={{ color: isDarkMode ? '#cbd5e1' : '#475569', fontWeight: 500, fontSize: '13px', wordBreak: 'break-word' }}>{s.title}</span>
+                  <span className="text-slate-600 dark:text-slate-300 font-semibold text-sm break-words">{s.title}</span>
                 )}
                 {s.url && !isFakeUrl(s.url) && (
-                  <div style={{ color: isDarkMode ? '#475569' : '#94a3b8', fontSize: '10px', marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.url}</div>
+                  <div className="text-slate-400 dark:text-slate-500 text-[10px] mt-0.5 truncate">{s.url}</div>
                 )}
               </div>
             </div>
@@ -140,86 +101,50 @@ const CollapsibleSources: React.FC<{ sources: FootnoteSource[]; isDarkMode: bool
   );
 };
 
-// --- Convert inline [text](url) to text + footnote ^N ---
-function convertLinksToFootnotes(text: string, groundingSources: Array<{ title: string; url: string }>): {
-  processedText: string;
-  footnoteSources: FootnoteSource[];
-} {
-  const footnoteSources: FootnoteSource[] = [];
-  const urlToNum = new Map<string, number>();
-  let counter = 0;
-
-  function getOrCreateNum(url: string, title: string): number {
-    let num = urlToNum.get(url);
-    if (!num) {
-      counter++;
-      num = counter;
-      urlToNum.set(url, num);
-      footnoteSources.push({ num, title, url });
-    }
-    return num;
-  }
-
-  // Add grounding sources first
-  for (const gs of groundingSources) {
-    if (gs.url && !isFakeUrl(gs.url) && !urlToNum.has(gs.url)) {
-      getOrCreateNum(gs.url, gs.title);
-    }
-  }
-
-  // 1. Replace markdown links: [text](url)
-  let processed = text.replace(
-    /\[([^\]]+)\]\((https?:\/\/[^)]+)\)/gi,
-    (_match, linkText: string, url: string) => {
-      if (isFakeUrl(url)) return `**${linkText}**`;
-      const num = getOrCreateNum(url, linkText);
-      return `${linkText}<footnote data-num="${num}"></footnote>`;
-    }
-  );
-
-  // 2. Replace parenthesized URLs: text(https://url.com) or (https://url.com)
-  processed = processed.replace(
-    /\(?(https?:\/\/[^\s)<>"]+)\)?/gi,
-    (match, url: string) => {
-      if (isFakeUrl(url)) return '';
-      try {
-        const domain = new URL(url).hostname.replace('www.', '');
-        const num = getOrCreateNum(url, domain);
-        return `<footnote data-num="${num}"></footnote>`;
-      } catch {
-        return match;
-      }
-    }
-  );
-
-  // 3. Clean leftover empty brackets/parens from malformed links
-  processed = processed
-    .replace(/\[\s*\]/g, '')           // empty []
-    .replace(/\(\s*\)/g, '')           // empty ()
-    .replace(/\]\s*\./g, '.')          // stray ].
-    .replace(/\]\s*,/g, ',')           // stray ],
-    .replace(/\]\s*$/gm, '')           // stray ] at end of line
-
-  return { processedText: processed, footnoteSources };
-}
-
-// Remove "Fontes:" blocks from text (we show them in CollapsibleSources)
-function removeSourcesBlock(text: string): string {
-  // Remove sections like "**Fontes:**\n- link1\n- link2" or "## Fontes\n..."
-  return text
-    .replace(/\n+#{1,3}\s*(?:Fontes?|Referências?|Sources?|Refs?)\s*\n([\s\S]*?)(?=\n#{1,3}\s|$)/gi, '\n')
-    .replace(/\n+\*?\*?(?:Fontes?|Referências?|Sources?|Refs?)\*?\*?:?\s*\n([\s\S]*?)(?=\n#{1,3}\s|\n\*\*[A-Z]|$)/gi, '\n');
-}
-
-// Convert existing ^1, [^1], [1] to footnote tags
-function preprocessExistingFootnotes(text: string): string {
-  return text
-    .replace(/\[\^(\d+)\]/g, '<footnote data-num="$1"></footnote>')
-    .replace(/(?<!\[)\[(\d+)\](?!\()/g, '<footnote data-num="$1"></footnote>')
-    .replace(/(?<!\[)\^(\d+)/g, '<footnote data-num="$1"></footnote>');
-}
-
+// ==========================================
+// RENDERIZADOR PRINCIPAL
+// ==========================================
 const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, isDarkMode, groundingSources, showCollapsibleSources = true }) => {
+  
+  const { processedContent, footnoteSources } = useMemo(() => {
+    let text = cleanStatusMarkers(content.replace(/\[\[STATUS:.*?\]\]\n?/g, '')).cleanText;
+    text = fixFakeLinks(text);
+    text = rewriteMarkdownLinksToGoogle(text);
+    text = autoLinkSeniorTerms(text);
+
+    // 1. ARRANCAR O PORTA DUPLICADO: Remove a tag interna e qualquer texto gerado pela IA (ex: "**Score PORTA:** 94/100")
+    text = text.replace(/\[\[PORTA:.*?\]\]/g, '');
+    text = text.replace(/\*?\*?Score PORTA:\*?\*?\s*\d+\/100.*?\n/gi, '');
+
+    // 2. Mapeamento de Fontes do Grounding
+    const map = new Map<string, number>();
+    const sources: FootnoteSource[] = [];
+    let counter = 0;
+
+    const getNum = (url: string, title: string) => {
+      if (!url || isFakeUrl(url)) return null;
+      let num = map.get(url);
+      if (!num) {
+        counter++;
+        num = counter;
+        map.set(url, num);
+        sources.push({ num, title, url });
+      }
+      return num;
+    };
+
+    if (groundingSources) {
+      groundingSources.forEach(gs => getNum(gs.url, gs.title));
+    }
+
+    // Transformar referências numéricas [1], [2], ^1 em tags customizadas para renderizar os "Pills"
+    text = text.replace(/\[\^(\d+)\]/g, '<footnote data-num="$1"></footnote>');
+    text = text.replace(/(?<!\[)\[(\d+)\](?!\()/g, '<footnote data-num="$1"></footnote>');
+    text = text.replace(/(?<!\[)\^(\d+)/g, '<footnote data-num="$1"></footnote>');
+
+    return { processedContent: text, footnoteSources: sources };
+  }, [content, groundingSources]);
+
   const theme = {
     textNormal: isDarkMode ? 'text-slate-300' : 'text-slate-700',
     textBold: isDarkMode ? 'text-white' : 'text-slate-900',
@@ -229,92 +154,113 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, isDarkMode
     hr: isDarkMode ? 'border-slate-700' : 'border-slate-200',
   };
 
-  const { processedContent, footnoteSources } = useMemo(() => {
-    const cleaned = content.replace(/\[\[STATUS:.*?\]\]\n?/g, '');
-    let text = cleanStatusMarkers(cleaned).cleanText;
-    text = fixFakeLinks(text);
-    // Remove "[fonte não disponível]" artifacts from fixFakeLinks
-    text = text.replace(/\s*\*?\[fonte não disponível\]\*?/gi, '');
-    text = removeSourcesBlock(text);
-    text = text.replace(/^--+$/gm, `<hr class="${theme.hr} my-8" />`);
-    text = rewriteMarkdownLinksToGoogle(text);
-    text = autoLinkSeniorTerms(text);
-
-    const { processedText, footnoteSources: sources } = convertLinksToFootnotes(text, groundingSources || []);
-    text = processedText;
-
-    // Bold (**text**) is handled natively by react-markdown + remarkGfm
-    text = text.replace(
-      /\[\[PORTA:(\d+):P(\d+):O(\d+):R(\d+):T(\d+):A(\d+)\]\]/g,
-      '<porta-score data-score="$1" data-p="$2" data-o="$3" data-r="$4" data-t="$5" data-a="$6"></porta-score>'
-    );
-    text = preprocessExistingFootnotes(text);
-
-    return { processedContent: text, footnoteSources: sources };
-  }, [content, groundingSources, theme.hr]);
-
   return (
-    <div
-      className={`markdown-body ${theme.textNormal} w-full max-w-full text-[15px] md:text-base`}
-      style={{ overflowWrap: 'break-word', wordBreak: 'break-word' }}
-    >
+    <div className={`markdown-body ${theme.textNormal} w-full max-w-full text-[15px] md:text-base`} style={{ overflowWrap: 'break-word', wordBreak: 'break-word' }}>
       <Markdown
         remarkPlugins={[remarkGfm, remarkBreaks]}
         rehypePlugins={[rehypeRaw]}
         components={{
-          // @ts-ignore
-          'porta-score': (props: any) => {
-            const score = parseInt(props['data-score'] || '0', 10);
-            const pVal = parseInt(props['data-p'] || '0', 10);
-            const oVal = parseInt(props['data-o'] || '0', 10);
-            const rVal = parseInt(props['data-r'] || '0', 10);
-            const tVal = parseInt(props['data-t'] || '0', 10);
-            const aVal = parseInt(props['data-a'] || '0', 10);
-            return <PortaScoreBadge score={score} p={pVal} o={oVal} r={rVal} t={tVal} a={aVal} isDarkMode={isDarkMode} />;
-          },
+          // HIPERLINKS DE FONTES INLINE (Adeus números feios!)
           // @ts-ignore
           'footnote': (props: any) => {
-            const num = parseInt(props['data-num'] || '0', 10);
-            return <FootnoteBadge num={num} />;
+             const num = parseInt(props['data-num'], 10);
+             const source = footnoteSources.find(s => s.num === num);
+             
+             if (source && source.url && !isFakeUrl(source.url)) {
+               // Tenta pegar só o nome do site (ex: globo.com) para ficar mais elegante
+               let shortName = source.title;
+               if (!shortName || shortName.length > 25) {
+                  try {
+                    shortName = new URL(source.url).hostname.replace(/^www\./, '');
+                  } catch {
+                    shortName = `Fonte ${num}`;
+                  }
+               }
+
+               return (
+                 <a
+                   href={source.url}
+                   target="_blank"
+                   rel="noopener noreferrer"
+                   className="inline-flex items-center gap-1 px-2 py-0.5 mx-1 rounded bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-800/50 text-emerald-700 dark:text-emerald-400 text-[10px] font-bold hover:bg-emerald-100 dark:hover:bg-emerald-800/80 transition-colors no-underline align-middle shadow-sm"
+                   title={source.title}
+                 >
+                   <span className="text-[10px]">🔗</span> {shortName}
+                 </a>
+               );
+             }
+             return null; // Se não tiver URL, não exibe nada (limpa a tela)
           },
 
-          h1: ({...props}) => <h1 className={`text-xl md:text-2xl font-bold ${theme.h1} mt-8 mb-4`} {...props} />,
-          h2: ({...props}) => <h2 className={`text-lg md:text-xl font-bold ${theme.h2} mt-6 mb-3 border-b border-emerald-500/20 pb-2`} {...props} />,
-          h3: ({...props}) => <h3 className={`text-base md:text-lg font-bold ${theme.h3} mt-5 mb-2`} {...props} />,
-          p: ({...props}) => <p className="mb-3 leading-relaxed" {...props} />,
-          ul: ({...props}) => <ul className="list-disc pl-5 mb-3 space-y-1" {...props} />,
-          ol: ({...props}) => <ol className="list-decimal pl-5 mb-3 space-y-1" {...props} />,
-          li: ({...props}) => <li className="pl-1" {...props} />,
-          hr: ({...props}) => <hr className={`${theme.hr} my-5`} {...props} />,
-
-          a: ({href, children, ...props}) => {
+          // LINKS NORMAIS NO TEXTO
+          a: ({ href, children, ...props }) => {
             if (!href || isFakeUrl(href)) {
-              return <strong className="text-emerald-500 font-semibold">{children}</strong>;
+              return <strong className="text-emerald-600 dark:text-emerald-400 font-bold">{children}</strong>;
             }
             return (
-              <a href={href} target="_blank" rel="noopener noreferrer" className="text-emerald-500 hover:text-emerald-400 hover:underline font-medium" {...props}>
+              <a 
+                href={href} 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="text-emerald-600 dark:text-emerald-400 font-semibold hover:text-emerald-500 underline decoration-emerald-500/30 underline-offset-4 transition-colors break-words" 
+                {...props}
+              >
                 {children}
               </a>
             );
           },
 
-          strong: ({...props}) => <strong className={`${theme.textBold} font-bold`} {...props} />,
+          // MERMAID E BLOCOS DE CÓDIGO
+          code(props) {
+            const {children, className, node, ...rest} = props;
+            const match = /language-(\w+)/.exec(className || '');
+            const contentStr = String(children).trim();
+            
+            // Força bruta para pegar Mermaid
+            const isMermaid = (match && match[1] === 'mermaid') || contentStr.startsWith('graph ') || contentStr.startsWith('pie ') || contentStr.startsWith('sequenceDiagram');
 
-          code: ({...props}) => {
-            const isBlock = String(props.children).includes('\n');
-            if (isBlock) {
-              return <pre className="block p-4 rounded-lg my-4 text-sm bg-slate-800 text-emerald-300 overflow-x-auto"><code {...props} /></pre>;
+            if (isMermaid) {
+              return <MermaidGraph chart={contentStr} isDarkMode={isDarkMode} />;
             }
-            return <code className="bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded text-sm text-emerald-600 dark:text-emerald-300" {...props} />;
+            
+            return match ? (
+              <pre className="block p-5 rounded-xl my-4 text-sm bg-slate-900 text-emerald-300 overflow-x-auto shadow-inner border border-slate-800">
+                <code className={className} {...rest}>{children}</code>
+              </pre>
+            ) : (
+              <code className="bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded font-mono text-[0.9em] text-emerald-600 dark:text-emerald-400" {...rest}>
+                {children}
+              </code>
+            );
           },
 
+          // TABELAS PREMIUM
           table: ({...props}) => (
-            <div className="overflow-x-auto mb-4 border rounded-lg">
-              <table className="min-w-full text-sm" {...props} />
+            <div className={`overflow-x-auto my-6 border rounded-xl shadow-sm ${isDarkMode ? 'border-slate-700 bg-slate-900/50' : 'border-slate-200 bg-white'}`}>
+              <table className="min-w-full text-sm text-left border-collapse" {...props} />
             </div>
           ),
-          th: ({...props}) => <th className="px-4 py-2 bg-slate-100 dark:bg-slate-800 font-semibold text-left" {...props} />,
-          td: ({...props}) => <td className="px-4 py-2 border-t" {...props} />,
+          thead: ({...props}) => <thead className={`border-b ${isDarkMode ? 'bg-slate-800/80 border-slate-700' : 'bg-slate-50 border-slate-200'}`} {...props} />,
+          th: ({...props}) => <th className={`px-5 py-3.5 font-bold uppercase tracking-wider text-[11px] ${isDarkMode ? 'text-slate-300' : 'text-slate-500'}`} {...props} />,
+          td: ({...props}) => <td className={`px-5 py-3.5 border-b align-middle font-medium ${isDarkMode ? 'border-slate-800 text-slate-300' : 'border-slate-100 text-slate-700'}`} {...props} />,
+          tr: ({...props}) => <tr className={`transition-colors ${isDarkMode ? 'hover:bg-slate-800/50' : 'hover:bg-slate-50/80'}`} {...props} />,
+
+          // TIPOGRAFIA
+          h1: ({...props}) => <h1 className={`text-xl md:text-2xl font-black ${theme.h1} mt-8 mb-4 tracking-tight`} {...props} />,
+          h2: ({...props}) => <h2 className={`text-lg md:text-xl font-bold ${theme.h2} mt-8 mb-4 border-b border-emerald-500/20 pb-2`} {...props} />,
+          h3: ({...props}) => <h3 className={`text-base md:text-lg font-bold ${theme.h3} mt-6 mb-3`} {...props} />,
+          p: ({...props}) => <p className="mb-4 leading-relaxed" {...props} />,
+          ul: ({...props}) => <ul className="list-disc pl-6 mb-4 space-y-1.5" {...props} />,
+          ol: ({...props}) => <ol className="list-decimal pl-6 mb-4 space-y-1.5" {...props} />,
+          li: ({...props}) => <li className="pl-1" {...props} />,
+          hr: ({...props}) => <hr className={`${theme.hr} my-8 border-t-2`} {...props} />,
+          strong: ({...props}) => <strong className={`${theme.textBold} font-extrabold`} {...props} />,
+          blockquote: ({...props}) => (
+            <blockquote 
+              className="border-l-4 border-emerald-500 pl-5 py-3 my-5 bg-emerald-50 dark:bg-emerald-900/30 text-slate-800 dark:text-slate-200 font-medium italic rounded-r-xl shadow-sm" 
+              {...props} 
+            />
+          ),
         }}
       >
         {processedContent}

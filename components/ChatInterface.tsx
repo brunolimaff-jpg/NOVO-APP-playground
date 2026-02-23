@@ -9,7 +9,7 @@ import LoadingSmart from './LoadingSmart';
 import ErrorMessageCard from './ErrorMessageCard';
 import EmptyStateHome from './EmptyStateHome';
 import MessageActionsBar from './MessageActionsBar';
-import DeepDiveTopics from './DeepDiveTopics';
+import { DeepDiveTopics } from './DeepDiveTopics';
 import InvestigationDashboard from './InvestigationDashboard';
 import SettingsDrawer from './SettingsDrawer';
 import ScorePorta from './ScorePorta';
@@ -48,7 +48,11 @@ function extractDisplayedSuggestions(content?: string): string[] {
   return suggestions.slice(0, 4);
 }
 
-const ChatInterface: React.FC<ChatInterfaceProps> = ({
+type ExtendedChatInterfaceProps = ChatInterfaceProps & {
+  onDeepDive?: (displayMessage: string, hiddenPrompt: string) => void;
+};
+
+const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
   currentSession, sessions, onNewSession, onSelectSession, onDeleteSession,
   isSidebarOpen, onToggleSidebar, messages, isLoading, hasMore,
   onSendMessage, onFeedback, onSendFeedback, onSectionFeedback, onLoadMore, 
@@ -56,7 +60,8 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
   onRegenerateSuggestions, onStop, onReportError, onSaveRemote, isSavingRemote, 
   remoteSaveStatus, isDarkMode, onToggleTheme, onToggleMessageSources, 
   exportStatus, exportError, pdfReportContent, onOpenEmailModal,
-  onOpenFollowUpModal, userId, onLogout, lastUserQuery, processing
+  onOpenFollowUpModal, userId, onLogout, lastUserQuery, processing,
+  onDeepDive
 }) => {
   const { mode, setMode } = useMode();
   const { user, updateName } = useAuth();
@@ -70,7 +75,6 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
   const [showSettings, setShowSettings] = useState(false);
   const [showActionsMenu, setShowActionsMenu] = useState(false);
   const [showWarRoom, setShowWarRoom] = useState(false);
-
   const [displayedSuggestions, setDisplayedSuggestions] = useState<string[]>([]);
 
   useLayoutEffect(() => {
@@ -146,22 +150,23 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
   const hasReport = messages.some((m) => m.sender === Sender.Bot && !m.isThinking && !m.isError && (m.text?.length || 0) > 100);
 
   return (
-    <div className={`flex h-screen overflow-hidden ${isDarkMode ? 'bg-slate-950' : 'bg-slate-50'}`}>
+    <div className={`flex h-[100dvh] w-full overflow-hidden ${isDarkMode ? 'bg-slate-950' : 'bg-slate-50'}`}>
       <SessionsSidebar
         sessions={sessions} currentSessionId={currentSession?.id || null}
         onSelectSession={onSelectSession} onNewSession={onNewSession} onDeleteSession={onDeleteSession}
         isOpen={isSidebarOpen} onCloseMobile={onToggleSidebar} isDarkMode={isDarkMode}
       />
 
-      <main className="flex-1 flex flex-col h-full relative w-full transition-all duration-300">
-        <header className={`h-14 flex items-center justify-between px-3 py-2 border-b backdrop-blur-md z-10 flex-shrink-0 ${isDarkMode ? 'bg-gray-900/80 border-gray-800' : 'bg-white/80 border-gray-200'}`}>
+      <main className="flex-1 flex flex-col h-full min-h-0 relative w-full transition-all duration-300">
+        
+        <header className={`h-14 flex-shrink-0 flex items-center justify-between px-3 py-2 border-b backdrop-blur-md z-10 ${isDarkMode ? 'bg-gray-900/80 border-gray-800' : 'bg-white/80 border-gray-200'}`}>
           <div className="flex items-center gap-3 min-w-0 overflow-hidden">
             <button onClick={onToggleSidebar} className={`p-2 rounded-lg transition-colors flex-shrink-0 ${isDarkMode ? 'text-gray-400 hover:text-white hover:bg-gray-800' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'}`}>
               ☰
             </button>
             <h1 className={`text-sm font-bold truncate ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{displayTitle}</h1>
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 flex-shrink-0">
             {hasReport && !isLoading && (
               <>
                 <button onClick={onExportPDF} className={`p-1.5 text-sm transition-colors ${isDarkMode ? 'text-gray-400 hover:text-emerald-400' : 'text-gray-500 hover:text-emerald-500'}`} title="Exportar PDF">📄</button>
@@ -188,7 +193,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
           <InvestigationDashboard onClose={() => setShowDashboard(false)} onSelectEmpresa={(empresa) => { onSendMessage(`Investigar ${empresa}`); setShowDashboard(false); }} />
         )}
 
-        <div className="flex-1 overflow-y-auto p-4 md:p-6 scroll-smooth custom-scrollbar relative">
+        <div className="flex-1 min-h-0 overflow-y-auto p-4 md:p-6 scroll-smooth custom-scrollbar relative">
           {messages.length === 0 ? (
             <EmptyStateHome mode={mode} onSendMessage={onSendMessage} onPreFill={(text) => setInput(text)} isDarkMode={isDarkMode} />
           ) : (
@@ -203,13 +208,12 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                 const isBot = msg.sender === Sender.Bot;
                 const isLast = idx === messages.length - 1;
 
-                {/* Loading indicator DENTRO do balão do bot */}
                 if (msg.isThinking) {
                   return (
                     <div key={msg.id} className={`flex justify-start animate-fade-in`}>
                       <div className={`rounded-2xl p-4 shadow-sm ${isDarkMode ? 'bg-slate-900' : 'bg-white'} border border-gray-700/30 px-3 md:px-5 py-3 md:py-4 w-full`}>
                         <div className="flex items-center justify-between mb-2 opacity-70 text-[10px] uppercase font-bold tracking-wider select-none">
-                          <span>{mode === 'operacao' ? '🛻 Operação' : '✈️ Diretoria'}</span>
+                          <span>{mode === 'operacao' ? '🚺 Operação' : '✈️ Diretoria'}</span>
                           <span>{msg.timestamp.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
                         </div>
                         <LoadingSmart isLoading={isLoading} mode={mode} isDarkMode={isDarkMode} onStop={isLoading ? onStop : undefined} processing={processing} searchQuery={lastUserQuery} />
@@ -230,7 +234,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                   <div key={msg.id} className={`flex ${isBot ? 'justify-start' : 'justify-end'} animate-fade-in`}>
                     <div className={`rounded-2xl p-4 shadow-sm relative group ${isBot ? `${isDarkMode ? 'bg-slate-900' : 'bg-white'} border border-gray-700/30 px-3 md:px-5 py-3 md:py-4 w-full` : `${isDarkMode ? 'bg-emerald-900/20 border border-emerald-900/30 text-emerald-100' : 'bg-emerald-50 border border-emerald-100 text-slate-800'} max-w-[90%] md:max-w-[75%] lg:max-w-[60%]`}`}>
                       <div className="flex items-center justify-between mb-2 opacity-70 text-[10px] uppercase font-bold tracking-wider select-none">
-                        <span>{isBot ? (mode === 'operacao' ? '🛻 Operação' : '✈️ Diretoria') : '👤 Você'}</span>
+                        <span>{isBot ? (mode === 'operacao' ? '🚺 Operação' : '✈️ Diretoria') : '👤 Você'}</span>
                         <span>{msg.timestamp.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
                       </div>
 
@@ -238,43 +242,25 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                         <>
                            {msg.scorePorta && (
                              <ScorePorta
-                               score={msg.scorePorta.score}
-                               p={msg.scorePorta.p}
-                               o={msg.scorePorta.o}
-                               r={msg.scorePorta.r}
-                               t={msg.scorePorta.t}
-                               a={msg.scorePorta.a}
+                               score={msg.scorePorta.score} p={msg.scorePorta.p} o={msg.scorePorta.o} r={msg.scorePorta.r} t={msg.scorePorta.t} a={msg.scorePorta.a} isDarkMode={isDarkMode}
                              />
                            )}
 
                            <SectionalBotMessage
                                 message={{...msg, groundingSources: displaySources}}
-                                sessionId={currentSession?.id}
-                                userId={typeof userId === 'string' ? userId : undefined}
-                                isDarkMode={isDarkMode}
-                                mode={mode}
-                                onPreFillInput={setInput}
-                                onRegenerateSuggestions={onRegenerateSuggestions}
+                                sessionId={currentSession?.id} userId={typeof userId === 'string' ? userId : undefined}
+                                isDarkMode={isDarkMode} mode={mode} onPreFillInput={setInput} onRegenerateSuggestions={onRegenerateSuggestions}
                            />
 
-                           {/* DeepDiveTopics DENTRO do balão */}
-                           {isLast && !isLoading && (
-                             <DeepDiveTopics
-                               onDeepDive={handleActionClick}
-                               isDarkMode={isDarkMode}
-                               empresaContext={currentSession?.empresaAlvo || currentSession?.title}
-                             />
+                           {isLast && !isLoading && onDeepDive && (
+                             <DeepDiveTopics onSelectTopic={onDeepDive} />
                            )}
 
                            <MessageActionsBar
-                               content={msg.text}
-                               sourcesCount={displaySources.length}
-                               currentFeedback={msg.feedback}
+                               content={msg.text} sourcesCount={0} currentFeedback={msg.feedback}
                                onFeedback={(fb) => onFeedback(msg.id, fb)}
                                onSubmitFeedback={(fb, comment, content) => onSendFeedback(msg.id, fb, comment, content)}
-                               onToggleSources={() => onToggleMessageSources(msg.id)}
-                               isSourcesVisible={!!msg.isSourcesOpen}
-                               isDarkMode={isDarkMode}
+                               onToggleSources={() => onToggleMessageSources(msg.id)} isSourcesVisible={!!msg.isSourcesOpen} isDarkMode={isDarkMode}
                            />
                         </>
                       ) : (
@@ -289,38 +275,30 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
           )}
         </div>
 
-        {/* ÁREA DE INPUT COM MENU ⚡ */}
-        <div className={`p-4 md:p-6 border-t ${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-white border-slate-200'} z-20`}>
-          <div className="w-full max-w-5xl xl:max-w-6xl mx-auto px-2 md:px-6 lg:px-8 relative">
+        <div className={`flex-shrink-0 p-3 pb-4 md:p-6 border-t ${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-white border-slate-200'} z-20`}>
+          <div className="w-full max-w-5xl xl:max-w-6xl mx-auto px-1 md:px-6 lg:px-8 relative">
             
-            {/* MENU FLUTUANTE DE AÇÕES RÁPIDAS */}
             {showActionsMenu && (
-              <div ref={actionsMenuRef} className={`absolute bottom-full left-4 md:left-8 mb-2 w-72 rounded-xl shadow-xl border overflow-hidden animate-fade-in z-50 ${isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}>
+              <div ref={actionsMenuRef} className={`absolute bottom-full left-2 md:left-8 mb-2 w-72 rounded-xl shadow-xl border overflow-hidden animate-fade-in z-50 ${isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}>
                 <div className={`px-4 py-3 border-b text-xs font-bold uppercase tracking-wider flex items-center gap-2 ${isDarkMode ? 'border-slate-700 text-emerald-400' : 'border-slate-100 text-emerald-600'}`}>
                   <span>⚡</span> Ações Rápidas
                 </div>
-                <div className="flex flex-col py-1">
+                <div className="flex flex-col py-1 max-h-[40vh] overflow-y-auto">
                   {QUICK_ACTIONS.map((qa) => (
-                     <button
-                       key={qa.label}
-                       onClick={() => handleActionClick(qa.prompt)}
-                       className={`flex items-center gap-3 px-4 py-3 text-sm text-left transition-colors ${isDarkMode ? 'hover:bg-slate-700 text-slate-200' : 'hover:bg-emerald-50 text-slate-700'}`}
-                     >
-                       <span className="text-lg">{qa.icon}</span>
-                       <span className="font-medium">{qa.label}</span>
+                     <button key={qa.label} onClick={() => handleActionClick(qa.prompt)} className={`flex items-center gap-3 px-4 py-3 text-sm text-left transition-colors ${isDarkMode ? 'hover:bg-slate-700 text-slate-200' : 'hover:bg-emerald-50 text-slate-700'}`}>
+                       <span className="text-lg">{qa.icon}</span><span className="font-medium">{qa.label}</span>
                      </button>
                   ))}
                 </div>
               </div>
             )}
 
-            <div className={`relative flex items-end w-full rounded-xl border pl-2 pr-12 py-2 ${isDarkMode ? 'border-gray-700/30 bg-gray-800/50' : 'border-gray-300 bg-white'}`}>
+            <div className={`relative flex items-end w-full rounded-2xl border pl-2 pr-12 py-2 shadow-sm ${isDarkMode ? 'border-gray-700/50 bg-gray-800/80' : 'border-gray-300 bg-white'}`}>
               
-              {/* BOTÃO DO MENU DE AÇÕES RÁPIDAS ⚡ */}
               {!isLoading && messages.length > 0 && (
                 <button
                   onClick={() => setShowActionsMenu(!showActionsMenu)}
-                  className={`p-2 rounded-lg transition-colors flex-shrink-0 mr-1 mb-0.5 ${isDarkMode ? 'text-emerald-400 hover:bg-slate-700' : 'text-emerald-600 hover:bg-emerald-50'}`}
+                  className={`p-2 rounded-xl transition-colors flex-shrink-0 mr-1 mb-0.5 ${isDarkMode ? 'text-emerald-400 hover:bg-slate-700' : 'text-emerald-600 hover:bg-emerald-50'}`}
                   title="Ações Rápidas"
                 >
                   ⚡
@@ -335,19 +313,19 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                 placeholder={isLoading ? "Aguarde a resposta..." : "Digite sua mensagem..."}
                 disabled={isLoading}
                 rows={1}
-                className={`flex-1 bg-transparent text-sm outline-none resize-none min-h-[36px] max-h-[100px] mb-1 custom-scrollbar ${isDarkMode ? 'text-white placeholder-slate-500' : 'text-slate-900 placeholder-slate-400'}`}
+                className={`flex-1 bg-transparent text-sm outline-none resize-none min-h-[36px] max-h-[100px] mb-1 px-2 custom-scrollbar ${isDarkMode ? 'text-white placeholder-slate-500' : 'text-slate-900 placeholder-slate-400'}`}
                 style={{ overflow: 'hidden' }}
               />
               <button
                 onClick={handleSend}
                 disabled={!input.trim() || isLoading}
-                className={`absolute right-2 bottom-2 w-9 h-9 flex items-center justify-center rounded-xl transition-all shadow-md ${
+                className={`absolute right-2 bottom-2 w-10 h-10 flex items-center justify-center rounded-xl transition-all shadow-md ${
                   !input.trim() || isLoading 
-                    ? (isDarkMode ? 'bg-slate-800 text-slate-600' : 'bg-slate-200 text-slate-400') 
-                    : 'bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-white hover:scale-110 active:scale-95 shadow-emerald-500/30'
+                    ? (isDarkMode ? 'bg-slate-700 text-slate-500' : 'bg-slate-200 text-slate-400') 
+                    : 'bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-white hover:scale-105 active:scale-95 shadow-emerald-500/30'
                 }`}
               >
-                {isLoading ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <span className="text-lg">➤</span>}
+                {isLoading ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <span className="text-lg ml-0.5">➤</span>}
               </button>
             </div>
           </div>

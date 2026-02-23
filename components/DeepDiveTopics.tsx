@@ -1,48 +1,68 @@
 import React from 'react';
+import { 
+  PROMPT_RAIO_X_OPERACIONAL_ATAQUE, 
+  PROMPT_TECH_STACK_GOD_MODE_ATAQUE, 
+  PROMPT_RISCOS_COMPLIANCE_GOD_MODE, 
+  PROMPT_RADAR_EXPANSAO_GOD_MODE, 
+  PROMPT_RH_SINDICATOS_GOD_MODE
+} from '../prompts/megaPrompts';
 
 interface DeepDiveTopicsProps {
-  onDeepDive: (prompt: string) => void;
-  isDarkMode: boolean;
-  empresaContext?: string;
+  onSelectTopic: (displayMessage: string, hiddenPrompt: string) => void;
 }
 
-const DEEP_DIVE_OPTIONS = [
-  { icon: "🚨", label: "Alertas Recentes", prompt: "Quais são as notícias e alertas mais recentes e críticos sobre esta empresa?", tooltip: "Busca notícias de impacto e movimentações recentes de mercado" },
-  { icon: "💻", label: "Tech Stack", prompt: "Faça um mapeamento da infraestrutura de TI e softwares que essa empresa utiliza.", tooltip: "Mapeia ERPs concorrentes, nuvem e nível de digitalização na operação" },
-  { icon: "🚚", label: "Logística", prompt: "Como funciona a operação logística, armazenagem e distribuição deles?", tooltip: "Analisa gargalos de frota, escoamento de safra e WMS" },
-  { icon: "👥", label: "Pessoas & RH", prompt: "Como é a estrutura de RH, número de funcionários e cultura organizacional?", tooltip: "Tamanho da folha de pagamento e dores que o HCM resolve" },
-  { icon: "🌱", label: "Sustentabilidade", prompt: "Quais as iniciativas e desafios ESG e de sustentabilidade desta empresa?", tooltip: "Certificações verdes, pegada de carbono e projetos ESG" },
-  { icon: "⚖️", label: "Jurídico", prompt: "Existe algum passivo trabalhista ou ambiental relevante público sobre a empresa?", tooltip: "Varredura rápida de processos trabalhistas e embargos (ex: Ibama)" }
-];
-
-const DeepDiveTopics: React.FC<DeepDiveTopicsProps> = ({ onDeepDive, isDarkMode, empresaContext }) => {
-  const raw = empresaContext?.trim();
-  const displayName = raw && raw.length <= 60 ? raw : undefined;
+export const DeepDiveTopics: React.FC<DeepDiveTopicsProps> = ({ onSelectTopic }) => {
+    const topics = [
+    {
+      id: 'raio-x',
+      label: 'Raio-X Operacional',
+      tooltip: 'Mapear hectares, silos, frotas e armazéns. (Gatilho para GAtec/WMS)',
+      icon: '🚜',
+      hiddenPrompt: PROMPT_RAIO_X_OPERACIONAL_ATAQUE
+    },
+    {
+      id: 'tech-stack',
+      label: 'Tech Stack & ERP',
+      tooltip: 'Descobrir qual sistema usam hoje e vagas de TI abertas. (Gatilho de migração)',
+      icon: '💻',
+      hiddenPrompt: PROMPT_TECH_STACK_GOD_MODE_ATAQUE
+    },
+    {
+      id: 'compliance',
+      label: 'Riscos & Compliance',
+      tooltip: 'Buscar execuções fiscais, malha fina de LCDPR e passivos ambientais.',
+      icon: '🚨',
+      hiddenPrompt: PROMPT_RISCOS_COMPLIANCE_GOD_MODE
+    },
+    {
+      id: 'radar',
+      label: 'Teia Societária (M&A)',
+      tooltip: 'Vasculhar CNPJs cruzados, holdings, laranjas e estimar faturamento.',
+      icon: '🕸️',
+      hiddenPrompt: PROMPT_RADAR_EXPANSAO_GOD_MODE
+    },
+    {
+      id: 'rh-sindicatos',
+      label: 'RH, SST & Cultura',
+      tooltip: 'Mapear Headcount, sistemas de DP ocultos, CAEPF e risco FAP/RAT.',
+      icon: '👥',
+      hiddenPrompt: PROMPT_RH_SINDICATOS_GOD_MODE
+    }
+  ];
 
   return (
-    <div className={`mt-4 pt-3 animate-fade-in`}>
-      <span className={`text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 mb-3 ${isDarkMode ? 'text-emerald-400/70' : 'text-emerald-600/70'}`}>
-        🔍 Aprofundar{displayName ? ` — ${displayName}` : ''}
-      </span>
-      <div className="flex flex-wrap gap-2">
-        {DEEP_DIVE_OPTIONS.map((opt) => (
-          <button
-            key={opt.label}
-            onClick={() => onDeepDive(opt.prompt)}
-            title={opt.tooltip}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium transition-all shadow-sm border active:scale-95 ${
-              isDarkMode
-                ? 'bg-slate-800/80 text-slate-300 border-slate-700 hover:border-emerald-500 hover:bg-slate-800'
-                : 'bg-white text-slate-600 border-slate-200 hover:border-emerald-400 hover:bg-slate-50'
-            }`}
-          >
-            <span className="text-sm">{opt.icon}</span>
-            <span>{opt.label}</span>
-          </button>
-        ))}
-      </div>
+    <div className="flex flex-wrap gap-2 my-4">
+      {topics.map((topic) => (
+        <button
+          key={topic.id}
+          title={topic.tooltip}
+          onClick={() => onSelectTopic(`Gerando Dossiê: ${topic.label}...`, topic.hiddenPrompt)}
+          className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-blue-100 border border-gray-300 rounded-full text-sm font-medium text-gray-700 transition-colors duration-200"
+        >
+          <span>{topic.icon}</span>
+          {topic.label}
+        </button>
+      ))}
     </div>
   );
 };
-
-export default DeepDiveTopics;
