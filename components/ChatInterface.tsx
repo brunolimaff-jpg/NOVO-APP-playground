@@ -343,17 +343,41 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
           </div>
         </div>
 
-        {/* ==========================================
-            RENDERIZAÇÃO DA WAR ROOM 
+                {/* ==========================================
+            RENDERIZAÇÃO DA WAR ROOM (AGORA CONECTADA!)
             ========================================== */}
         <WarRoom 
           isOpen={showWarRoom} 
           onClose={() => setShowWarRoom(false)} 
           isDarkMode={isDarkMode} 
           onExecuteOSINT={async (prompt) => {
-            // TODO: Aqui é onde você vai plugar a chamada para o seu `deep-research-pro-preview-12-2025`!
-            // Por enquanto, deixei um aviso e o retorno formatado só para a tela não quebrar.
-            return `### ⚠️ MOTOR DEEP RESEARCH DESCONECTADO \n\nA War Room está pronta para rodar. Conecte esta ação (\`onExecuteOSINT\`) ao seu serviço do Gemini na \`ChatInterface.tsx\` para ver os resultados reais da espionagem.\n\n**O Prompt que será engatilhado:**\n> ${prompt}`;
+            try {
+              // Importação dinâmica do SDK mais novo que está no seu package.json
+              const { GoogleGenAI } = await import('@google/genai');
+              
+              // Puxa a sua chave de API do .env (ajuste o nome se a sua variável for diferente)
+              const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY || import.meta.env.VITE_GOOGLE_API_KEY });
+              
+              // O Motor God Mode que você mapeou
+              const DEEP_RESEARCH_MODEL_ID = 'deep-research-pro-preview-12-2025';
+
+              // Dispara o míssil sem sujar o chat principal
+              const response = await ai.models.generateContent({
+                model: DEEP_RESEARCH_MODEL_ID,
+                contents: prompt,
+                config: {
+                  // Ferramenta de busca na web ATIVADA para vasculhar a concorrência
+                  tools: [{ googleSearch: {} }], 
+                  temperature: 0.2, // Frio, calculista e analítico (sem invenções)
+                }
+              });
+
+              return response.text || "Nenhuma inteligência retornada.";
+
+            } catch (error: any) {
+              console.error("Erro no Motor Deep Research:", error);
+              return `**⚠️ Falha no Deep Research:** O motor não conseguiu retornar os dados. \n\nDetalhe do erro: ${error.message}`;
+            }
           }}
         />
 
