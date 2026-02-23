@@ -69,6 +69,13 @@ export function normalizeAppError(
     friendlyMessage = 'Erro interno nos servidores da IA.';
     transient = true;
   }
+  // 6a. Modelo incompatível com API usada (ex.: deep-research requer Interactions API)
+  else if (rawMessage.match(/only supports Interactions API/i)) {
+    code = 'UNKNOWN';
+    friendlyMessage = 'Modelo de IA incompatível com o método de chamada. Contate o suporte técnico.';
+    retryable = false;
+    transient = false;
+  }
   // 6. Safety / Blocked Content (400 ou msg específica)
   else if (rawMessage.match(/safety|blocked|harmful|policy/i)) {
     code = 'BLOCKED_CONTENT';

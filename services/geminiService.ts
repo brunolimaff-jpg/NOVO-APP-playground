@@ -30,7 +30,10 @@ const ROUTER_MODEL_ID = 'gemini-2.5-flash';
 // Rota 1: Tática (Mais rápido, focado em ferramentas e respostas pontuais)
 const TACTICAL_MODEL_ID = 'gemini-3.1-pro-preview-customtools';
 
-// Rota 2: Dossiê Profundo (Lento, mas cruza dados da web inteira)
+// Rota 2: Dossiê Profundo via Chat (streaming, compatível com UI de status/marcadores)
+const DEEP_CHAT_MODEL_ID = 'gemini-2.5-pro';
+
+// Rota 3: Deep Research Agent (Interactions API — usado no War Room OSINT)
 const DEEP_RESEARCH_MODEL_ID = 'deep-research-pro-preview-12-2025';
 
 const CONTINUITY_SYSTEM = `
@@ -463,7 +466,7 @@ export const sendMessageToGemini = async (
     onStatus?.("Analisando complexidade do pedido...");
     const { empresa, benchmark, rota } = await analyzeUserIntent(message);
 
-    const selectedModel = rota === 'profunda' ? DEEP_RESEARCH_MODEL_ID : TACTICAL_MODEL_ID;
+    const selectedModel = rota === 'profunda' ? DEEP_CHAT_MODEL_ID : TACTICAL_MODEL_ID;
     
     const isDeepResearch = rota === 'profunda';
 
@@ -665,20 +668,49 @@ export const generateConsolidatedDossier = async (history: Message[], systemInst
 // WAR ROOM / OSINT - Execução de prompts de inteligência competitiva
 // ===================================================================
 
+const OSINT_POLL_INTERVAL_MS = 8000;
+const OSINT_MAX_POLL_ATTEMPTS = 90; // ~12 min max
+
 export const runWarRoomOSINT = async (prompt: string): Promise<string> => {
-  const DEEP_RESEARCH_MODEL_ID = 'deep-research-pro-preview-12-2025';
-  const systemPrompt = "Você é um Diretor de Inteligência Competitiva e Hacker OSINT. Varra a web inteira em busca de dados públicos para montar dossiês estratégicos de concorrentes. Use Deep Research para cruzar informações de tribunais, CVM, portais de carreira, fóruns e notícias.";
+  const ai = getGenAI();
 
   try {
-    const chatSession = createChatSession(systemPrompt, [], DEEP_RESEARCH_MODEL_ID, true, false);
-    const result = await chatSession.sendMessageStream({ message: prompt } as any);
+    // Deep Research é um "agent", não um "model" — requer a Interactions API
+    const interaction = await ai.interactions.create({
+      agent: DEEP_RESEARCH_MODEL_ID,
+      input: prompt,
+      background: true,
+    });
 
-    let finalReport = '';
-    for await (const chunk of result) {
-      finalReport += chunk.text || "";
+    console.log(`[WarRoom OSINT] Interaction criada: ${interaction.id} — status: ${interaction.status}`);
+
+    // Polling até conclusão
+    let current = interaction;
+    let attempts = 0;
+    while (current.status === 'in_progress' && attempts < OSINT_MAX_POLL_ATTEMPTS) {
+      await new Promise(r => setTimeout(r, OSINT_POLL_INTERVAL_MS));
+      current = await ai.interactions.get(current.id);
+      attempts++;
+      console.log(`[WarRoom OSINT] Poll #${attempts} — status: ${current.status}`);
     }
 
-    return finalReport || "Nenhum dado retornado pela varredura.";
+    if (current.status === 'completed' && current.outputs) {
+      const report = current.outputs
+        .filter((o: any) => o.type === 'text' && o.text)
+        .map((o: any) => o.text)
+        .join('\n\n');
+      return report || "Varredura concluída, mas sem texto no relatório.";
+    }
+
+    if (current.status === 'failed' || current.status === 'cancelled') {
+      throw new Error(`Deep Research finalizou com status: ${current.status}`);
+    }
+
+    if (attempts >= OSINT_MAX_POLL_ATTEMPTS) {
+      throw new Error("Timeout: a varredura Deep Research excedeu o tempo máximo.");
+    }
+
+    return "Nenhum dado retornado pela varredura.";
   } catch (error: any) {
     console.error("[WarRoom OSINT] Erro:", error);
     throw new Error(error.message || "Falha na conexão OSINT");
