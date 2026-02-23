@@ -17,8 +17,8 @@ import WarRoom from './WarRoom';
 import { cleanTitle, extractSources } from '../utils/textCleaners';
 import { isFakeUrl } from '../services/apiConfig';
 
-// 👇 A IMPORTAÇÃO QUE FALTAVA ESTÁ AQUI:
-import { executeWarRoomOSINT } from '../services/geminiService';
+// Substitua o import antigo por este:
+import { createChatSession } from '../services/geminiService';
 
 const QUICK_ACTIONS = [
   { icon: "🎯", label: "Comparar", prompt: "Compare com o principal concorrente dessa empresa" },
