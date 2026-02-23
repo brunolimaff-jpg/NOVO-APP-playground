@@ -660,3 +660,31 @@ export const generateConsolidatedDossier = async (history: Message[], systemInst
     return response.text || "Erro na consolidação.";
   } catch (error) { throw normalizeAppError(error, 'GEMINI'); }
 };
+
+// ===================================================================
+// MOTOR WAR ROOM: INTERACTIONS API (Exclusivo para Deep Research)
+// ===================================================================
+export const runDeepResearchOSINT = async (prompt: string): Promise<string> => {
+  try {
+    const ai = getGenAI(); // Puxa a sua chave que já funciona no backend
+    
+    // O modelo Deep Research SÓ funciona usando o novo endpoint .interactions.
+    // Usamos (ai as any) para evitar que o TypeScript bloqueie a compilação, 
+    // já que essa API é um Preview beta recente da Google.
+    const response = await (ai as any).interactions.create({
+      model: 'deep-research-pro-preview-12-2025',
+      input: prompt
+    });
+
+    // A resposta na Interactions API vem em um formato de array diferente
+    const finalReport = response.text 
+      || response.outputs?.[response.outputs?.length - 1]?.text 
+      || response.outputs?.[0]?.content?.parts?.[0]?.text;
+
+    return finalReport || "A varredura foi concluída, mas o modelo não retornou texto.";
+  } catch (error: any) {
+    console.error("Erro crítico no Deep Research:", error);
+    throw new Error(error.message || JSON.stringify(error));
+  }
+};
+
