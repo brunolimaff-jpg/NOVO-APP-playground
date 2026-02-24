@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { ChatSession, CRM_STAGE_LABELS } from '../types';
 import { useCRM } from '../contexts/CRMContext';
+import { sendMessageToGemini } from '../services/geminiService';
 
 interface CRMDetailProps {
   card: any; // intencionalmente flexível para permitir campos adicionais do CRM
@@ -9,6 +10,17 @@ interface CRMDetailProps {
   onSelectSession: (sessionId: string) => void;
   onMoveStage: (stage: string) => void;
   isDarkMode: boolean;
+}
+
+type CRMStageKey = 'prospeccao' | 'primeira_reuniao' | 'levantamento' | 'defesa_tecnica' | 'dossie_final';
+
+interface CRMAttachment {
+  id: string;
+  fileName: string;
+  url: string;
+  mimeType: string;
+  stage: CRMStageKey;
+  uploadedAt: string;
 }
 
 export const CRMDetail: React.FC<CRMDetailProps> = ({
@@ -77,6 +89,19 @@ export const CRMDetail: React.FC<CRMDetailProps> = ({
   const initialSpotterRaw: string = card.stages?.prospeccao?.technicalNotes || '';
   const [spotterRaw, setSpotterRaw] = useState(initialSpotterRaw);
 
+  // Estado local para nome, website e resumo breve
+  const [companyNameInput, setCompanyNameInput] = useState(card.companyName || '');
+  const [websiteInput, setWebsiteInput] = useState(website);
+  const [briefDescriptionInput, setBriefDescriptionInput] = useState(briefDescription);
+  const [isGeneratingBrief, setIsGeneratingBrief] = useState(false);
+
+  // Estado para anexos por etapa
+  const currentStage = card.stage as CRMStageKey;
+  const allAttachments: CRMAttachment[] = Array.isArray(card.attachments) ? card.attachments : [];
+  const stageAttachments = allAttachments.filter(a => a.stage === currentStage);
+
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
   const cleanDigits = (value: string) => value.replace(/\D/g, '');
 
   const persistCnpjAndName = async (digits: string, razaoSocial?: string, fantasia?: string) => {
@@ -87,6 +112,7 @@ export const CRMDetail: React.FC<CRMDetailProps> = ({
       companyName: razaoSocial || fantasia || card.companyName,
     };
     await updateCard(updated);
+    setCompanyNameInput(razaoSocial || fantasia || card.companyName || '');
   };
 
   const persistExactLink = async (url: string) => {
@@ -137,6 +163,78 @@ export const CRMDetail: React.FC<CRMDetailProps> = ({
     };
 
     await updateCard(updated);
+  };
+
+  const persistCompanyName = async (value: string) => {
+    const updated = {
+      ...card,
+      companyName: value.trim() || 'Empresa sem nome',
+    };
+    await updateCard(updated);
+  };
+
+  const persistWebsite = async (value: string) => {
+    const cleaned = value.trim();
+    const updated = {
+      ...card,
+      website: cleaned || null,
+    };
+    await updateCard(updated);
+  };
+
+  const persistBriefDescription = async (value: string) => {
+    const updated = {
+      ...card,
+      briefDescription: value.trim(),
+    };
+    await updateCard(updated);
+  };
+
+  // Preparado para Supabase Storage - implementar client depois
+  const uploadCrmAttachmentWithSupabase = async (
+    cardId: string,
+    stage: CRMStageKey,
+    file: File,
+  ): Promise<{ url: string; path: string }> => {
+    // Exemplo quando o client estiver configurado:
+    // const path = `${cardId}/${stage}/${Date.now()}-${file.name}`;
+    // const { data, error } = await supabase.storage.from('crm-attachments').upload(path, file, { upsert: false });
+    // if (error) throw error;
+    // const { data: publicData } = supabase.storage.from('crm-attachments').getPublicUrl(data.path);
+    // return { url: publicData.publicUrl, path: data.path };
+
+    throw new Error('Upload de arquivos ainda não foi configurado com o Supabase.');
+  };
+
+  const handleUploadAttachments = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    try {
+      const uploaded: CRMAttachment[] = [];
+
+      for (const file of Array.from(files)) {
+        const { url } = await uploadCrmAttachmentWithSupabase(card.id, currentStage, file);
+        uploaded.push({
+          id: `${Date.now()}-${file.name}-${Math.random().toString(36).slice(2, 8)}`,
+          fileName: file.name,
+          url,
+          mimeType: file.type || 'application/octet-stream',
+          stage: currentStage,
+          uploadedAt: new Date().toISOString(),
+        });
+      }
+
+      const updated = {
+        ...card,
+        attachments: [...allAttachments, ...uploaded],
+      };
+      await updateCard(updated);
+    } catch (err) {
+      console.error('Erro ao enviar anexos do CRM:', err);
+    } finally {
+      if (e.target) e.target.value = '';
+    }
   };
 
   const handleValidateCnpj = async () => {
@@ -201,6 +299,44 @@ export const CRMDetail: React.FC<CRMDetailProps> = ({
     }, 700);
   };
 
+  const handleGenerateBriefWithAI = async () => {
+    if (isGeneratingBrief) return;
+    setIsGeneratingBrief(true);
+
+    try {
+      const contextParts: string[] = [];
+
+      if (spotterRaw?.trim()) {
+        contextParts.push(`FICHA SPOTTER:\n${spotterRaw.substring(0, 3500)}`);
+      }
+      if (prospectionNotes?.trim()) {
+        contextParts.push(`ANOTACOES SDR:\n${prospectionNotes.substring(0, 1500)}`);
+      }
+
+      const message = `
+        Gere um resumo curto (2 a 3 frases, maximo 400 caracteres)
+        sobre essa empresa, com foco em contexto comercial para prospeccao.
+        Foque em: segmento, porte aproximado, situacao atual e oportunidade de abordagem.
+
+        ${contextParts.join('\n\n')}
+      `;
+
+      const { text } = await sendMessageToGemini(
+        message,
+        [],
+        'Voce e um SDR resumindo rapidamente uma empresa para outro vendedor.',
+      );
+
+      const clean = text.replace(/[#*]/g, '').trim();
+      setBriefDescriptionInput(clean);
+      await persistBriefDescription(clean);
+    } catch (err) {
+      console.error('Erro ao gerar resumo breve com IA:', err);
+    } finally {
+      setIsGeneratingBrief(false);
+    }
+  };
+
   return (
     <div className={`fixed inset-0 z-50 flex items-center justify-center p-4 ${isDarkMode ? 'bg-black/70' : 'bg-black/50'}`}>
       <div
@@ -228,11 +364,6 @@ export const CRMDetail: React.FC<CRMDetailProps> = ({
                 </span>
               )}
             </h2>
-            {cnpjs.length > 0 && (
-              <p className={`mt-1 text-xs ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
-                {cnpjs.join(' · ')}
-              </p>
-            )}
           </div>
 
           <button
@@ -267,14 +398,18 @@ export const CRMDetail: React.FC<CRMDetailProps> = ({
                     <label className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Nome da empresa</label>
                     <input
                       type="text"
-                      value={card.companyName || ''}
-                      readOnly
+                      value={companyNameInput}
+                      onChange={e => setCompanyNameInput(e.target.value)}
+                      onBlur={() => persistCompanyName(companyNameInput)}
                       className={`mt-1 w-full rounded-lg border px-3 py-1.5 text-sm bg-transparent ${
                         isDarkMode
                           ? 'border-slate-700 text-slate-100'
                           : 'border-slate-300 text-slate-900'
                       }`}
                     />
+                    <p className="mt-1 text-[10px] text-slate-400 dark:text-slate-500">
+                      Pode ajustar o nome mesmo depois da validacao do CNPJ.
+                    </p>
                   </div>
 
                   <div>
@@ -337,8 +472,9 @@ export const CRMDetail: React.FC<CRMDetailProps> = ({
                     <div className="mt-1 flex items-center gap-2">
                       <input
                         type="text"
-                        value={website}
-                        readOnly
+                        value={websiteInput}
+                        onChange={e => setWebsiteInput(e.target.value)}
+                        onBlur={() => persistWebsite(websiteInput)}
                         placeholder="https://exemplo.com"
                         className={`flex-1 rounded-lg border px-3 py-1.5 text-sm bg-transparent ${
                           isDarkMode
@@ -346,10 +482,14 @@ export const CRMDetail: React.FC<CRMDetailProps> = ({
                             : 'border-slate-300 text-slate-900 placeholder-slate-400'
                         }`}
                       />
-                      {website && (
+                      {websiteInput?.trim() && (
                         <button
                           type="button"
-                          onClick={() => window.open(website, '_blank')}
+                          onClick={() => {
+                            const raw = websiteInput.trim();
+                            const urlToOpen = raw.startsWith('http') ? raw : `https://${raw}`;
+                            window.open(urlToOpen, '_blank');
+                          }}
                           className="px-2.5 py-1.5 rounded-lg text-[11px] font-medium bg-emerald-500 text-white hover:bg-emerald-600"
                         >
                           Abrir
@@ -360,17 +500,37 @@ export const CRMDetail: React.FC<CRMDetailProps> = ({
 
                   <div>
                     <label className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Resumo breve</label>
-                    <textarea
-                      value={briefDescription}
-                      readOnly
-                      placeholder="Resumo curto da empresa com base no dossie..."
-                      rows={3}
-                      className={`mt-1 w-full rounded-lg border px-3 py-2 text-sm resize-none bg-transparent ${
-                        isDarkMode
-                          ? 'border-slate-700 text-slate-100 placeholder-slate-600'
-                          : 'border-slate-300 text-slate-900 placeholder-slate-400'
-                      }`}
-                    />
+                    <div className="mt-1 flex flex-col gap-2">
+                      <textarea
+                        value={briefDescriptionInput}
+                        onChange={e => setBriefDescriptionInput(e.target.value)}
+                        onBlur={() => persistBriefDescription(briefDescriptionInput)}
+                        placeholder="Resumo curto da empresa com foco em contexto comercial..."
+                        rows={3}
+                        className={`w-full rounded-lg border px-3 py-2 text-sm resize-none bg-transparent ${
+                          isDarkMode
+                            ? 'border-slate-700 text-slate-100 placeholder-slate-600'
+                            : 'border-slate-300 text-slate-900 placeholder-slate-400'
+                        }`}
+                      />
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={handleGenerateBriefWithAI}
+                          disabled={isGeneratingBrief}
+                          className={`px-2.5 py-1.5 rounded-lg text-[11px] font-medium ${
+                            isGeneratingBrief
+                              ? 'bg-slate-400 text-white cursor-wait'
+                              : 'bg-emerald-500 text-white hover:bg-emerald-600'
+                          }`}
+                        >
+                          {isGeneratingBrief ? 'Gerando...' : 'Gerar com IA'}
+                        </button>
+                        <span className="text-[10px] text-slate-400 dark:text-slate-500">
+                          A IA usa dossies, Spotter e anotacoes para montar um resumo de 2–3 frases.
+                        </span>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -447,7 +607,7 @@ export const CRMDetail: React.FC<CRMDetailProps> = ({
               </div>
             </div>
 
-            {/* Coluna direita: PORTA + etapa + sessoes */}
+            {/* Coluna direita: PORTA + etapa + sessoes + anexos */}
             <div className="md:col-span-2 space-y-4">
               {porta !== undefined && (
                 <div
@@ -537,6 +697,58 @@ export const CRMDetail: React.FC<CRMDetailProps> = ({
                   </p>
                 </div>
               )}
+
+              <div
+                className={`rounded-xl border p-4 ${
+                  isDarkMode ? 'bg-slate-900/60 border-slate-700' : 'bg-slate-50 border-slate-200'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">
+                    Documentos desta etapa
+                  </h3>
+                  <div>
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="px-2.5 py-1.5 rounded-lg text-[11px] font-medium bg-slate-900 text-white hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white"
+                    >
+                      Anexar arquivos
+                    </button>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      multiple
+                      accept=".pdf,.txt,.doc,.docx,.xlsx,.csv,image/*"
+                      className="hidden"
+                      onChange={handleUploadAttachments}
+                    />
+                  </div>
+                </div>
+
+                {stageAttachments.length > 0 ? (
+                  <ul className="space-y-1 max-h-32 overflow-y-auto text-[11px] pr-1">
+                    {stageAttachments.map(att => (
+                      <li key={att.id} className="flex items-center justify-between gap-2">
+                        <button
+                          type="button"
+                          onClick={() => window.open(att.url, '_blank')}
+                          className="text-slate-600 dark:text-slate-200 hover:underline truncate text-left"
+                        >
+                          {att.fileName}
+                        </button>
+                        <span className="text-[10px] text-slate-400">
+                          {new Date(att.uploadedAt).toLocaleDateString('pt-BR')}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-[11px] text-slate-400 dark:text-slate-500">
+                    Nenhum documento anexado nesta etapa ainda.
+                  </p>
+                )}
+              </div>
 
               <div
                 className={`rounded-xl border p-4 ${
