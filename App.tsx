@@ -1254,9 +1254,10 @@ const App: React.FC = () => {
   // MINI CRM HELPERS
   // ============================================
 
-  const handleSaveToCRM = async () => {
-    if (!currentSession) return;
-    const card = await createCardFromSession(currentSession);
+  const handleSaveToCRM = async (sessionId: string) => {
+    const session = sessions.find(s => s.id === sessionId);
+    if (!session) return;
+    const card = await createCardFromSession(session);
     setSelectedCRMCardId(card.id);
     setActiveView('crm');
   };
@@ -1267,7 +1268,6 @@ const App: React.FC = () => {
 
   const handleSelectCRMCard = (cardId: string) => {
     setSelectedCRMCardId(cardId);
-    setActiveView('crm');
   };
 
   const handleCloseCRMDetail = () => {
@@ -1282,6 +1282,11 @@ const App: React.FC = () => {
   const handleSelectSessionFromDetail = async (sessionId: string) => {
     await handleSelectSession(sessionId);
     setActiveView('chat');
+    setSelectedCRMCardId(null);
+  };
+
+  const handleOpenKanban = () => {
+    setActiveView('crm');
     setSelectedCRMCardId(null);
   };
 
@@ -1331,6 +1336,8 @@ const App: React.FC = () => {
       onNewSession={handleNewSession}
       onSelectSession={handleSelectSession}
       onDeleteSession={handleDeleteSession}
+      onSaveToCRM={handleSaveToCRM}
+      onOpenKanban={handleOpenKanban}
       isSidebarOpen={isSidebarOpen}
       onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
       messages={allMessages.slice(-visibleCount)}
@@ -1401,34 +1408,6 @@ const App: React.FC = () => {
         onMoveStage={handleMoveStageFromDetail}
         isDarkMode={isDarkMode}
       />
-
-      {/* Botões flutuantes de controle do CRM */}
-      <div className="fixed bottom-4 right-4 flex flex-col gap-2 z-40">
-        <button
-          onClick={() => setActiveView(activeView === 'chat' ? 'crm' : 'chat')}
-          className={`px-4 py-2 rounded-full text-xs font-semibold shadow-lg border backdrop-blur-md ${
-            isDarkMode
-              ? 'bg-slate-900/80 border-slate-700 text-slate-100 hover:bg-slate-800'
-              : 'bg-white/90 border-slate-200 text-slate-800 hover:bg-slate-100'
-          }`}
-        >
-          {activeView === 'chat' ? 'Ver CRM (Kanban)' : 'Voltar para o chat'}
-        </button>
-
-        <button
-          onClick={handleSaveToCRM}
-          disabled={!currentSession}
-          className={`px-4 py-2 rounded-full text-xs font-semibold shadow-lg border backdrop-blur-md ${
-            !currentSession
-              ? 'bg-slate-600 text-slate-300 border-slate-500 cursor-not-allowed'
-              : isDarkMode
-                ? 'bg-emerald-700/90 border-emerald-500 text-white hover:bg-emerald-600'
-                : 'bg-emerald-500/90 border-emerald-400 text-white hover:bg-emerald-400'
-          }`}
-        >
-          Salvar sessão no CRM
-        </button>
-      </div>
 
       {/* Email Modal */}
       {showEmailModal && (
