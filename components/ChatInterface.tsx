@@ -51,6 +51,8 @@ function extractDisplayedSuggestions(content?: string): string[] {
 type ExtendedChatInterfaceProps = ChatInterfaceProps & {
   onDeepDive?: (displayMessage: string, hiddenPrompt: string) => void;
   onDeleteMessage?: (id: string) => void;
+  onSaveToCRM?: (sessionId: string) => void;
+  onOpenKanban?: () => void;
 };
 
 const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
@@ -63,7 +65,9 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
   exportStatus, exportError, pdfReportContent, onOpenEmailModal,
   onOpenFollowUpModal, userId, onLogout, lastUserQuery, processing,
   onDeepDive,
-  onDeleteMessage
+  onDeleteMessage,
+  onSaveToCRM,
+  onOpenKanban
 }) => {
   const { mode, setMode } = useMode();
   const { user, updateName } = useAuth();
@@ -183,7 +187,7 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
         .map(m => `**${m.sender === Sender.User ? 'Você' : 'Scout 360'}:**\n${m.text}`)
         .join('\n\n---\n\n')
         .replace(/\[\[PORTA:\d+:P\d+:O\d+:R\d+:T\d+:A\d+\]\]/g, ''); 
-    navigator.clipboard.writeText(text).then(() => alert("Copiado!")).catch(() => alert("Erro ao copiar."));
+    navigator.clipboard.writeText(text).then(() => alert("Copiado!"));
   };
 
   // ✅ STOP com toast
@@ -215,9 +219,16 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
   return (
     <div className={`flex h-[100dvh] w-full overflow-hidden ${isDarkMode ? 'bg-slate-950' : 'bg-white'}`}>
       <SessionsSidebar
-        sessions={sessions} currentSessionId={currentSession?.id || null}
-        onSelectSession={onSelectSession} onNewSession={onNewSession} onDeleteSession={onDeleteSession}
-        isOpen={isSidebarOpen} onCloseMobile={onToggleSidebar} isDarkMode={isDarkMode}
+        sessions={sessions}
+        currentSessionId={currentSession?.id || null}
+        onSelectSession={onSelectSession}
+        onNewSession={onNewSession}
+        onDeleteSession={onDeleteSession}
+        onSaveToCRM={onSaveToCRM || (() => {})}
+        onOpenKanban={onOpenKanban || (() => {})}
+        isOpen={isSidebarOpen}
+        onCloseMobile={onToggleSidebar}
+        isDarkMode={isDarkMode}
       />
 
       <main className="flex-1 flex flex-col h-full min-h-0 relative w-full transition-all duration-300">
@@ -296,9 +307,6 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
                     return <ErrorMessageCard key={msg.id} error={msg.errorDetails} onRetry={onRetry} isLoadingRetry={isLoading} isDarkMode={isDarkMode} mode={mode} onReportError={onReportError ? () => onReportError(msg.id, msg.errorDetails!) : undefined} />;
                 }
 
-                // ==========================================
-                // 🛡️ PROTEÇÃO CONTRA MENSAGEM FANTASMA (TELA BRANCA)
-                // ==========================================
                 if (isBot && !msg.isThinking && !msg.isError && (!msg.text || msg.text.trim() === '')) {
                   return (
                     <div key={msg.id} className="flex justify-start animate-fade-in w-full max-w-3xl">
@@ -336,10 +344,7 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
                 const sourcesCount = displaySources.length;
 
                 return (
-                  // ── Wrapper externo com group/msg para hover no lixeira fora do balão ──
                   <div key={msg.id} className={`flex ${isBot ? 'justify-start' : 'justify-end'} animate-fade-in group/msg items-start gap-1.5`}>
-
-                    {/* 🗑️ Botão excluir FORA do balão — aparece no hover, à esquerda da mensagem do usuário */}
                     {!isBot && onDeleteMessage && (
                       <button
                         onClick={() => onDeleteMessage(msg.id)}
@@ -391,7 +396,6 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
                            />
                         </>
                       ) : (
-                        // Mensagem do usuário — sem botão interno, lixeira já está fora
                         <div className="whitespace-pre-wrap text-sm md:text-base leading-relaxed">
                           {msg.text}
                         </div>
@@ -405,7 +409,6 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
           )}
         </div>
 
-        {/* ✅ TOAST PÓS-CANCELAMENTO */}
         {showRetryToast && (
           <div className={`fixed bottom-24 left-1/2 -translate-x-1/2 z-50 animate-fade-in`}>
             <div className={`rounded-xl shadow-2xl border px-4 py-3 min-w-[320px] max-w-md ${isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}>
@@ -492,7 +495,6 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
                 style={{ overflow: 'hidden' }}
               />
 
-              {/* ⏹ Botão PARAR — aparece durante o loading no lugar do enviar */}
               {isLoading ? (
                 <button
                   onClick={handleStopWithToast}
@@ -522,7 +524,6 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
           </div>
         </div>
 
-        {/* WAR ROOM */}
         <WarRoom
           isOpen={showWarRoom}
           onClose={() => setShowWarRoom(false)}
