@@ -9,6 +9,7 @@ interface LoadingSmartProps {
   mode: ChatMode;
   isDarkMode: boolean;
   onStop?: () => void;
+  onRetry?: () => void; // ✅ NOVO: Botão de retry durante loading
   processing?: { stage?: string; completedStages?: string[] };
   searchQuery?: string;
 }
@@ -18,6 +19,7 @@ const LoadingSmart: React.FC<LoadingSmartProps> = ({
   mode,
   isDarkMode,
   onStop,
+  onRetry,
   processing,
   searchQuery
 }) => {
@@ -25,6 +27,7 @@ const LoadingSmart: React.FC<LoadingSmartProps> = ({
   const [isVisible, setIsVisible] = useState(false);
   const [isFadingOut, setIsFadingOut] = useState(false);
   const [elapsedTime, setElapsedTime] = useState(0);
+  const [showRetryHint, setShowRetryHint] = useState(false); // ✅ Hint após 15s
 
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const curiositiesRef = useRef<string[]>([]);
@@ -32,11 +35,23 @@ const LoadingSmart: React.FC<LoadingSmartProps> = ({
 
   // 1. Contador de Tempo
   useEffect(() => {
-    if (!isLoading) { setElapsedTime(0); return; }
+    if (!isLoading) { 
+      setElapsedTime(0); 
+      setShowRetryHint(false);
+      return; 
+    }
     const startTime = Date.now();
-    const interval = setInterval(() => setElapsedTime(Date.now() - startTime), 1000);
+    const interval = setInterval(() => {
+      const elapsed = Date.now() - startTime;
+      setElapsedTime(elapsed);
+      
+      // ✅ INOVAÇÃO: Mostra hint de retry após 15 segundos
+      if (elapsed > 15000 && !showRetryHint) {
+        setShowRetryHint(true);
+      }
+    }, 1000);
     return () => clearInterval(interval);
-  }, [isLoading]);
+  }, [isLoading, showRetryHint]);
 
   // 2. Busca curiosidades quando inicia nova investigação
   useEffect(() => {
@@ -116,28 +131,44 @@ const LoadingSmart: React.FC<LoadingSmartProps> = ({
     <div className={`
       flex flex-col w-full rounded-xl p-4 transition-all duration-300
       ${isDarkMode
-        ? 'border border-emerald-500/10'
-        : 'border border-slate-100'}
+        ? 'border border-emerald-500/10 bg-slate-900/50'
+        : 'border border-emerald-100 bg-emerald-50/30'}
     `}>
-      {/* HEADER: Timer + Botão Parar */}
+      {/* HEADER: Timer + Botões */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
-          <span className={`text-xs font-mono px-2 py-1 rounded-md ${isDarkMode ? 'bg-slate-800 text-emerald-400' : 'bg-slate-100 text-emerald-600'}`}>
+          <span className={`text-xs font-mono px-2 py-1 rounded-md ${isDarkMode ? 'bg-slate-800 text-emerald-400' : 'bg-white text-emerald-600'}`}>
             {Math.floor(elapsedTime / 1000)}s
           </span>
-          <span className={`text-xs font-semibold uppercase tracking-wider ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>
+          <span className={`text-xs font-semibold uppercase tracking-wider ${isDarkMode ? 'text-slate-500' : 'text-slate-600'}`}>
             Etapa {totalSteps} em andamento
           </span>
         </div>
 
-        {onStop && (
-          <button
-            onClick={onStop}
-            className="bg-red-500/10 hover:bg-red-500 border border-red-500/30 text-red-500 hover:text-white px-3 py-1 rounded-full transition-all text-[10px] font-bold"
-          >
-            PARAR
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {/* ✅ BOTÃO NOVO: Cancelar e Tentar Novamente (aparece após 15s) */}
+          {onRetry && showRetryHint && (
+            <button
+              onClick={() => {
+                if (onStop) onStop(); // Cancela primeiro
+                setTimeout(() => onRetry(), 500); // Retry depois de 500ms
+              }}
+              className="bg-orange-500/10 hover:bg-orange-500 border border-orange-500/30 text-orange-500 hover:text-white px-3 py-1 rounded-full transition-all text-[10px] font-bold animate-pulse"
+              title="Demorou muito? Clique para cancelar e tentar novamente"
+            >
+              ↻ TENTAR DE NOVO
+            </button>
+          )}
+
+          {onStop && (
+            <button
+              onClick={onStop}
+              className="bg-red-500/10 hover:bg-red-500 border border-red-500/30 text-red-500 hover:text-white px-3 py-1 rounded-full transition-all text-[10px] font-bold"
+            >
+              PARAR
+            </button>
+          )}
+        </div>
       </div>
 
       {/* PROGRESS STEPS */}
@@ -150,7 +181,7 @@ const LoadingSmart: React.FC<LoadingSmartProps> = ({
                 <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
               </svg>
             </div>
-            <span className={`text-sm ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>
+            <span className={`text-sm ${isDarkMode ? 'text-slate-500' : 'text-slate-600'}`}>
               {stage}
             </span>
           </div>
@@ -168,7 +199,7 @@ const LoadingSmart: React.FC<LoadingSmartProps> = ({
       </div>
 
       {/* PROGRESS BAR */}
-      <div className={`w-full h-1 rounded-full overflow-hidden mb-4 ${isDarkMode ? 'bg-slate-800' : 'bg-slate-100'}`}>
+      <div className={`w-full h-1 rounded-full overflow-hidden mb-4 ${isDarkMode ? 'bg-slate-800' : 'bg-emerald-100'}`}>
         <div
           className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-emerald-400 transition-all duration-700 ease-out relative overflow-hidden"
           style={{ width: `${Math.min(Math.max(totalSteps * 14, 8), 95)}%` }}
@@ -178,8 +209,8 @@ const LoadingSmart: React.FC<LoadingSmartProps> = ({
       </div>
 
       {/* CURIOSIDADES */}
-      <div className={`pt-3 border-t ${isDarkMode ? 'border-emerald-500/10' : 'border-slate-100'} transition-opacity duration-300 ${isFadingOut ? 'opacity-0' : 'opacity-100'}`}>
-        <p className={`text-sm leading-relaxed ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+      <div className={`pt-3 border-t ${isDarkMode ? 'border-emerald-500/10' : 'border-emerald-200'} transition-opacity duration-300 ${isFadingOut ? 'opacity-0' : 'opacity-100'}`}>
+        <p className={`text-sm leading-relaxed ${isDarkMode ? 'text-slate-400' : 'text-slate-600'}`}>
           💡 {currentInsight}
         </p>
       </div>
