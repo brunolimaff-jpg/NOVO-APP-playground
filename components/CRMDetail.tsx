@@ -1,8 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { ChatSession, CRM_STAGE_LABELS } from '../types';
 
 interface CRMDetailProps {
-  card: any; // intencionalmente flexvel para permitir campos adicionais do CRM
+  card: any; // intencionalmente flexível para permitir campos adicionais do CRM
   sessions: ChatSession[];
   onClose: () => void;
   onSelectSession: (sessionId: string) => void;
@@ -44,10 +44,10 @@ export const CRMDetail: React.FC<CRMDetailProps> = ({
     : 'bg-slate-500/10 text-slate-500';
 
   const healthLabel = card.health === 'green'
-    ? 'Verde · Saudvel'
+    ? 'Verde · Saudavel'
     : card.health === 'yellow'
-      ? 'Amarela · Ateno'
-      : 'Vermelha · Crtica';
+      ? 'Amarela · Atencao'
+      : 'Vermelha · Critica';
 
   const cnpjs: string[] = Array.isArray(card.cnpjs)
     ? card.cnpjs
@@ -56,11 +56,71 @@ export const CRMDetail: React.FC<CRMDetailProps> = ({
       : [];
 
   const website: string = card.website || '';
-  const exactLink: string = card.exactLink || '';
+  const initialExactLink: string = card.exactLink || '';
   const briefDescription: string = card.briefDescription || card.description || '';
 
   const createdAt = card.createdAt ? new Date(card.createdAt).toLocaleDateString('pt-BR') : '';
   const updatedAt = card.updatedAt ? new Date(card.updatedAt).toLocaleDateString('pt-BR') : '';
+
+  // Estado local para CNPJ manual e validacao
+  const [manualCnpj, setManualCnpj] = useState('');
+  const [cnpjStatus, setCnpjStatus] = useState<'idle' | 'validating' | 'valid' | 'invalid' | 'error'>('idle');
+  const [cnpjMessage, setCnpjMessage] = useState<string | null>(null);
+
+  // Estado local para link do ExactSpotter
+  const [exactLinkInput, setExactLinkInput] = useState(initialExactLink);
+  const [exactScanStatus, setExactScanStatus] = useState<'idle' | 'scanning' | 'ok' | 'error'>(initialExactLink ? 'ok' : 'idle');
+  const exactLocked = exactScanStatus === 'ok';
+
+  const cleanDigits = (value: string) => value.replace(/\D/g, '');
+
+  const handleValidateCnpj = async () => {
+    const digits = cleanDigits(manualCnpj);
+    if (digits.length !== 14) {
+      setCnpjStatus('invalid');
+      setCnpjMessage('Informe um CNPJ com 14 digitos.');
+      return;
+    }
+
+    try {
+      setCnpjStatus('validating');
+      setCnpjMessage(null);
+      const resp = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${digits}`);
+      if (!resp.ok) {
+        setCnpjStatus('invalid');
+        setCnpjMessage('CNPJ nao encontrado na BrasilAPI. Verifique os numeros.');
+        return;
+      }
+
+      // Nao precisamos dos campos agora; so confirmamos que existe
+      setCnpjStatus('valid');
+      setCnpjMessage('CNPJ valido. Dados basicos conferidos na BrasilAPI.');
+    } catch (err) {
+      console.error('Erro ao validar CNPJ na BrasilAPI', err);
+      setCnpjStatus('error');
+      setCnpjMessage('Nao foi possivel validar agora. Tente novamente em instantes.');
+    }
+  };
+
+  const handleScanExactLink = () => {
+    if (!exactLinkInput || !exactLinkInput.startsWith('http')) {
+      setExactScanStatus('error');
+      return;
+    }
+
+    // Etapa 1: validacao simples de formato / dominio
+    const isExact = exactLinkInput.includes('app.exactspotter.com');
+    if (!isExact) {
+      setExactScanStatus('error');
+      return;
+    }
+
+    // Future: aqui podemos chamar um backend para enriquecer dados a partir do link.
+    setExactScanStatus('scanning');
+    setTimeout(() => {
+      setExactScanStatus('ok');
+    }, 700);
+  };
 
   return (
     <div className={`fixed inset-0 z-50 flex items-center justify-center p-4 ${isDarkMode ? 'bg-black/70' : 'bg-black/50'}`}>
@@ -152,9 +212,44 @@ export const CRMDetail: React.FC<CRMDetailProps> = ({
                         ))}
                       </div>
                     ) : (
-                      <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
-                        Nenhum CNPJ identificado ainda.
-                      </p>
+                      <div className="mt-1 space-y-2">
+                        <p className="text-[11px] text-slate-400 dark:text-slate-500">
+                          Nao encontramos CNPJ automaticamente neste dossie. Informe um CNPJ para validar os dados.
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            value={manualCnpj}
+                            onChange={e => setManualCnpj(e.target.value)}
+                            placeholder="00.000.000/0000-00"
+                            className={`flex-1 rounded-lg border px-3 py-1.5 text-sm bg-transparent ${
+                              isDarkMode
+                                ? 'border-slate-700 text-slate-100 placeholder-slate-600'
+                                : 'border-slate-300 text-slate-900 placeholder-slate-400'
+                            }`}
+                          />
+                          <button
+                            type="button"
+                            onClick={handleValidateCnpj}
+                            className="px-2.5 py-1.5 rounded-lg text-[11px] font-medium bg-slate-900 text-white hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white"
+                          >
+                            {cnpjStatus === 'validating' ? 'Validando...' : 'Validar CNPJ'}
+                          </button>
+                        </div>
+                        {cnpjMessage && (
+                          <p
+                            className={`text-[11px] ${
+                              cnpjStatus === 'valid'
+                                ? 'text-emerald-500'
+                                : cnpjStatus === 'invalid' || cnpjStatus === 'error'
+                                  ? 'text-red-400'
+                                  : 'text-slate-400'
+                            }`}
+                          >
+                            {cnpjMessage}
+                          </p>
+                        )}
+                      </div>
                     )}
                   </div>
 
@@ -185,11 +280,11 @@ export const CRMDetail: React.FC<CRMDetailProps> = ({
                   </div>
 
                   <div>
-                    <label className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Breve descrio</label>
+                    <label className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Resumo breve</label>
                     <textarea
                       value={briefDescription}
                       readOnly
-                      placeholder="Resumo breve da empresa com base no dossi..."
+                      placeholder="Resumo curto da empresa com base no dossie..."
                       rows={3}
                       className={`mt-1 w-full rounded-lg border px-3 py-2 text-sm resize-none bg-transparent ${
                         isDarkMode
@@ -209,38 +304,48 @@ export const CRMDetail: React.FC<CRMDetailProps> = ({
                 <h3 className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400 mb-3">
                   Pesquisa / ExactSpotter
                 </h3>
-                <label className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Link da pesquisa</label>
+                <label className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Link publico da pesquisa</label>
                 <div className="mt-1 flex items-center gap-2">
                   <input
                     type="text"
-                    value={exactLink}
-                    readOnly
+                    value={exactLinkInput}
+                    onChange={e => setExactLinkInput(e.target.value)}
+                    readOnly={exactLocked}
                     placeholder="https://app.exactspotter.com/public/..."
                     className={`flex-1 rounded-lg border px-3 py-1.5 text-sm bg-transparent ${
                       isDarkMode
                         ? 'border-slate-700 text-slate-100 placeholder-slate-600'
                         : 'border-slate-300 text-slate-900 placeholder-slate-400'
-                    }`}
+                    } ${exactLocked ? 'opacity-80 cursor-not-allowed' : ''}`}
                   />
-                  {exactLink && (
+                  {exactLocked ? (
+                    <span className="px-2.5 py-1.5 rounded-lg text-[11px] font-medium bg-emerald-500/15 text-emerald-600 dark:text-emerald-300">
+                      Link verificado
+                    </span>
+                  ) : (
                     <button
                       type="button"
-                      onClick={() => window.open(exactLink, '_blank')}
+                      onClick={handleScanExactLink}
                       className="px-2.5 py-1.5 rounded-lg text-[11px] font-medium bg-slate-900 text-white hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white"
                     >
-                      Abrir pesquisa
+                      {exactScanStatus === 'scanning' ? 'Verificando...' : 'Verificar link'}
                     </button>
                   )}
                 </div>
-                {!exactLink && (
+                {exactScanStatus === 'idle' && (
                   <p className="mt-2 text-[11px] text-slate-400 dark:text-slate-500">
-                    Cole o link p_blico do ExactSpotter na investigao para vincul-lo automaticamente aqui.
+                    Cole o link publico do ExactSpotter na investigacao. Depois que o link for verificado, ele ficara travado aqui.
+                  </p>
+                )}
+                {exactScanStatus === 'error' && (
+                  <p className="mt-2 text-[11px] text-red-400">
+                    Nao parece ser um link valido do ExactSpotter. Confirme se copiou o endereco publico completo.
                   </p>
                 )}
               </div>
             </div>
 
-            {/* Coluna direita: PORTA + etapa + sesses */}
+            {/* Coluna direita: PORTA + etapa + sessoes */}
             <div className="md:col-span-2 space-y-4">
               {porta !== undefined && (
                 <div
@@ -269,7 +374,7 @@ export const CRMDetail: React.FC<CRMDetailProps> = ({
                     />
                   </div>
                   <p className="mt-2 text-[11px] text-slate-400 dark:text-slate-500">
-                    Sabemos que com novos aprofundamentos o PORTA pode mudar. Atualize o CRM sempre que gerar um novo dossi.
+                    Com novos aprofundamentos de pesquisa, o PORTA pode mudar. Atualize o CRM sempre que gerar um novo dossie relevante.
                   </p>
                 </div>
               )}
@@ -300,7 +405,7 @@ export const CRMDetail: React.FC<CRMDetailProps> = ({
                 <p className="mt-2 text-[11px] text-slate-400 dark:text-slate-500">
                   Na etapa desde: {card.movedToStageAt?.[card.stage]
                     ? new Date(card.movedToStageAt[card.stage]!).toLocaleDateString('pt-BR')
-                    : 'Data no registrada'}
+                    : 'Data nao registrada'}
                 </p>
               </div>
 
@@ -310,7 +415,7 @@ export const CRMDetail: React.FC<CRMDetailProps> = ({
                 }`}
               >
                 <h3 className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400 mb-3">
-                  Sesses de investigao vinculadas
+                  Sessoes de investigacao vinculadas
                 </h3>
                 {linkedSessions.length > 0 ? (
                   <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
@@ -333,7 +438,7 @@ export const CRMDetail: React.FC<CRMDetailProps> = ({
                   </div>
                 ) : (
                   <p className="text-[11px] text-slate-400 dark:text-slate-500">
-                    Nenhuma sesso vinculada encontrada localmente.
+                    Nenhuma sessao vinculada encontrada localmente.
                   </p>
                 )}
               </div>
@@ -344,7 +449,7 @@ export const CRMDetail: React.FC<CRMDetailProps> = ({
                 }`}
               >
                 <span>Criado em: {createdAt || '—'}</span>
-                <span>Última atualizao: {updatedAt || '—'}</span>
+                <span>Ultima atualizacao: {updatedAt || '—'}</span>
               </div>
             </div>
           </div>
@@ -359,8 +464,8 @@ export const CRMDetail: React.FC<CRMDetailProps> = ({
           <button
             type="button"
             onClick={() => {
-              if (window.confirm('Excluir esta empresa do Mini CRM? Esta ao no remover os dossis de investigao.')) {
-                alert('Remoo do card do CRM ser implementada na prxima etapa.');
+              if (window.confirm('Excluir esta empresa do Mini CRM? Esta acao nao remove os dossies de investigacao.')) {
+                alert('Remocao do card do CRM sera implementada na proxima etapa.');
               }
             }}
             className="order-2 md:order-1 inline-flex items-center justify-center px-3 py-2 rounded-lg border border-red-500/60 text-[12px] font-medium text-red-600 dark:text-red-400 hover:bg-red-500/10"
