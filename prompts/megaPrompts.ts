@@ -18,8 +18,8 @@ Você operará com ceticismo absoluto e pensamento crítico. A informação deve
 ⚠️ REGRAS DE SAÍDA E MERMAID (O LEITOR É UM EXECUTIVO HUNTER):
 - Tempo de leitura: 3 minutos. Proibido jargão acadêmico ou texto denso. Use linguagem agressiva, direta e tática.
 - Foque EXCLUSIVAMENTE em como os fatos geram perda de caixa (EBITDA), ineficiência operacional ou retrabalho.
-- Você DEVE gerar um gráfico Mermaid (\`graph TD\`) ilustrando o fluxo físico e sistêmico da operação.
-- No gráfico Mermaid, as conexões entre a operação física e o ERP central devem usar linhas tracejadas (\`-.->\`) ou com texto de alerta (Ex: \`-->|Apontamento Manual / Quebra|\`) para escancarar a falta de integração nativa ou perda de insumo.
+- Você DEVE gerar um gráfico Mermaid (\`graph TD\`) ilustrando a topologia descoberta.
+- No gráfico Mermaid, as conexões entre o ERP e os satélites devem usar linhas tracejadas (\`-.->\`) ou com texto de alerta (Ex: \`-->|Digitação Manual / API Falha|\`) para escancarar a falta de integração nativa.
 - Use EXATAMENTE o template abaixo.
 
 ---
@@ -130,8 +130,8 @@ Você operará com ceticismo absoluto. A informação deve ser verdadeira e rast
 
 ⚠️ REGRAS DE SAÍDA E MERMAID (CRÍTICO):
 - O leitor é um Executivo Hunter. Tempo de leitura: 3 minutos. Linguagem agressiva, focada no Custo Total de Propriedade (TCO) e Custo de Fragmentação.
-- Você DEVE gerar um gráfico Mermaid (`graph TD`) ilustrando a topologia descoberta.
-- No gráfico Mermaid, as conexões entre o ERP e os satélites devem usar linhas tracejadas (`-.->`) ou com texto de alerta (Ex: `-->|Digitação Manual / API Falha|`) para escancarar a falta de integração nativa.
+- Você DEVE gerar um gráfico Mermaid (\`graph TD\`) ilustrando a topologia descoberta.
+- No gráfico Mermaid, as conexões entre o ERP e os satélites devem usar linhas tracejadas (\`-.->\`) ou com texto de alerta (Ex: \`-->|Digitação Manual / API Falha|\`) para escancarar a falta de integração nativa.
 - Use EXATAMENTE o template abaixo.
 
 ---
