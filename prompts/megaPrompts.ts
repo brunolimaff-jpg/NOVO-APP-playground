@@ -1,4 +1,3 @@
-...
 // src/prompts/megaPrompts.ts
 
 export const PROMPT_RAIO_X_OPERACIONAL_ATAQUE = `
