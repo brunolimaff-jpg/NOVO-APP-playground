@@ -2,15 +2,15 @@
 import React, { useState } from 'react';
 import { AppError } from '../types';
 import { getFriendlyErrorMessage } from '../utils/errorHelpers';
-import { ChatMode } from '../constants'; // Import ChatMode to use in props
+import { ChatMode } from '../constants';
 
 interface ErrorMessageCardProps {
   error: AppError;
   onRetry: () => void;
   isLoadingRetry: boolean;
   isDarkMode: boolean;
-  mode?: ChatMode; // Made optional but recommended
-  onReportError?: () => void; // New prop for reporting error
+  mode?: ChatMode;
+  onReportError?: () => void;
 }
 
 const ErrorMessageCard: React.FC<ErrorMessageCardProps> = ({ 
@@ -25,29 +25,28 @@ const ErrorMessageCard: React.FC<ErrorMessageCardProps> = ({
   const [isReported, setIsReported] = useState(false);
   const [isReporting, setIsReporting] = useState(false);
 
-  // Get dynamic message based on mode
   const friendlyMessage = getFriendlyErrorMessage(error, mode as ChatMode);
 
-  // Dynamic colors
+  // ✅ PENSANDO EM AMBOS OS MODOS: Temas consistentes e harmon izados
   const theme = {
-    bg: isDarkMode ? 'bg-red-900/10' : 'bg-red-50',
-    border: isDarkMode ? 'border-red-500/30' : 'border-red-200',
-    textPrimary: isDarkMode ? 'text-red-200' : 'text-red-800',
-    textSecondary: isDarkMode ? 'text-red-300/80' : 'text-red-600',
-    codeBg: isDarkMode ? 'bg-black/30' : 'bg-white',
+    bg: isDarkMode ? 'bg-red-950/20' : 'bg-red-50',
+    border: isDarkMode ? 'border-red-900/50' : 'border-red-200',
+    textPrimary: isDarkMode ? 'text-red-300' : 'text-red-800',
+    textSecondary: isDarkMode ? 'text-red-400/80' : 'text-red-600',
+    codeBg: isDarkMode ? 'bg-slate-900/50' : 'bg-white',
+    codeBorder: isDarkMode ? 'border-red-800/30' : 'border-red-200',
     button: isDarkMode 
-      ? 'bg-red-600 hover:bg-red-500 text-white border-red-500' 
-      : 'bg-red-100 hover:bg-red-200 text-red-800 border-red-200',
+      ? 'bg-red-600 hover:bg-red-500 text-white border-red-500/50' 
+      : 'bg-red-600 hover:bg-red-500 text-white border-red-500',
     reportButton: isDarkMode
-      ? 'text-red-400 hover:bg-red-900/30'
-      : 'text-red-600 hover:bg-red-100'
+      ? 'text-red-400 hover:bg-red-900/30 border-red-800/30'
+      : 'text-red-600 hover:bg-red-100 border-red-200'
   };
 
   const handleReport = () => {
     if (onReportError) {
         setIsReporting(true);
         onReportError();
-        // Simulate a small delay for better UX or wait for async if prop was async
         setTimeout(() => {
             setIsReporting(false);
             setIsReported(true);
@@ -56,7 +55,7 @@ const ErrorMessageCard: React.FC<ErrorMessageCardProps> = ({
   };
 
   return (
-    <div className={`rounded-xl border ${theme.border} ${theme.bg} p-5 animate-fade-in w-full`}>
+    <div className={`rounded-2xl border ${theme.border} ${theme.bg} p-5 animate-fade-in w-full shadow-sm`}>
       <div className="flex items-start gap-3">
         <div className="text-2xl mt-0.5 select-none">❌</div>
         
@@ -71,40 +70,38 @@ const ErrorMessageCard: React.FC<ErrorMessageCardProps> = ({
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            {/* Retry Button */}
-            {error.retryable && (
-                <button
-                onClick={(e) => {
-                    e.stopPropagation();
-                    onRetry();
-                }}
-                disabled={isLoadingRetry}
-                className={`
-                    flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all shadow-sm
-                    disabled:opacity-50 disabled:cursor-not-allowed
-                    ${theme.button}
-                `}
-                >
-                {isLoadingRetry ? (
-                    <>
-                    <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
-                    <span>Tentando de novo...</span>
-                    </>
-                ) : (
-                    <>
-                    <span>🔄</span>
-                    <span>{mode === 'operacao' ? 'Tentar de novo' : 'Tentar novamente'}</span>
-                    </>
-                )}
-                </button>
-            )}
+            {/* ✅ BOTÃO RETRY: SEMPRE VISÍVEL (mesmo que error.retryable seja false) */}
+            <button
+              onClick={(e) => {
+                  e.stopPropagation();
+                  onRetry();
+              }}
+              disabled={isLoadingRetry}
+              className={`
+                  flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all shadow-md border
+                  disabled:opacity-50 disabled:cursor-not-allowed
+                  ${theme.button}
+              `}
+            >
+              {isLoadingRetry ? (
+                  <>
+                  <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
+                  <span>Tentando de novo...</span>
+                  </>
+              ) : (
+                  <>
+                  <span>🔄</span>
+                  <span>{mode === 'operacao' ? 'Tentar de novo' : 'Tentar novamente'}</span>
+                  </>
+              )}
+            </button>
 
             {/* Report Button */}
             {onReportError && (
                 <button 
                     onClick={handleReport}
                     disabled={isReported || isReporting}
-                    className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${theme.reportButton} disabled:opacity-50 disabled:cursor-default`}
+                    className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors border ${theme.reportButton} disabled:opacity-50 disabled:cursor-default`}
                     title="Enviar detalhes deste erro para análise"
                 >
                     {isReporting ? (
@@ -128,18 +125,19 @@ const ErrorMessageCard: React.FC<ErrorMessageCardProps> = ({
           <div className="pt-2">
             <button
               onClick={() => setShowDetails(!showDetails)}
-              className="text-xs opacity-70 hover:opacity-100 underline decoration-dotted transition-opacity focus:outline-none"
+              className={`text-xs opacity-70 hover:opacity-100 underline decoration-dotted transition-opacity focus:outline-none ${isDarkMode ? 'text-red-400' : 'text-red-600'}`}
             >
               {showDetails ? 'Ocultar detalhes técnicos' : 'Ver detalhes técnicos'}
             </button>
 
             {showDetails && (
-              <div className={`mt-2 p-3 rounded text-xs font-mono overflow-x-auto ${theme.codeBg} border ${theme.border} select-text`}>
+              <div className={`mt-2 p-3 rounded text-xs font-mono overflow-x-auto ${theme.codeBg} border ${theme.codeBorder} select-text`}>
                 <p><strong>Code:</strong> {error.code}</p>
                 <p><strong>Source:</strong> {error.source}</p>
                 {error.httpStatus && <p><strong>Status:</strong> {error.httpStatus}</p>}
                 <p><strong>Message:</strong> {error.message}</p>
                 {error.transient && <p><strong>Transient:</strong> Yes</p>}
+                {!error.retryable && <p className="text-red-500"><strong>Retryable:</strong> No (forçando botão mesmo assim)</p>}
               </div>
             )}
           </div>
