@@ -141,4 +141,69 @@ export interface ChatInterfaceProps {
     stage?: string;
     completedStages?: string[];
   };
+  // NOVO: deletar mensagem do usuário
+  onDeleteMessage?: (id: string) => void;
+}
+
+// ===================================================================
+// MINI CRM - Kanban
+// ===================================================================
+
+export type CRMStage =
+  | 'prospeccao'
+  | 'primeira_reuniao'
+  | 'levantamento'
+  | 'defesa_tecnica'
+  | 'dossie_final';
+
+export const CRM_STAGE_LABELS: Record<CRMStage, string> = {
+  prospeccao: 'Prospecção',
+  primeira_reuniao: '1ª Reunião',
+  levantamento: 'Levantamento',
+  defesa_tecnica: 'Defesa Técnica',
+  dossie_final: 'Dossiê Final',
+};
+
+export type DealHealth = 'green' | 'yellow' | 'red';
+
+export interface CRMTranscriptionFile {
+  id: string;
+  name: string;
+  content: string;
+  uploadedAt: string;
+  type: 'txt' | 'docx';
+}
+
+export interface CRMStageData {
+  transcriptions: CRMTranscriptionFile[];
+  executiveNotes: string;
+  technicalNotes: string;
+  aiReport?: string;
+  crmNotes?: string;
+  generatedAt?: string;
+  objections?: string[];
+  competitors?: string[];
+}
+
+export interface CRMCard {
+  id: string;
+  companyName: string;
+  cnpj?: string | null;
+  linkedSessionIds: string[];
+  stage: CRMStage;
+  createdAt: string;
+  updatedAt: string;
+  movedToStageAt: Partial<Record<CRMStage, string>>;
+  stages: Partial<Record<CRMStage, CRMStageData>>;
+  latestScorePorta?: number;
+  health: DealHealth;
+  newsRadarEnabled: boolean;
+  lastNewsCheckAt?: string;
+  unreadNewsCount?: number;
+}
+
+export interface CRMPipelineProps {
+  cards: CRMCard[];
+  onMoveCard: (cardId: string, toStage: CRMStage) => void;
+  onSelectCard: (cardId: string) => void;
 }
