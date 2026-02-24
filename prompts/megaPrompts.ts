@@ -147,7 +147,7 @@ Você operará com ceticismo absoluto. A informação deve ser verdadeira e rast
 ---
 ### 🗺️ MAPA DA TORRE DE BABEL (Ilhas de Sistemas)
 
-```mermaid
+\`\`\`mermaid
 graph TD
     %% Estilos de Risco e Sistemas
     classDef core fill:#1e40af,stroke:#fff,stroke-width:2px,color:#fff;
@@ -179,37 +179,33 @@ graph TD
     %% Nó de Risco Oculto
     Risco[Shadow IT: Excel Avançado e Analistas de Integração]:::danger
     Risco -.->|Sustenta a Operação| Core
-🚨 1. AS HEMORRAGIAS DA FRAGMENTAÇÃO (O Custo da "Ilha")
-💻 [Ponto de Falha 1: O Núcleo ERP e a Dívida Técnica]
+\`\`\`
 
-O Fato: [Ex: Vagas ativas para AdvPL/ABAP ou uso de ERPs legados (CHB, Agrotis). Vagas crônicas para área Fiscal/Tributária (Bloco K/SPED).]
+### 🚨 1. AS HEMORRAGIAS DA FRAGMENTAÇÃO (O Custo da "Ilha")
 
-O Custo Real (TCO): [Reféns de consultorias de código para qualquer atualização. O fechamento contábil e fiscal leva semanas na base da re-digitação e conciliação manual.]
+**💻 [Ponto de Falha 1: O Núcleo ERP e a Dívida Técnica]**
+* **O Fato:** [Ex: Vagas ativas para AdvPL/ABAP ou uso de ERPs legados (CHB, Agrotis). Vagas crônicas para área Fiscal/Tributária (Bloco K/SPED).]
+* **O Custo Real (TCO):** [Reféns de consultorias de código para qualquer atualização. O fechamento contábil e fiscal leva semanas na base da re-digitação e conciliação manual.]
 
-👥/🔒 [Ponto de Falha 2: O Caos do Capital Humano e Portaria]
+**👥/🔒 [Ponto de Falha 2: O Caos do Capital Humano e Portaria]**
+* **O Fato:** [Ex: Uso fragmentado de Gupy para seleção, LG para folha e catracas Secullum. Vagas abertas para Analista de DP focado em conferência.]
+* **O Custo Real:** [Desperdício de horas do RH. Demora no onboarding sistêmico (funcionário entra, mas a biometria não libera a fábrica/trator). Erros de apontamento gerando passivo trabalhista milionário no MPT.]
 
-O Fato: [Ex: Uso fragmentado de Gupy para seleção, LG para folha e catracas Secullum. Vagas abertas para Analista de DP focado em conferência.]
+**🚜/🚛 [Ponto de Falha 3: O Abismo Campo-Balança-Logística]**
+* **O Fato:** [Ex: Uso de sistemas especialistas (GAtec, Lincros, NDD) apartados do ERP central. Falta de YMS nativo para gestão de pátio.]
+* **O Custo Real:** [Caminhões parados aguardando integração de NFe/MDFe. O insumo sai do armazém para a lavoura, mas a baixa no financeiro atrasa porque a API cai ou depende de planilhas.]
 
-O Custo Real: [Desperdício de horas do RH. Demora no onboarding sistêmico (funcionário entra, mas a biometria não libera a fábrica/trator). Erros de apontamento gerando passivo trabalhista milionário no MPT.]
+### 🕳️ 2. A SOMBRA DO "SHADOW IT" (A Farsa da Automação)
+**🔗 O Império do Excel, Robôs (RPA) e "Puxadinhos"**
+* [Liste fatos irrefutáveis. Ex: Contratação massiva de analistas de BI/Integração, exigência de "Excel Avançado" em vagas operacionais, uso de robôs para copiar e colar dados da balança no ERP. Prova matemática de que a TI perdeu o controle da arquitetura.]
 
-🚜/🚛 [Ponto de Falha 3: O Abismo Campo-Balança-Logística]
+### 🗡️ GATILHOS DE ABORDAGEM (A Faca no Pescoço Tecnológico)
+* **Gatilho 1 (Unificação de RH/Acesso):** *"Mapeamos a topologia da TI de vocês e notamos as 'Ilhas de Sistemas'. O recrutamento roda em [Citar Sis1], a portaria/ponto em [Citar Sis2] e a folha no [Citar Sis3]. O custo humano para manter esses sistemas conversando no fim do mês destrói a produtividade do RH e abre brecha para passivo trabalhista. Como o conselho planeja escalar a operação sem unificar admissão, ponto e acesso físico em uma única plataforma nativa?"*
 
-O Fato: [Ex: Uso de sistemas especialistas (GAtec, Lincros, NDD) apartados do ERP central. Falta de YMS nativo para gestão de pátio.]
-
-O Custo Real: [Caminhões parados aguardando integração de NFe/MDFe. O insumo sai do armazém para a lavoura, mas a baixa no financeiro atrasa porque a API cai ou depende de planilhas.]
-
-🕳️ 2. A SOMBRA DO "SHADOW IT" (A Farsa da Automação)
-🔗 O Império do Excel, Robôs (RPA) e "Puxadinhos"
-
-[Liste fatos irrefutáveis. Ex: Contratação massiva de analistas de BI/Integração, exigência de "Excel Avançado" em vagas operacionais, uso de robôs para copiar e colar dados da balança no ERP. Prova matemática de que a TI perdeu o controle da arquitetura.]
-
-🗡️ GATILHOS DE ABORDAGEM (A Faca no Pescoço Tecnológico)
-Gatilho 1 (Unificação de RH/Acesso): "Mapeamos a topologia da TI de vocês e notamos as 'Ilhas de Sistemas'. O recrutamento roda em [Citar Sis1], a portaria/ponto em [Citar Sis2] e a folha no [Citar Sis3]. O custo humano para manter esses sistemas conversando no fim do mês destrói a produtividade do RH e abre brecha para passivo trabalhista. Como o conselho planeja escalar a operação sem unificar admissão, ponto e acesso físico em uma única plataforma nativa?"
-
-Gatilho 2 (Ruptura Agro/Logística vs. Backoffice): "A infraestrutura de vocês é gigante, mas vimos que na ponta usam [Citar Sistema Agro/Logística] e o core é [Citar ERP Legado]. Quando o apontamento do trator ou da balança não cai em tempo real no financeiro, o delay gera furos de estoque e faturamento cego. Como vocês garantem o compliance do custo de safra hoje sabendo que essa integração depende de planilhas ou APIs instáveis?"
+* **Gatilho 2 (Ruptura Agro/Logística vs. Backoffice):** *"A infraestrutura de vocês é gigante, mas vimos que na ponta usam [Citar Sistema Agro/Logística] e o core é [Citar ERP Legado]. Quando o apontamento do trator ou da balança não cai em tempo real no financeiro, o delay gera furos de estoque e faturamento cego. Como vocês garantem o compliance do custo de safra hoje sabendo que essa integração depende de planilhas ou APIs instáveis?"*
 
 ---
-### 🕳️ 2. O COMPORTAMENTO DA TI (O Desespero)
+### 🕳️ 3. O COMPORTAMENTO DA TI (O Desespero)
 
 **🆘 Apagadores de Incêndio (Contratação Reativa)**
 * [Analise as vagas: Estão contratando suporte técnico Nível 1 desesperadamente? Isso prova que o sistema atual é instável. Estão buscando Analistas de Segurança após um ataque? O ambiente é vulnerável.]
