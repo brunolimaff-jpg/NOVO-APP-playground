@@ -150,7 +150,7 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
   const hasReport = messages.some((m) => m.sender === Sender.Bot && !m.isThinking && !m.isError && (m.text?.length || 0) > 100);
 
   return (
-    <div className={`flex h-[100dvh] w-full overflow-hidden ${isDarkMode ? 'bg-slate-950' : 'bg-slate-50'}`}>
+    <div className={`flex h-[100dvh] w-full overflow-hidden ${isDarkMode ? 'bg-slate-950' : 'bg-white'}`}>
       <SessionsSidebar
         sessions={sessions} currentSessionId={currentSession?.id || null}
         onSelectSession={onSelectSession} onNewSession={onNewSession} onDeleteSession={onDeleteSession}
