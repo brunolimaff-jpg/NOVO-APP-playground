@@ -558,11 +558,22 @@ ${ragContext}
     }
 
     const finalParsed = parseMarkers(rawAccumulator);
-    const finalText = enforceOpeningWithSeller(finalParsed.text, nomeParaInjetar);
+    let finalText = enforceOpeningWithSeller(finalParsed.text, nomeParaInjetar);
+
+    // ✅ AUDITORIA: Adiciona seção "Fontes Consultadas" com todos os links do grounding
+    const sources = groundingChunks
+      .filter(c => c.web?.uri)
+      .map(c => ({ title: getReadableTitle(c.web), url: c.web.uri }));
+
+    if (sources.length > 0) {
+      finalText += `\n\n---\n\n## 📚 Fontes Consultadas\n\n`;
+      finalText += `*A IA consultou ${sources.length} página${sources.length > 1 ? 's' : ''} durante a pesquisa. Abaixo estão todos os links acessados:*\n\n`;
+      finalText += sources.map((s, i) => `${i + 1}. [${s.title}](${s.url})`).join('\n');
+    }
 
     return {
       text: finalText,
-      sources: groundingChunks.filter(c => c.web?.uri).map(c => ({ title: getReadableTitle(c.web), url: c.web.uri })),
+      sources: sources,
       suggestions: [],
       scorePorta: finalParsed.scorePorta,
       statuses: finalParsed.statuses,
