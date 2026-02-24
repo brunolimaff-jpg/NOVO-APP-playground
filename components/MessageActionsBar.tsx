@@ -67,37 +67,38 @@ function buildPdfHTML(content: string): string {
     ">
       <!-- CABEÇALHO -->
       <div style="
-        background: linear-gradient(135deg, #065f46 0%, #059669 100%);
-        padding: 28px 36px 22px;
+        background: #ffffff;
+        padding: 32px 36px 24px;
         margin-bottom: 28px;
-        border-radius: 0 0 12px 12px;
+        border-bottom: 3px solid #059669;
       ">
         <div style="display:flex;align-items:center;justify-content:space-between;">
           <div>
-            <div style="font-size:22px;font-weight:800;color:#ffffff;letter-spacing:-0.5px;">
+            <div style="font-size:24px;font-weight:800;color:#065f46;letter-spacing:-0.5px;">
               🌿 Senior Scout 360
             </div>
-            <div style="font-size:11px;color:#a7f3d0;margin-top:4px;letter-spacing:0.5px;">
-              INTELIGÊNCIA COMERCIAL · AGRONEGÓCIO
+            <div style="font-size:11px;color:#6b7280;margin-top:5px;letter-spacing:0.5px;text-transform:uppercase;">
+              Inteligência Comercial · Agronegócio
             </div>
           </div>
           <div style="text-align:right;">
-            <div style="font-size:10px;color:#a7f3d0;">Emitido em</div>
-            <div style="font-size:12px;font-weight:600;color:#ffffff;">${dataFormatada}</div>
-            <div style="font-size:10px;color:#a7f3d0;">${horaFormatada} (horário local)</div>
+            <div style="font-size:10px;color:#9ca3af;text-transform:uppercase;">Emitido em</div>
+            <div style="font-size:13px;font-weight:700;color:#065f46;margin-top:2px;">${dataFormatada}</div>
+            <div style="font-size:10px;color:#9ca3af;margin-top:1px;">${horaFormatada}</div>
           </div>
         </div>
         <!-- Barra de aviso -->
         <div style="
-          margin-top:16px;
-          background:rgba(255,255,255,0.12);
-          border-radius:6px;
-          padding:8px 14px;
+          margin-top:18px;
+          background:#f0fdf4;
+          border-left:4px solid #059669;
+          border-radius:4px;
+          padding:10px 14px;
           font-size:10px;
-          color:#d1fae5;
+          color:#065f46;
           letter-spacing:0.2px;
         ">
-          ⚠️ Uso interno — Documento de apoio à prospecção. Não distribuir externamente.
+          ⚠️ <strong>Uso interno</strong> — Documento de apoio à prospecção. Não distribuir externamente.
         </div>
       </div>
 
@@ -109,7 +110,7 @@ function buildPdfHTML(content: string): string {
       <!-- RODAPÉ -->
       <div style="
         margin: 28px 36px 0;
-        border-top: 2px solid #d1fae5;
+        border-top: 2px solid #e5e7eb;
         padding-top: 14px;
         display: flex;
         justify-content: space-between;
