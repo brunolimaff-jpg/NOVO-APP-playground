@@ -1,8 +1,50 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { CRMPipelineProps, CRM_STAGE_LABELS, CRMStage } from '../types';
 
 export const CRMPipeline: React.FC<CRMPipelineProps> = ({ cards, onMoveCard, onSelectCard }) => {
   const stages: CRMStage[] = ['prospeccao', 'primeira_reuniao', 'levantamento', 'defesa_tecnica', 'dossie_final'];
+  
+  // Estado para controle visual do drag
+  const [draggedCardId, setDraggedCardId] = useState<string | null>(null);
+  const [dragOverStage, setDragOverStage] = useState<CRMStage | null>(null);
+
+  const handleDragStart = (e: React.DragEvent, cardId: string) => {
+    setDraggedCardId(cardId);
+    e.dataTransfer.effectAllowed = 'move';
+    // Dado necessário para o drag funcionar
+    e.dataTransfer.setData('text/plain', cardId);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedCardId(null);
+    setDragOverStage(null);
+  };
+
+  const handleDragOver = (e: React.DragEvent, stage: CRMStage) => {
+    e.preventDefault(); // Necessário para permitir drop
+    e.dataTransfer.dropEffect = 'move';
+    setDragOverStage(stage);
+  };
+
+  const handleDragLeave = () => {
+    setDragOverStage(null);
+  };
+
+  const handleDrop = (e: React.DragEvent, targetStage: CRMStage) => {
+    e.preventDefault();
+    const cardId = e.dataTransfer.getData('text/plain');
+    
+    if (cardId && targetStage) {
+      // Só move se for etapa diferente
+      const card = cards.find(c => c.id === cardId);
+      if (card && card.stage !== targetStage) {
+        onMoveCard(cardId, targetStage);
+      }
+    }
+    
+    setDraggedCardId(null);
+    setDragOverStage(null);
+  };
 
   return (
     <div className="w-full h-full overflow-x-auto">
@@ -10,11 +52,19 @@ export const CRMPipeline: React.FC<CRMPipelineProps> = ({ cards, onMoveCard, onS
         {stages.map(stage => {
           const stageCards = cards.filter(c => c.stage === stage);
           const total = stageCards.length;
+          const isDragOver = dragOverStage === stage;
 
           return (
             <div
               key={stage}
-              className="rounded-2xl border bg-slate-50/70 dark:bg-slate-900/70 border-slate-200 dark:border-slate-800 p-3 flex flex-col shadow-sm"
+              onDragOver={(e) => handleDragOver(e, stage)}
+              onDragLeave={handleDragLeave}
+              onDrop={(e) => handleDrop(e, stage)}
+              className={`rounded-2xl border p-3 flex flex-col shadow-sm transition-colors duration-200 ${
+                isDragOver
+                  ? 'bg-emerald-50/70 dark:bg-emerald-900/30 border-emerald-400 dark:border-emerald-500'
+                  : 'bg-slate-50/70 dark:bg-slate-900/70 border-slate-200 dark:border-slate-800'
+              }`}
             >
               <div className="flex items-center justify-between mb-2">
                 <div>
@@ -30,6 +80,7 @@ export const CRMPipeline: React.FC<CRMPipelineProps> = ({ cards, onMoveCard, onS
               <div className="flex-1 space-y-2 overflow-y-auto min-h-[140px] pb-1">
                 {stageCards.map(raw => {
                   const card: any = raw;
+                  const isDragging = draggedCardId === card.id;
 
                   const porta = card.latestScorePorta as number | undefined;
                   const portaColor = porta >= 71 ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300' :
@@ -51,10 +102,17 @@ export const CRMPipeline: React.FC<CRMPipelineProps> = ({ cards, onMoveCard, onS
                     : null;
 
                   return (
-                    <button
+                    <div
                       key={card.id}
+                      draggable
+                      onDragStart={(e) => handleDragStart(e, card.id)}
+                      onDragEnd={handleDragEnd}
                       onClick={() => onSelectCard(card.id)}
-                      className="w-full text-left rounded-2xl border border-slate-200 dark:border-slate-700 bg-white/90 dark:bg-slate-900/90 hover:border-emerald-500/70 hover:shadow-md transition-all p-3 flex flex-col gap-1.5"
+                      className={`w-full text-left rounded-2xl border bg-white/90 dark:bg-slate-900/90 p-3 flex flex-col gap-1.5 cursor-pointer transition-all ${
+                        isDragging
+                          ? 'opacity-50 border-dashed border-slate-400'
+                          : 'hover:border-emerald-500/70 hover:shadow-md border-slate-200 dark:border-slate-700'
+                      }`}
                     >
                       <div className="flex items-start justify-between gap-2">
                         <p className="text-xs font-semibold text-slate-900 dark:text-slate-50 truncate">
@@ -93,17 +151,6 @@ export const CRMPipeline: React.FC<CRMPipelineProps> = ({ cards, onMoveCard, onS
                               {investigationsCount} inv.
                             </span>
                           )}
-                          <select
-                            value={stage}
-                            onChange={e => onMoveCard(card.id, e.target.value as CRMStage)}
-                            className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-full px-2 py-0.5 text-[10px] text-slate-600 dark:text-slate-300 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                          >
-                            {stages.map(s => (
-                              <option key={s} value={s}>
-                                {CRM_STAGE_LABELS[s]}
-                              </option>
-                            ))}
-                          </select>
                         </div>
                       </div>
 
@@ -112,7 +159,7 @@ export const CRMPipeline: React.FC<CRMPipelineProps> = ({ cards, onMoveCard, onS
                           Atualizado em {updatedAt}
                         </p>
                       )}
-                    </button>
+                    </div>
                   );
                 })}
 
