@@ -63,7 +63,7 @@ function sanitizeStreamText(text: string): string {
     .replace(/\[\[PORTA:[^\]]*\]\]/g, '')
     .replace(/\[\[STATUS:[^\]]*\]\]/g, '')
     .replace(/\[\[[A-Z_]+:[^\n]*?\]\]/g, '')
-    .replace(/\[\[?[A-Z_]*:?[^\n]*$/, '')
+    .replace(/\[\[[A-Z_]*:?[^\n]*$/, '')
     .replace(/^(\s*\]\s*\n)+/, '')
     .replace(/^\s*\]/, '');
 }
@@ -677,12 +677,16 @@ REGRAS:
     const finalParsed = parseMarkers(rawAccumulator);
     let report = (finalParsed.text || '').trim();
 
+    // ✅ Extrai todos os links consultados (mesmo que não citados no texto)
     const sources = groundingChunks
       .filter(c => c.web?.uri)
       .map(c => ({ title: getReadableTitle(c.web), url: c.web.uri }));
 
+    // ✅ Adiciona seção "Fontes Consultadas" no final com TODOS os links
     if (sources.length) {
-      report += `\n\n## Fontes\n` + sources.slice(0, 12).map(s => `- [${s.title}](${s.url})`).join('\n');
+      report += `\n\n---\n\n## 📚 Fontes Consultadas\n\n`;
+      report += `*A IA consultou ${sources.length} página${sources.length > 1 ? 's' : ''} durante a pesquisa. Abaixo estão todos os links acessados:*\n\n`;
+      report += sources.map((s, i) => `${i + 1}. [${s.title}](${s.url})`).join('\n');
     }
 
     return report || "Varredura concluída, mas sem texto no relatório.";
