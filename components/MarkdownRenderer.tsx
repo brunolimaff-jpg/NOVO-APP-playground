@@ -23,9 +23,15 @@ interface FootnoteSource {
   url: string;
 }
 
-// ==========================================
-// RENDERIZADOR DE GRÁFICOS MERMAID
-// ==========================================
+const sanitizeMermaidCode = (code: string): string => {
+  return code
+    .replace(/<br\s*\/?>(?=\s|$)/gi, ' ')
+    .replace(/<!--[\s\S]*?-->/g, '')
+    .replace(/[\u{1F300}-\u{1FAFF}]/gu, '')
+    .replace(/\r/g, '')
+    .trim();
+};
+
 const MermaidGraph: React.FC<{ chart: string; isDarkMode: boolean }> = ({ chart, isDarkMode }) => {
   const [svg, setSvg] = useState<string>('');
 
@@ -39,11 +45,21 @@ const MermaidGraph: React.FC<{ chart: string; isDarkMode: boolean }> = ({ chart,
     const renderChart = async () => {
       try {
         const id = `mermaid-${Math.random().toString(36).substring(2, 9)}`;
-        const { svg: renderedSvg } = await mermaid.render(id, chart);
+        const safeCode = sanitizeMermaidCode(chart);
+        const { svg: renderedSvg } = await mermaid.render(id, safeCode);
         setSvg(renderedSvg);
       } catch (error: any) {
         console.error('Erro ao renderizar Mermaid:', error);
-        setSvg(`<div class="text-red-500 text-sm border border-red-500/20 p-4 rounded-lg bg-red-500/10 font-bold">⚠️ Falha ao gerar o Mapa Societário. O dado retornado pela IA foi incompatível com o gráfico.</div>`);
+        const message = error?.message || String(error || 'Erro desconhecido');
+        setSvg(`
+          <div class="text-red-500 text-sm border border-red-500/20 p-4 rounded-lg bg-red-500/10 font-bold">
+            ⚠️ Falha ao gerar o Mapa Societário. O dado retornado pela IA foi incompatível com o gráfico.
+            <details class="mt-2 text-xs font-normal text-red-400 whitespace-pre-wrap">
+              <summary class="cursor-pointer">Ver detalhes técnicos</summary>
+              ${message.replace(/[<>]/g, '')}
+            </details>
+          </div>
+        `);
       }
     };
     renderChart();
@@ -57,9 +73,6 @@ const MermaidGraph: React.FC<{ chart: string; isDarkMode: boolean }> = ({ chart,
   );
 };
 
-// ==========================================
-// FONTES RETRÁTEIS (RODAPÉ)
-// ==========================================
 const CollapsibleSources: React.FC<{ sources: FootnoteSource[]; isDarkMode: boolean }> = ({ sources, isDarkMode }) => {
   const [isOpen, setIsOpen] = useState(false);
   if (!sources || sources.length === 0) return null;
@@ -101,9 +114,6 @@ const CollapsibleSources: React.FC<{ sources: FootnoteSource[]; isDarkMode: bool
   );
 };
 
-// ==========================================
-// RENDERIZADOR PRINCIPAL
-// ==========================================
 const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, isDarkMode, groundingSources, showCollapsibleSources = true }) => {
   
   const { processedContent, footnoteSources } = useMemo(() => {
@@ -112,11 +122,9 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, isDarkMode
     text = rewriteMarkdownLinksToGoogle(text);
     text = autoLinkSeniorTerms(text);
 
-    // 1. ARRANCAR O PORTA DUPLICADO: Remove a tag interna e qualquer texto gerado pela IA (ex: "**Score PORTA:** 94/100")
     text = text.replace(/\[\[PORTA:.*?\]\]/g, '');
     text = text.replace(/\*?\*?Score PORTA:\*?\*?\s*\d+\/100.*?\n/gi, '');
 
-    // 2. Mapeamento de Fontes do Grounding
     const map = new Map<string, number>();
     const sources: FootnoteSource[] = [];
     let counter = 0;
@@ -137,7 +145,6 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, isDarkMode
       groundingSources.forEach(gs => getNum(gs.url, gs.title));
     }
 
-    // Transformar referências numéricas [1], [2], ^1 em tags customizadas para renderizar os "Pills"
     text = text.replace(/\[\^(\d+)\]/g, '<footnote data-num="$1"></footnote>');
     text = text.replace(/(?<!\[)\[(\d+)\](?!\()/g, '<footnote data-num="$1"></footnote>');
     text = text.replace(/(?<!\[)\^(\d+)/g, '<footnote data-num="$1"></footnote>');
@@ -160,14 +167,11 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, isDarkMode
         remarkPlugins={[remarkGfm, remarkBreaks]}
         rehypePlugins={[rehypeRaw]}
         components={{
-          // HIPERLINKS DE FONTES INLINE (Adeus números feios!)
-          // @ts-ignore
-          'footnote': (props: any) => {
+          footnote: (props: any) => {
              const num = parseInt(props['data-num'], 10);
              const source = footnoteSources.find(s => s.num === num);
              
              if (source && source.url && !isFakeUrl(source.url)) {
-               // Tenta pegar só o nome do site (ex: globo.com) para ficar mais elegante
                let shortName = source.title;
                if (!shortName || shortName.length > 25) {
                   try {
@@ -189,10 +193,9 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, isDarkMode
                  </a>
                );
              }
-             return null; // Se não tiver URL, não exibe nada (limpa a tela)
+             return null;
           },
 
-          // LINKS NORMAIS NO TEXTO
           a: ({ href, children, ...props }) => {
             if (!href || isFakeUrl(href)) {
               return <strong className="text-emerald-600 dark:text-emerald-400 font-bold">{children}</strong>;
@@ -210,14 +213,14 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, isDarkMode
             );
           },
 
-          // MERMAID E BLOCOS DE CÓDIGO
           code(props) {
-            const {children, className, node, ...rest} = props;
+            const {children, className, ...rest} = props;
             const match = /language-(\w+)/.exec(className || '');
             const contentStr = String(children).trim();
             
-            // Força bruta para pegar Mermaid
-            const isMermaid = (match && match[1] === 'mermaid') || contentStr.startsWith('graph ') || contentStr.startsWith('pie ') || contentStr.startsWith('sequenceDiagram');
+            const isMermaid =
+              (match && match[1] === 'mermaid') ||
+              /^(graph|flowchart|sequenceDiagram|pie|gantt|classDiagram|stateDiagram|erDiagram|journey)\b/.test(contentStr);
 
             if (isMermaid) {
               return <MermaidGraph chart={contentStr} isDarkMode={isDarkMode} />;
@@ -234,7 +237,6 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, isDarkMode
             );
           },
 
-          // TABELAS PREMIUM
           table: ({...props}) => (
             <div className={`overflow-x-auto my-6 border rounded-xl shadow-sm ${isDarkMode ? 'border-slate-700 bg-slate-900/50' : 'border-slate-200 bg-white'}`}>
               <table className="min-w-full text-sm text-left border-collapse" {...props} />
@@ -245,7 +247,6 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, isDarkMode
           td: ({...props}) => <td className={`px-5 py-3.5 border-b align-middle font-medium ${isDarkMode ? 'border-slate-800 text-slate-300' : 'border-slate-100 text-slate-700'}`} {...props} />,
           tr: ({...props}) => <tr className={`transition-colors ${isDarkMode ? 'hover:bg-slate-800/50' : 'hover:bg-slate-50/80'}`} {...props} />,
 
-          // TIPOGRAFIA
           h1: ({...props}) => <h1 className={`text-xl md:text-2xl font-black ${theme.h1} mt-8 mb-4 tracking-tight`} {...props} />,
           h2: ({...props}) => <h2 className={`text-lg md:text-xl font-bold ${theme.h2} mt-8 mb-4 border-b border-emerald-500/20 pb-2`} {...props} />,
           h3: ({...props}) => <h3 className={`text-base md:text-lg font-bold ${theme.h3} mt-6 mb-3`} {...props} />,
