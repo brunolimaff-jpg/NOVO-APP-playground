@@ -76,6 +76,10 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
   const [showActionsMenu, setShowActionsMenu] = useState(false);
   const [showWarRoom, setShowWarRoom] = useState(false);
   const [displayedSuggestions, setDisplayedSuggestions] = useState<string[]>([]);
+  
+  // ✅ TOAST PÓS-CANCELAMENTO
+  const [showRetryToast, setShowRetryToast] = useState(false);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useLayoutEffect(() => {
     if (textareaRef.current) {
@@ -115,6 +119,19 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // ✅ Auto-fechar toast após 8 segundos
+  useEffect(() => {
+    if (showRetryToast) {
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+      toastTimerRef.current = setTimeout(() => {
+        setShowRetryToast(false);
+      }, 8000);
+    }
+    return () => {
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    };
+  }, [showRetryToast]);
+
   const handleSend = () => {
     if (!input.trim() || isLoading) return;
     onSendMessage(input);
@@ -145,9 +162,26 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
     navigator.clipboard.writeText(text).then(() => alert("Copiado!")).catch(() => alert("Erro ao copiar."));
   };
 
-  // ✅ FUNÇÃO PARA RETRY DURANTE LOADING
-  const handleRetryDuringLoading = () => {
+  // ✅ STOP com toast
+  const handleStopWithToast = () => {
+    if (onStop) onStop();
+    setShowRetryToast(true);
+  };
+
+  // ✅ Retry normal (mesmo modelo)
+  const handleRetryNormal = () => {
+    setShowRetryToast(false);
     if (lastUserQuery) {
+      onSendMessage(lastUserQuery);
+    }
+  };
+
+  // ✅ Retry com modelo Flash (mais rápido)
+  const handleRetryFlash = () => {
+    setShowRetryToast(false);
+    if (lastUserQuery) {
+      // TODO: Implementar flag para forçar modelo Flash no backend
+      // Por enquanto, envia normalmente
       onSendMessage(lastUserQuery);
     }
   };
@@ -227,8 +261,7 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
                           isLoading={isLoading} 
                           mode={mode} 
                           isDarkMode={isDarkMode} 
-                          onStop={isLoading ? onStop : undefined} 
-                          onRetry={handleRetryDuringLoading}
+                          onStop={isLoading ? handleStopWithToast : undefined}
                           processing={processing} 
                           searchQuery={lastUserQuery} 
                         />
@@ -323,6 +356,51 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
             </div>
           )}
         </div>
+
+        {/* ✅ TOAST PÓS-CANCELAMENTO */}
+        {showRetryToast && (
+          <div className={`fixed bottom-24 left-1/2 -translate-x-1/2 z-50 animate-fade-in`}>
+            <div className={`rounded-xl shadow-2xl border px-4 py-3 min-w-[320px] max-w-md ${isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}>
+              <div className="flex items-start gap-3">
+                <span className="text-xl mt-0.5">⚠️</span>
+                <div className="flex-1">
+                  <p className={`text-sm font-semibold mb-2 ${isDarkMode ? 'text-slate-200' : 'text-slate-900'}`}>
+                    Cancelado — Tentar novamente?
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleRetryNormal}
+                      className={`flex-1 px-3 py-2 rounded-lg text-xs font-semibold transition-all ${
+                        isDarkMode 
+                          ? 'bg-emerald-600 hover:bg-emerald-500 text-white' 
+                          : 'bg-emerald-500 hover:bg-emerald-600 text-white'
+                      }`}
+                    >
+                      🔄 Tentar novamente
+                    </button>
+                    <button
+                      onClick={handleRetryFlash}
+                      className={`flex-1 px-3 py-2 rounded-lg text-xs font-semibold transition-all border ${
+                        isDarkMode 
+                          ? 'border-slate-600 hover:bg-slate-700 text-slate-300' 
+                          : 'border-slate-300 hover:bg-slate-100 text-slate-700'
+                      }`}
+                      title="Tenta com o modelo mais rápido (Flash)"
+                    >
+                      ⚡ Mais rápido
+                    </button>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowRetryToast(false)}
+                  className={`text-xl opacity-50 hover:opacity-100 transition-opacity ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className={`flex-shrink-0 p-3 pb-4 md:p-6 border-t ${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-white border-slate-200'} z-20`}>
           <div className="w-full max-w-5xl xl:max-w-6xl mx-auto px-1 md:px-6 lg:px-8 relative">
