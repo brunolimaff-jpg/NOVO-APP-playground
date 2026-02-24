@@ -4,7 +4,7 @@ import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
 import mermaid from 'mermaid';
 import { GroundingSource } from '../types';
-import { fixFakeLinks, rewriteMarkdownLinksToGoogle, autoLinkSeniorTerms } from '../utils/linkFixer';
+import { fixFakeLinks, rewriteMarkdownLinksToGoogle, autoLinkSeniorTerms, cleanFakeSourcesBlock } from '../utils/linkFixer';
 
 interface MarkdownRendererProps {
   content: string;
@@ -120,16 +120,25 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
   const processedContent = useMemo(() => {
     if (!content) return '';
 
-    let text = content
-      .replace(/```mermaid[\s\S]*?```/g, (match) => {
-        const inner = match.replace(/```mermaid/, '').replace(/```/, '').trim();
-        return `{"__mermaid__":"${inner.replace(/`/g, '\\`').replace(/"/g, '\\"').replace(/\n/g, '\\n')}"}`;
-      });
+    let text = content;
 
+    // 1) Suportar formato {"mermaid":"..."} vindo do modelo
+    text = text.replace(/\{"mermaid":"([\s\S]*?)"\}/g, (_match, mermaidCode) => {
+      const unescaped = String(mermaidCode).replace(/\\n/g, '\n');
+      return `
+```mermaid
+${unescaped}
+```
+`;
+    });
+
+    // 2) Links e fontes
     text = fixFakeLinks(text);
     text = rewriteMarkdownLinksToGoogle(text);
     text = autoLinkSeniorTerms(text);
+    text = cleanFakeSourcesBlock(text);
 
+    // 3) Badge de fonte oficial
     text = text.replace(
       /\[(🟢|🟡|🔴)\s*CONFIRMADO OFICIAL\s*-\s*([^\]]+)\]/gi,
       '<verified data-level="$1" data-label="$2"></verified>'
@@ -138,27 +147,14 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
     return text;
   }, [content]);
 
-  const MermaidRenderer: React.FC<{ node: any }> = ({ node }) => {
-    try {
-      const value = node.children?.[0]?.value || '';
-      const parsed = JSON.parse(value);
-      if (parsed.__mermaid__) {
-        const chart = parsed.__mermaid__.replace(/\\n/g, '\n');
-        return <MermaidChart chart={chart} isDarkMode={isDarkMode} />;
-      }
-    } catch (e) {
-      console.error('Falha ao interpretar bloco Mermaid:', e);
-    }
-    return null;
-  };
-
   const renderers = {
-    code({ inline, className, children, node, ...props }: any) {
+    code({ inline, className, children, ...props }: any) {
       const match = /language-(\w+)/.exec(className || '');
       const isMermaid = match && match[1] === 'mermaid';
 
       if (!inline && isMermaid) {
-        return <MermaidRenderer node={node} />;
+        const chart = String(children).trim();
+        return <MermaidChart chart={chart} isDarkMode={isDarkMode} />;
       }
 
       return (
@@ -167,55 +163,6 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
         </code>
       );
     },
-  };
-
-  const sourcesList = groundingSources
-    .filter((s) => s.url)
-    .map((source, index) => {
-      const url = new URL(source.url!);
-      const hostname = url.hostname.replace('www.', '');
-
-      return (
-        <li key={index} className="text-xs text-slate-600 dark:text-slate-300 mb-1">
-          <span className="inline-flex items-center gap-2">
-            <span className="w-4 h-4 rounded-full bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center text-[10px] font-bold text-emerald-700 dark:text-emerald-300">
-              {index + 1}
-            </span>
-            <a
-              href={source.url!}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-emerald-700 dark:text-emerald-300 hover:underline"
-            >
-              {source.title || hostname}
-            </a>
-            <span className="text-[10px] text-slate-400 dark:text-slate-500 truncate max-w-[220px]">
-              {hostname}
-            </span>
-          </span>
-        </li>
-      );
-    });
-
-  const SourcesSection = () => {
-    if (!sourcesList.length) return null;
-
-    return (
-      <div className="mt-3 pt-3 border-t border-dashed border-emerald-200/70 dark:border-emerald-800/60">
-        <button
-          type="button"
-          className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.15em] text-emerald-700 dark:text-emerald-300 mb-2"
-        >
-          <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 dark:bg-emerald-900/60 text-[10px] font-bold text-emerald-700 dark:text-emerald-200">
-            {sourcesList.length}
-          </span>
-          Fontes verificadas
-        </button>
-        <ul className="list-none pl-0 space-y-1">
-          {sourcesList}
-        </ul>
-      </div>
-    );
   };
 
   const components: any = {
@@ -310,45 +257,19 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
     ),
   };
 
-  const markdown = <ReactMarkdown
-    remarkPlugins={[remarkGfm]}
-    rehypePlugins={[rehypeRaw]}
-    components={components}
-  >
-    {processedContent}
-  </ReactMarkdown>;
-
-  if (!groundingSources.length) {
-    return <div className="markdown-body">{markdown}</div>;
-  }
-
-  if (!showCollapsibleSources) {
-    return (
-      <div className="markdown-body">
-        {markdown}
-        <SourcesSection />
-      </div>
-    );
-  }
-
-  return (
-    <div className="markdown-body">
-      {markdown}
-      <details className="mt-3 group">
-        <summary className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.15em] text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 cursor-pointer select-none">
-          <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 dark:bg-emerald-900/60 text-[10px] font-bold text-emerald-700 dark:text-emerald-200">
-            {sourcesList.length}
-          </span>
-          Fontes consultadas (clique para ver)
-        </summary>
-        <div className="mt-2 pl-1 border-l border-dashed border-emerald-200/70 dark:border-emerald-800/60">
-          <ul className="list-none pl-0 space-y-1">
-            {sourcesList}
-          </ul>
-        </div>
-      </details>
-    </div>
+  const markdown = (
+    <ReactMarkdown
+      remarkPlugins={[remarkGfm]}
+      rehypePlugins={[rehypeRaw]}
+      components={components}
+    >
+      {processedContent}
+    </ReactMarkdown>
   );
+
+  // Não renderiza mais "Fontes consultadas" aqui.
+  // As fontes ficam centralizadas no ícone de livro / painel lateral.
+  return <div className="markdown-body">{markdown}</div>;
 };
 
 export default MarkdownRenderer;
