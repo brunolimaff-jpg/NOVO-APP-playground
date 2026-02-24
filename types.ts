@@ -188,7 +188,16 @@ export interface CRMStageData {
 export interface CRMCard {
   id: string;
   companyName: string;
+  // Compat: cnpj unico legado
   cnpj?: string | null;
+  // NOVO: lista de CNPJs
+  cnpjs?: string[];
+  // NOVO: campos basicos do cadastro
+  website?: string;
+  briefDescription?: string;
+  // NOVO: ExactSpotter
+  exactLink?: string;
+
   linkedSessionIds: string[];
   stage: CRMStage;
   createdAt: string;

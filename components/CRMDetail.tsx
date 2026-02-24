@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { ChatSession, CRM_STAGE_LABELS } from '../types';
+import { useCRM } from '../contexts/CRMContext';
 
 interface CRMDetailProps {
   card: any; // intencionalmente flexível para permitir campos adicionais do CRM
@@ -18,6 +19,8 @@ export const CRMDetail: React.FC<CRMDetailProps> = ({
   onMoveStage,
   isDarkMode,
 }) => {
+  const { updateCard, deleteCard } = useCRM();
+
   if (!card) return null;
 
   const linkedSessions = Array.isArray(card.linkedSessionIds)
@@ -43,12 +46,6 @@ export const CRMDetail: React.FC<CRMDetailProps> = ({
         : 'bg-red-500/15 text-red-700 dark:text-red-300'
     : 'bg-slate-500/10 text-slate-500';
 
-  const healthLabel = card.health === 'green'
-    ? 'Verde · Saudavel'
-    : card.health === 'yellow'
-      ? 'Amarela · Atencao'
-      : 'Vermelha · Critica';
-
   const cnpjs: string[] = Array.isArray(card.cnpjs)
     ? card.cnpjs
     : card.cnpj
@@ -57,7 +54,7 @@ export const CRMDetail: React.FC<CRMDetailProps> = ({
 
   const website: string = card.website || '';
   const initialExactLink: string = card.exactLink || '';
-  const briefDescription: string = card.briefDescription || card.description || '';
+  const briefDescription: string = card.briefDescription || '';
 
   const createdAt = card.createdAt ? new Date(card.createdAt).toLocaleDateString('pt-BR') : '';
   const updatedAt = card.updatedAt ? new Date(card.updatedAt).toLocaleDateString('pt-BR') : '';
@@ -73,6 +70,23 @@ export const CRMDetail: React.FC<CRMDetailProps> = ({
   const exactLocked = exactScanStatus === 'ok';
 
   const cleanDigits = (value: string) => value.replace(/\D/g, '');
+
+  const persistCnpj = async (digits: string) => {
+    const updated = {
+      ...card,
+      cnpj: digits,
+      cnpjs: [digits],
+    };
+    await updateCard(updated);
+  };
+
+  const persistExactLink = async (url: string) => {
+    const updated = {
+      ...card,
+      exactLink: url,
+    };
+    await updateCard(updated);
+  };
 
   const handleValidateCnpj = async () => {
     const digits = cleanDigits(manualCnpj);
@@ -92,9 +106,9 @@ export const CRMDetail: React.FC<CRMDetailProps> = ({
         return;
       }
 
-      // Nao precisamos dos campos agora; so confirmamos que existe
       setCnpjStatus('valid');
       setCnpjMessage('CNPJ valido. Dados basicos conferidos na BrasilAPI.');
+      await persistCnpj(digits);
     } catch (err) {
       console.error('Erro ao validar CNPJ na BrasilAPI', err);
       setCnpjStatus('error');
@@ -102,23 +116,29 @@ export const CRMDetail: React.FC<CRMDetailProps> = ({
     }
   };
 
+  const normalizeUrl = (raw: string) => raw.trim().replace(/[),.]+$/g, '');
+
   const handleScanExactLink = () => {
-    if (!exactLinkInput || !exactLinkInput.startsWith('http')) {
+    const url = normalizeUrl(exactLinkInput);
+    if (!url || !url.startsWith('http')) {
       setExactScanStatus('error');
       return;
     }
 
-    // Etapa 1: validacao simples de formato / dominio
-    const isExact = exactLinkInput.includes('app.exactspotter.com');
+    const isExact = url.includes('app.exactspotter.com');
     if (!isExact) {
       setExactScanStatus('error');
       return;
     }
 
-    // Future: aqui podemos chamar um backend para enriquecer dados a partir do link.
     setExactScanStatus('scanning');
-    setTimeout(() => {
+    setTimeout(async () => {
       setExactScanStatus('ok');
+      try {
+        await persistExactLink(url);
+      } catch (err) {
+        console.error('Erro ao salvar exactLink no CRM', err);
+      }
     }, 700);
   };
 
@@ -463,9 +483,10 @@ export const CRMDetail: React.FC<CRMDetailProps> = ({
         >
           <button
             type="button"
-            onClick={() => {
+            onClick={async () => {
               if (window.confirm('Excluir esta empresa do Mini CRM? Esta acao nao remove os dossies de investigacao.')) {
-                alert('Remocao do card do CRM sera implementada na proxima etapa.');
+                await deleteCard(card.id);
+                onClose();
               }
             }}
             className="order-2 md:order-1 inline-flex items-center justify-center px-3 py-2 rounded-lg border border-red-500/60 text-[12px] font-medium text-red-600 dark:text-red-400 hover:bg-red-500/10"
