@@ -14,6 +14,7 @@ interface SectionalBotMessageProps {
   mode?: ChatMode;
   onPreFillInput?: (text: string) => void;
   onRegenerateSuggestions?: (messageId: string) => void;
+  hideSuggestions?: boolean;
 }
 
 const SectionalBotMessage: React.FC<SectionalBotMessageProps> = ({
@@ -23,7 +24,8 @@ const SectionalBotMessage: React.FC<SectionalBotMessageProps> = ({
   isDarkMode,
   mode = 'diretoria',
   onPreFillInput,
-  onRegenerateSuggestions
+  onRegenerateSuggestions,
+  hideSuggestions = false
 }) => {
   const content = message.text || "";
   const { user } = useAuth();
@@ -51,7 +53,7 @@ const SectionalBotMessage: React.FC<SectionalBotMessageProps> = ({
             isDarkMode={isDarkMode} 
             groundingSources={message.groundingSources}
          />
-         {activeOptions.length > 0 && onPreFillInput && (
+         {activeOptions.length > 0 && onPreFillInput && !hideSuggestions && (
             <SmartOptions 
               options={activeOptions} 
               onPreFillInput={onPreFillInput}
@@ -78,7 +80,7 @@ const SectionalBotMessage: React.FC<SectionalBotMessageProps> = ({
         </div>
       ))}
 
-      {activeOptions.length > 0 && onPreFillInput && (
+      {activeOptions.length > 0 && onPreFillInput && !hideSuggestions && (
         <div className="pt-2 border-t border-dashed border-gray-500/20 mt-4">
            <SmartOptions 
               options={activeOptions} 

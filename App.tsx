@@ -193,7 +193,7 @@ function detectInconsistencies(sections: string[]): string {
 
   const patterns = [
     { label: 'Faturamento', regex: /faturamento[^:]*?:?\s*(?:R\$\s*)?(\d[\d.,]*\s*(?:mi|bi|mil|trilh)[a-zõã]*)/gi },
-    { label: 'Área/Hectares', regex: /(\d[\d.,]*)\s*(?:mil\s+)?(?:hectares|ha)/gi },
+    { label: 'Área/Hectares', regex: /(\d[\d.,]*)\s*(?:mil\s+)?(?:hectares|ha\b)/gi },
     { label: 'Funcionários', regex: /(\d[\d.,]*)\s*(?:mil\s+)?(?:funcionários|colaboradores|empregados)/gi },
     { label: 'Receita', regex: /receita[^:]*?:?\s*(?:R\$\s*)?(\d[\d.,]*\s*(?:mi|bi|mil|trilh)[a-zõã]*)/gi },
     { label: 'Unidades', regex: /(\d[\d.,]*)\s*(?:unidades|filiais|fábricas|plantas|usinas)/gi },
@@ -846,6 +846,20 @@ const App: React.FC = () => {
     await handleSendMessage(finalPromptToAI, displayMessage);
   };
 
+  // ============================================
+  // EXCLUSÃO DE MENSAGENS DO USUÁRIO
+  // ============================================
+  const handleDeleteMessage = (id: string) => {
+    if (!currentSessionId) return;
+    setSessions(prev => prev.map(session => {
+      if (session.id !== currentSessionId) return session;
+      return {
+        ...session,
+        messages: session.messages.filter(m => m.id !== id),
+        updatedAt: new Date().toISOString(),
+      };
+    }));
+  };
 
   const handleStopGeneration = useCallback(() => {
     if (abortControllerRef.current) {
@@ -1281,7 +1295,7 @@ const App: React.FC = () => {
         hasMore={allMessages.length > visibleCount}
         onSendMessage={handleSendMessage}
         
-        // 👉 AQUI ENTRA A FUNÇÃO NOVA QUE ADICIONAMOS:
+        // Deep Dive
         onDeepDive={handleDeepDive} 
         
         onFeedback={handleFeedback}
@@ -1315,6 +1329,7 @@ const App: React.FC = () => {
         onLogout={logout}
         lastUserQuery={lastQuery}
         processing={{ stage: loadingStatus, completedStages: completedLoadingStatuses }}
+        onDeleteMessage={handleDeleteMessage}
       />
 
       {/* Email Modal */}
