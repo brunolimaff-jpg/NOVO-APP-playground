@@ -1383,8 +1383,20 @@ const App: React.FC = () => {
   );
 
   const crmElement = (
-    <div className={`flex h-screen w-full ${isDarkMode ? 'bg-slate-950' : 'bg-slate-50'}`}>
+    <div className={`flex h-full w-full ${isDarkMode ? 'bg-slate-950' : 'bg-slate-50'}`}>
       <div className="flex-1 p-4 md:p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Pipeline de Vendas · Kanban</p>
+            <h1 className="text-sm md:text-base font-semibold text-slate-800 dark:text-slate-100">Mini CRM</h1>
+          </div>
+          <button
+            onClick={() => setActiveView('chat')}
+            className="text-[11px] px-3 py-1.5 rounded-full border border-slate-300/70 dark:border-slate-700 text-slate-600 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+          >
+            ← Voltar para Investigação
+          </button>
+        </div>
         <CRMPipeline
           cards={cards}
           onMoveCard={handleMoveCRMCard}
@@ -1398,7 +1410,48 @@ const App: React.FC = () => {
     <>
       <AuthModal />
 
-      {activeView === 'chat' ? chatElement : crmElement}
+      <div className={`flex flex-col h-screen w-full ${isDarkMode ? 'bg-slate-950' : 'bg-slate-50'}`}>
+        <header className={`h-12 px-3 md:px-4 flex items-center justify-between border-b backdrop-blur-sm ${isDarkMode ? 'bg-slate-950/80 border-slate-800' : 'bg-white/80 border-slate-200'}`}>
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">Senior Scout 360</span>
+              <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold tracking-wide uppercase bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
+                {MODE_LABELS[mode].icon} {MODE_LABELS[mode].label}
+              </span>
+            </div>
+            <div className="ml-2 flex rounded-full bg-slate-100 dark:bg-slate-800 p-0.5 text-[11px]">
+              <button
+                onClick={() => setActiveView('chat')}
+                className={`px-3 py-1 rounded-full flex items-center gap-1 ${
+                  activeView === 'chat'
+                    ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-semibold shadow-sm'
+                    : 'text-slate-500 dark:text-slate-400'
+                }`}
+              >
+                💬 <span className="hidden xs:inline">Investigação</span>
+              </button>
+              <button
+                onClick={() => setActiveView('crm')}
+                className={`px-3 py-1 rounded-full flex items-center gap-1 ${
+                  activeView === 'crm'
+                    ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-semibold shadow-sm'
+                    : 'text-slate-500 dark:text-slate-400'
+                }`}
+              >
+                📋 <span className="hidden xs:inline">CRM</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {renderUserHeader()}
+          </div>
+        </header>
+
+        <div className="flex-1 min-h-0">
+          {activeView === 'chat' ? chatElement : crmElement}
+        </div>
+      </div>
 
       <CRMDetail
         card={selectedCRMCard}
