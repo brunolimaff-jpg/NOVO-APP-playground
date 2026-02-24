@@ -69,13 +69,19 @@ export const CRMDetail: React.FC<CRMDetailProps> = ({
   const [exactScanStatus, setExactScanStatus] = useState<'idle' | 'scanning' | 'ok' | 'error'>(initialExactLink ? 'ok' : 'idle');
   const exactLocked = exactScanStatus === 'ok';
 
+  // Estado local para anotações de prospecção
+  const initialProspeccaoNotes: string =
+    card.stages?.prospeccao?.crmNotes || '';
+  const [prospectionNotes, setProspectionNotes] = useState(initialProspeccaoNotes);
+
   const cleanDigits = (value: string) => value.replace(/\D/g, '');
 
-  const persistCnpj = async (digits: string) => {
+  const persistCnpjAndName = async (digits: string, razaoSocial?: string, fantasia?: string) => {
     const updated = {
       ...card,
       cnpj: digits,
       cnpjs: [digits],
+      companyName: razaoSocial || fantasia || card.companyName,
     };
     await updateCard(updated);
   };
@@ -85,6 +91,27 @@ export const CRMDetail: React.FC<CRMDetailProps> = ({
       ...card,
       exactLink: url,
     };
+    await updateCard(updated);
+  };
+
+  const persistProspectionNotes = async (value: string) => {
+    const existingStage = card.stages?.prospeccao || {
+      transcriptions: [],
+      executiveNotes: '',
+      technicalNotes: '',
+    };
+
+    const updated = {
+      ...card,
+      stages: {
+        ...(card.stages || {}),
+        prospeccao: {
+          ...existingStage,
+          crmNotes: value,
+        },
+      },
+    };
+
     await updateCard(updated);
   };
 
@@ -106,9 +133,17 @@ export const CRMDetail: React.FC<CRMDetailProps> = ({
         return;
       }
 
+      const data: any = await resp.json().catch(() => null);
+      const razao = data?.razao_social || data?.nome_fantasia;
+
+      await persistCnpjAndName(digits, razao, data?.nome_fantasia);
+
       setCnpjStatus('valid');
-      setCnpjMessage('CNPJ valido. Dados basicos conferidos na BrasilAPI.');
-      await persistCnpj(digits);
+      setCnpjMessage(
+        razao
+          ? `CNPJ valido. Razao social: ${razao}.`
+          : 'CNPJ valido. Dados basicos conferidos na BrasilAPI.'
+      );
     } catch (err) {
       console.error('Erro ao validar CNPJ na BrasilAPI', err);
       setCnpjStatus('error');
@@ -428,6 +463,33 @@ export const CRMDetail: React.FC<CRMDetailProps> = ({
                     : 'Data nao registrada'}
                 </p>
               </div>
+
+              {card.stage === 'prospeccao' && (
+                <div
+                  className={`rounded-xl border p-4 ${
+                    isDarkMode ? 'bg-slate-900/60 border-slate-700' : 'bg-slate-50 border-slate-200'
+                  }`}
+                >
+                  <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-2 block">
+                    Anotacoes (Prospecçao)
+                  </label>
+                  <textarea
+                    rows={4}
+                    value={prospectionNotes}
+                    onChange={e => setProspectionNotes(e.target.value)}
+                    onBlur={() => persistProspectionNotes(prospectionNotes)}
+                    placeholder="Anote aqui dores principais, decisores, contexto da ligacao, proximo passo, etc."
+                    className={`w-full rounded-lg border px-3 py-2 text-sm resize-y ${
+                      isDarkMode
+                        ? 'bg-slate-900 border-slate-700 text-slate-100 placeholder-slate-600'
+                        : 'bg-white border-slate-300 text-slate-900 placeholder-slate-400'
+                    }`}
+                  />
+                  <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
+                    Essas anotacoes ficam apenas neste modal da empresa, para apoiar o follow-up na prospeccao.
+                  </p>
+                </div>
+              )}
 
               <div
                 className={`rounded-xl border p-4 ${
