@@ -1,273 +1,352 @@
-import React, { useMemo, useState, useEffect } from 'react';
-import Markdown from 'react-markdown';
+import React, { useEffect, useMemo, useState } from 'react';
+import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import remarkBreaks from 'remark-breaks';
 import rehypeRaw from 'rehype-raw';
 import mermaid from 'mermaid';
-import { autoLinkSeniorTerms } from '../utils/seniorLinks';
-import { rewriteMarkdownLinksToGoogle } from '../utils/markdownLinks';
-import { cleanStatusMarkers } from '../utils/textCleaners';
-import { fixFakeLinks } from '../utils/linkFixer';
-import { isFakeUrl } from '../services/apiConfig';
+import { GroundingSource } from '../types';
+import { fixFakeLinks, rewriteMarkdownLinksToGoogle, autoLinkSeniorTerms } from '../utils/linkFixer';
 
 interface MarkdownRendererProps {
   content: string;
-  isDarkMode: boolean;
-  groundingSources?: Array<{ title: string; url: string }>;
+  isDarkMode?: boolean;
+  groundingSources?: GroundingSource[];
   showCollapsibleSources?: boolean;
 }
 
-interface FootnoteSource {
-  num: number;
-  title: string;
-  url: string;
+interface MermaidProps {
+  chart: string;
+  isDarkMode?: boolean;
 }
 
-const sanitizeMermaidCode = (code: string): string => {
-  return code
-    .replace(/<br\s*\/?>(?=\s|$)/gi, ' ')
-    .replace(/<!--[\s\S]*?-->/g, '')
-    .replace(/[\u{1F300}-\u{1FAFF}]/gu, '')
-    .replace(/\r/g, '')
-    .trim();
-};
-
-const MermaidGraph: React.FC<{ chart: string; isDarkMode: boolean }> = ({ chart, isDarkMode }) => {
+const MermaidChart: React.FC<MermaidProps> = ({ chart, isDarkMode }) => {
   const [svg, setSvg] = useState<string>('');
+  const [error, setError] = useState<string | null>(null);
+  const [showDetails, setShowDetails] = useState(false);
 
   useEffect(() => {
-    mermaid.initialize({
-      startOnLoad: false,
-      theme: isDarkMode ? 'dark' : 'default',
-      securityLevel: 'loose',
-    });
+    if (!chart?.trim()) return;
 
-    const renderChart = async () => {
+    const initMermaid = async () => {
       try {
+        const clean = sanitizeMermaidCode(chart);
+        if (!clean) return;
+
+        await mermaid.initialize({
+          startOnLoad: false,
+          theme: isDarkMode ? 'dark' : 'default',
+          securityLevel: 'loose',
+        });
+
         const id = `mermaid-${Math.random().toString(36).substring(2, 9)}`;
-        const safeCode = sanitizeMermaidCode(chart);
-        const { svg: renderedSvg } = await mermaid.render(id, safeCode);
-        setSvg(renderedSvg);
-      } catch (error: any) {
-        console.error('Erro ao renderizar Mermaid:', error);
-        const message = error?.message || String(error || 'Erro desconhecido');
-        setSvg(`
-          <div class="text-red-500 text-sm border border-red-500/20 p-4 rounded-lg bg-red-500/10 font-bold">
-            ⚠️ Falha ao gerar o Mapa Societário. O dado retornado pela IA foi incompatível com o gráfico.
-            <details class="mt-2 text-xs font-normal text-red-400 whitespace-pre-wrap">
-              <summary class="cursor-pointer">Ver detalhes técnicos</summary>
-              ${message.replace(/[<>]/g, '')}
-            </details>
-          </div>
-        `);
+        const { svg } = await mermaid.render(id, clean);
+        setSvg(svg);
+        setError(null);
+      } catch (err: any) {
+        console.error('Erro Mermaid:', err);
+        setError(err?.str || err?.message || 'Falha ao renderizar diagrama');
       }
     };
-    renderChart();
+
+    initMermaid();
   }, [chart, isDarkMode]);
 
+  if (error) {
+    return (
+      <div className="mt-2 mb-4 rounded-xl border border-amber-300 bg-amber-50/80 dark:bg-amber-950/40 dark:border-amber-700 px-3 py-2 text-xs text-amber-900 dark:text-amber-100">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <span>⚠️</span>
+            <p className="font-semibold">Não consegui desenhar o mapa visual automaticamente.</p>
+          </div>
+          <button
+            onClick={() => setShowDetails(v => !v)}
+            className="text-[10px] font-semibold underline underline-offset-2"
+          >
+            Ver detalhes técnicos
+          </button>
+        </div>
+        {showDetails && (
+          <pre className="mt-2 max-h-40 overflow-auto rounded-md bg-black/5 dark:bg-black/40 p-2 text-[10px] leading-snug">
+            {error}
+          </pre>
+        )}
+      </div>
+    );
+  }
+
+  if (!svg) return null;
+
   return (
-    <div 
-      className={`flex justify-center my-8 overflow-x-auto w-full border rounded-xl p-4 shadow-sm ${isDarkMode ? 'border-slate-800 bg-slate-900' : 'border-slate-200 bg-white'}`}
-      dangerouslySetInnerHTML={{ __html: svg }} 
+    <div
+      className="mermaid-chart my-3 overflow-x-auto"
+      dangerouslySetInnerHTML={{ __html: svg }}
     />
   );
 };
 
-const CollapsibleSources: React.FC<{ sources: FootnoteSource[]; isDarkMode: boolean }> = ({ sources, isDarkMode }) => {
-  const [isOpen, setIsOpen] = useState(false);
-  if (!sources || sources.length === 0) return null;
+function sanitizeMermaidCode(input: string): string {
+  if (!input) return '';
 
-  return (
-    <div className="mt-6 border-t border-slate-200 dark:border-slate-800 pt-6">
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className={`flex items-center gap-2 px-4 py-2 rounded-full border text-xs font-bold transition-colors ${isDarkMode ? 'border-slate-700 bg-slate-800 text-slate-300 hover:bg-slate-700' : 'border-slate-300 bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
-      >
-        <span className="text-sm">📚</span> Fontes Verificadas ({sources.length})
-        <span className={`transform transition-transform text-[10px] ${isOpen ? 'rotate-180' : ''}`}>▼</span>
-      </button>
+  let code = input
+    .replace(/<br\s*\/?>(\s*)/gi, '\n')
+    .replace(/&lt;br\s*\/?&gt;(\s*)/gi, '\n')
+    .replace(/<!--[\s\S]*?-->/g, '')
+    .replace(/[\u{1F300}-\u{1FAFF}]/gu, '')
+    .replace(/[\u2013\u2014]/g, '-')
+    .replace(/^[^a-zA-Z0-9]+/, '')
+    .trim();
 
-      {isOpen && (
-        <div className={`mt-3 p-4 rounded-xl border flex flex-col gap-3 ${isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}>
-          {sources.map((s) => (
-            <div key={s.num} className="flex items-start gap-3">
-              <span className="shrink-0 w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[10px] font-bold mt-0.5">
-                {s.num}
-              </span>
-              <div className="flex-1 min-w-0">
-                {s.url && !isFakeUrl(s.url) ? (
-                  <a href={s.url} target="_blank" rel="noopener noreferrer" className="text-emerald-600 dark:text-emerald-400 font-semibold text-sm hover:underline break-words">
-                    {s.title}
-                  </a>
-                ) : (
-                  <span className="text-slate-600 dark:text-slate-300 font-semibold text-sm break-words">{s.title}</span>
-                )}
-                {s.url && !isFakeUrl(s.url) && (
-                  <div className="text-slate-400 dark:text-slate-500 text-[10px] mt-0.5 truncate">{s.url}</div>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-};
+  const mermaidStart = /(graph\s+(?:TB|TD|LR|RL|BT)?|flowchart\s+(?:TB|TD|LR|RL|BT)?|sequenceDiagram|gantt|classDiagram|stateDiagram-v2?|erDiagram|journey|pie|quadrantChart|gitGraph)/i;
+  const match = code.match(mermaidStart);
+  if (!match) return '';
 
-const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, isDarkMode, groundingSources, showCollapsibleSources = true }) => {
-  
-  const { processedContent, footnoteSources } = useMemo(() => {
-    let text = cleanStatusMarkers(content.replace(/\[\[STATUS:.*?\]\]\n?/g, '')).cleanText;
+  const startIndex = match.index ?? 0;
+  code = code.slice(startIndex).trim();
+
+  const firstWord = code.split(/\s+/)[0].toLowerCase();
+  if (!/^(graph|flowchart|sequencediagram|gantt|classdiagram|statediagram-v2?|erdiagram|journey|pie|quadrantchart|gitgraph)$/.test(firstWord)) {
+    return '';
+  }
+
+  return code;
+}
+
+const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
+  content,
+  isDarkMode = false,
+  groundingSources = [],
+  showCollapsibleSources = false,
+}) => {
+  const processedContent = useMemo(() => {
+    if (!content) return '';
+
+    let text = content
+      .replace(/```mermaid[\s\S]*?```/g, (match) => {
+        const inner = match.replace(/```mermaid/, '').replace(/```/, '').trim();
+        return `{"__mermaid__":"${inner.replace(/`/g, '\\`').replace(/"/g, '\\"').replace(/\n/g, '\\n')}"}`;
+      });
+
     text = fixFakeLinks(text);
     text = rewriteMarkdownLinksToGoogle(text);
     text = autoLinkSeniorTerms(text);
 
-    text = text.replace(/\[\[PORTA:.*?\]\]/g, '');
-    text = text.replace(/\*?\*?Score PORTA:\*?\*?\s*\d+\/100.*?\n/gi, '');
+    text = text.replace(
+      /\[(🟢|🟡|🔴)\s*CONFIRMADO OFICIAL\s*-\s*([^\]]+)\]/gi,
+      '<verified data-level="$1" data-label="$2"></verified>'
+    );
 
-    const map = new Map<string, number>();
-    const sources: FootnoteSource[] = [];
-    let counter = 0;
+    return text;
+  }, [content]);
 
-    const getNum = (url: string, title: string) => {
-      if (!url || isFakeUrl(url)) return null;
-      let num = map.get(url);
-      if (!num) {
-        counter++;
-        num = counter;
-        map.set(url, num);
-        sources.push({ num, title, url });
+  const MermaidRenderer: React.FC<{ node: any }> = ({ node }) => {
+    try {
+      const value = node.children?.[0]?.value || '';
+      const parsed = JSON.parse(value);
+      if (parsed.__mermaid__) {
+        const chart = parsed.__mermaid__.replace(/\\n/g, '\n');
+        return <MermaidChart chart={chart} isDarkMode={isDarkMode} />;
       }
-      return num;
-    };
-
-    if (groundingSources) {
-      groundingSources.forEach(gs => getNum(gs.url, gs.title));
+    } catch (e) {
+      console.error('Falha ao interpretar bloco Mermaid:', e);
     }
-
-    text = text.replace(/\[\^(\d+)\]/g, '<footnote data-num="$1"></footnote>');
-    text = text.replace(/(?<!\[)\[(\d+)\](?!\()/g, '<footnote data-num="$1"></footnote>');
-    text = text.replace(/(?<!\[)\^(\d+)/g, '<footnote data-num="$1"></footnote>');
-
-    return { processedContent: text, footnoteSources: sources };
-  }, [content, groundingSources]);
-
-  const theme = {
-    textNormal: isDarkMode ? 'text-slate-300' : 'text-slate-700',
-    textBold: isDarkMode ? 'text-white' : 'text-slate-900',
-    h1: isDarkMode ? 'text-white' : 'text-slate-900',
-    h2: isDarkMode ? 'text-emerald-500' : 'text-emerald-600',
-    h3: isDarkMode ? 'text-emerald-400' : 'text-emerald-600',
-    hr: isDarkMode ? 'border-slate-700' : 'border-slate-200',
+    return null;
   };
 
-  return (
-    <div className={`markdown-body ${theme.textNormal} w-full max-w-full text-[15px] md:text-base`} style={{ overflowWrap: 'break-word', wordBreak: 'break-word' }}>
-      <Markdown
-        remarkPlugins={[remarkGfm, remarkBreaks]}
-        rehypePlugins={[rehypeRaw]}
-        components={{
-          footnote: (props: any) => {
-             const num = parseInt(props['data-num'], 10);
-             const source = footnoteSources.find(s => s.num === num);
-             
-             if (source && source.url && !isFakeUrl(source.url)) {
-               let shortName = source.title;
-               if (!shortName || shortName.length > 25) {
-                  try {
-                    shortName = new URL(source.url).hostname.replace(/^www\./, '');
-                  } catch {
-                    shortName = `Fonte ${num}`;
-                  }
-               }
+  const renderers = {
+    code({ inline, className, children, node, ...props }: any) {
+      const match = /language-(\w+)/.exec(className || '');
+      const isMermaid = match && match[1] === 'mermaid';
 
-               return (
-                 <a
-                   href={source.url}
-                   target="_blank"
-                   rel="noopener noreferrer"
-                   className="inline-flex items-center gap-1 px-2 py-0.5 mx-1 rounded bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-800/50 text-emerald-700 dark:text-emerald-400 text-[10px] font-bold hover:bg-emerald-100 dark:hover:bg-emerald-800/80 transition-colors no-underline align-middle shadow-sm"
-                   title={source.title}
-                 >
-                   <span className="text-[10px]">🔗</span> {shortName}
-                 </a>
-               );
-             }
-             return null;
-          },
+      if (!inline && isMermaid) {
+        return <MermaidRenderer node={node} />;
+      }
 
-          a: ({ href, children, ...props }) => {
-            if (!href || isFakeUrl(href)) {
-              return <strong className="text-emerald-600 dark:text-emerald-400 font-bold">{children}</strong>;
-            }
-            return (
-              <a 
-                href={href} 
-                target="_blank" 
-                rel="noopener noreferrer" 
-                className="text-emerald-600 dark:text-emerald-400 font-semibold hover:text-emerald-500 underline decoration-emerald-500/30 underline-offset-4 transition-colors break-words" 
-                {...props}
-              >
-                {children}
-              </a>
-            );
-          },
+      return (
+        <code className={className} {...props}>
+          {children}
+        </code>
+      );
+    },
+  };
 
-          code(props) {
-            const {children, className, ...rest} = props;
-            const match = /language-(\w+)/.exec(className || '');
-            const contentStr = String(children).trim();
-            
-            const isMermaid =
-              (match && match[1] === 'mermaid') ||
-              /^(graph|flowchart|sequenceDiagram|pie|gantt|classDiagram|stateDiagram|erDiagram|journey)\b/.test(contentStr);
+  const sourcesList = groundingSources
+    .filter((s) => s.url)
+    .map((source, index) => {
+      const url = new URL(source.url!);
+      const hostname = url.hostname.replace('www.', '');
 
-            if (isMermaid) {
-              return <MermaidGraph chart={contentStr} isDarkMode={isDarkMode} />;
-            }
-            
-            return match ? (
-              <pre className="block p-5 rounded-xl my-4 text-sm bg-slate-900 text-emerald-300 overflow-x-auto shadow-inner border border-slate-800">
-                <code className={className} {...rest}>{children}</code>
-              </pre>
-            ) : (
-              <code className="bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded font-mono text-[0.9em] text-emerald-600 dark:text-emerald-400" {...rest}>
-                {children}
-              </code>
-            );
-          },
+      return (
+        <li key={index} className="text-xs text-slate-600 dark:text-slate-300 mb-1">
+          <span className="inline-flex items-center gap-2">
+            <span className="w-4 h-4 rounded-full bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center text-[10px] font-bold text-emerald-700 dark:text-emerald-300">
+              {index + 1}
+            </span>
+            <a
+              href={source.url!}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-emerald-700 dark:text-emerald-300 hover:underline"
+            >
+              {source.title || hostname}
+            </a>
+            <span className="text-[10px] text-slate-400 dark:text-slate-500 truncate max-w-[220px]">
+              {hostname}
+            </span>
+          </span>
+        </li>
+      );
+    });
 
-          table: ({...props}) => (
-            <div className={`overflow-x-auto my-6 border rounded-xl shadow-sm ${isDarkMode ? 'border-slate-700 bg-slate-900/50' : 'border-slate-200 bg-white'}`}>
-              <table className="min-w-full text-sm text-left border-collapse" {...props} />
-            </div>
-          ),
-          thead: ({...props}) => <thead className={`border-b ${isDarkMode ? 'bg-slate-800/80 border-slate-700' : 'bg-slate-50 border-slate-200'}`} {...props} />,
-          th: ({...props}) => <th className={`px-5 py-3.5 font-bold uppercase tracking-wider text-[11px] ${isDarkMode ? 'text-slate-300' : 'text-slate-500'}`} {...props} />,
-          td: ({...props}) => <td className={`px-5 py-3.5 border-b align-middle font-medium ${isDarkMode ? 'border-slate-800 text-slate-300' : 'border-slate-100 text-slate-700'}`} {...props} />,
-          tr: ({...props}) => <tr className={`transition-colors ${isDarkMode ? 'hover:bg-slate-800/50' : 'hover:bg-slate-50/80'}`} {...props} />,
+  const SourcesSection = () => {
+    if (!sourcesList.length) return null;
 
-          h1: ({...props}) => <h1 className={`text-xl md:text-2xl font-black ${theme.h1} mt-8 mb-4 tracking-tight`} {...props} />,
-          h2: ({...props}) => <h2 className={`text-lg md:text-xl font-bold ${theme.h2} mt-8 mb-4 border-b border-emerald-500/20 pb-2`} {...props} />,
-          h3: ({...props}) => <h3 className={`text-base md:text-lg font-bold ${theme.h3} mt-6 mb-3`} {...props} />,
-          p: ({...props}) => <p className="mb-4 leading-relaxed" {...props} />,
-          ul: ({...props}) => <ul className="list-disc pl-6 mb-4 space-y-1.5" {...props} />,
-          ol: ({...props}) => <ol className="list-decimal pl-6 mb-4 space-y-1.5" {...props} />,
-          li: ({...props}) => <li className="pl-1" {...props} />,
-          hr: ({...props}) => <hr className={`${theme.hr} my-8 border-t-2`} {...props} />,
-          strong: ({...props}) => <strong className={`${theme.textBold} font-extrabold`} {...props} />,
-          blockquote: ({...props}) => (
-            <blockquote 
-              className="border-l-4 border-emerald-500 pl-5 py-3 my-5 bg-emerald-50 dark:bg-emerald-900/30 text-slate-800 dark:text-slate-200 font-medium italic rounded-r-xl shadow-sm" 
-              {...props} 
-            />
-          ),
-        }}
+    return (
+      <div className="mt-3 pt-3 border-t border-dashed border-emerald-200/70 dark:border-emerald-800/60">
+        <button
+          type="button"
+          className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.15em] text-emerald-700 dark:text-emerald-300 mb-2"
+        >
+          <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 dark:bg-emerald-900/60 text-[10px] font-bold text-emerald-700 dark:text-emerald-200">
+            {sourcesList.length}
+          </span>
+          Fontes verificadas
+        </button>
+        <ul className="list-none pl-0 space-y-1">
+          {sourcesList}
+        </ul>
+      </div>
+    );
+  };
+
+  const components: any = {
+    ...renderers,
+    verified: (props: any) => {
+      const level = props['data-level'] as string;
+      const label = props['data-label'] as string;
+
+      const colorClasses =
+        level === '🟢'
+          ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-300 dark:border-emerald-700'
+          : level === '🟡'
+          ? 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/40 dark:text-amber-300 dark:border-amber-700'
+          : 'bg-red-50 text-red-700 border-red-200 dark:bg-red-900/40 dark:text-red-300 dark:border-red-700';
+
+      return (
+        <span
+          className={
+            'inline-flex items-center gap-1 px-2 py-0.5 ml-1 rounded-full text-[10px] font-semibold border align-middle ' +
+            colorClasses
+          }
+        >
+          <span>{level}</span>
+          <span>Fonte oficial: {label}</span>
+        </span>
+      );
+    },
+    a: ({ href, children, ...props }: any) => (
+      <a
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-emerald-700 dark:text-emerald-300 hover:underline"
+        {...props}
       >
-        {processedContent}
-      </Markdown>
+        {children}
+      </a>
+    ),
+    p: ({ children }: any) => (
+      <p className="mb-2 last:mb-0 text-sm md:text-[0.95rem] leading-relaxed text-slate-800 dark:text-slate-100">
+        {children}
+      </p>
+    ),
+    ul: ({ children }: any) => (
+      <ul className="list-disc pl-5 mb-2 space-y-1 text-sm md:text-[0.95rem] text-slate-800 dark:text-slate-100">
+        {children}
+      </ul>
+    ),
+    ol: ({ children }: any) => (
+      <ol className="list-decimal pl-5 mb-2 space-y-1 text-sm md:text-[0.95rem] text-slate-800 dark:text-slate-100">
+        {children}
+      </ol>
+    ),
+    li: ({ children }: any) => <li className="leading-relaxed">{children}</li>,
+    h1: ({ children }: any) => (
+      <h1 className="text-lg md:text-xl font-black tracking-tight mb-3 text-slate-900 dark:text-white">
+        {children}
+      </h1>
+    ),
+    h2: ({ children }: any) => (
+      <h2 className="text-base md:text-lg font-black tracking-tight mt-4 mb-2 text-slate-900 dark:text-slate-50 border-b border-emerald-100 dark:border-emerald-900/60 pb-1 flex items-center gap-2">
+        <span className="w-1 h-4 rounded-full bg-emerald-500/80" />
+        {children}
+      </h2>
+    ),
+    h3: ({ children }: any) => (
+      <h3 className="text-[0.95rem] md:text-[1rem] font-extrabold mt-3 mb-1 text-slate-900 dark:text-slate-50 flex items-center gap-2">
+        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+        {children}
+      </h3>
+    ),
+    h4: ({ children }: any) => (
+      <h4 className="text-[0.9rem] font-bold mt-2 mb-1 text-slate-900 dark:text-slate-50">
+        {children}
+      </h4>
+    ),
+    blockquote: ({ children }: any) => (
+      <blockquote className="border-l-4 border-amber-400/80 bg-amber-50/80 dark:bg-amber-950/40 dark:border-amber-500/70 px-3 py-2 my-2 rounded-r-md text-xs md:text-[0.9rem] text-amber-900 dark:text-amber-100">
+        {children}
+      </blockquote>
+    ),
+    code: ({ inline, children, className, ...props }: any) => (
+      <code
+        className={
+          'font-mono text-[0.75rem] px-1 py-0.5 rounded bg-slate-100 dark:bg-slate-900/60 text-emerald-700 dark:text-emerald-300 ' +
+          (className || '')
+        }
+        {...props}
+      >
+        {children}
+      </code>
+    ),
+  };
 
-      {showCollapsibleSources && <CollapsibleSources sources={footnoteSources} isDarkMode={isDarkMode} />}
+  const markdown = <ReactMarkdown
+    remarkPlugins={[remarkGfm]}
+    rehypePlugins={[rehypeRaw]}
+    components={components}
+  >
+    {processedContent}
+  </ReactMarkdown>;
+
+  if (!groundingSources.length) {
+    return <div className="markdown-body">{markdown}</div>;
+  }
+
+  if (!showCollapsibleSources) {
+    return (
+      <div className="markdown-body">
+        {markdown}
+        <SourcesSection />
+      </div>
+    );
+  }
+
+  return (
+    <div className="markdown-body">
+      {markdown}
+      <details className="mt-3 group">
+        <summary className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.15em] text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 cursor-pointer select-none">
+          <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 dark:bg-emerald-900/60 text-[10px] font-bold text-emerald-700 dark:text-emerald-200">
+            {sourcesList.length}
+          </span>
+          Fontes consultadas (clique para ver)
+        </summary>
+        <div className="mt-2 pl-1 border-l border-dashed border-emerald-200/70 dark:border-emerald-800/60">
+          <ul className="list-none pl-0 space-y-1">
+            {sourcesList}
+          </ul>
+        </div>
+      </details>
     </div>
   );
 };

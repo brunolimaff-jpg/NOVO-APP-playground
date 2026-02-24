@@ -50,6 +50,7 @@ function extractDisplayedSuggestions(content?: string): string[] {
 
 type ExtendedChatInterfaceProps = ChatInterfaceProps & {
   onDeepDive?: (displayMessage: string, hiddenPrompt: string) => void;
+  onDeleteMessage?: (id: string) => void;
 };
 
 const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
@@ -61,7 +62,8 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
   remoteSaveStatus, isDarkMode, onToggleTheme, onToggleMessageSources, 
   exportStatus, exportError, pdfReportContent, onOpenEmailModal,
   onOpenFollowUpModal, userId, onLogout, lastUserQuery, processing,
-  onDeepDive
+  onDeepDive,
+  onDeleteMessage
 }) => {
   const { mode, setMode } = useMode();
   const { user, updateName } = useAuth();
@@ -131,6 +133,28 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
       if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     };
   }, [showRetryToast]);
+
+  // ==========================================
+  // LÓGICA PARA ESCONDER/EXIBIR SUGESTÕES
+  // ==========================================
+  const lastBotWithSuggestionsIndex = [...messages]
+    .map((m, i) => ({ m, i }))
+    .filter(({ m }) => m.sender === Sender.Bot && m.suggestions && m.suggestions.length > 0)
+    .map(({ i }) => i)
+    .pop();
+
+  const lastUserIndex = [...messages]
+    .map((m, i) => ({ m, i }))
+    .filter(({ m }) => m.sender === Sender.User)
+    .map(({ i }) => i)
+    .pop();
+
+  const hideSuggestionsForMessageId =
+    lastBotWithSuggestionsIndex !== undefined &&
+    lastUserIndex !== undefined &&
+    lastUserIndex > lastBotWithSuggestionsIndex
+      ? messages[lastBotWithSuggestionsIndex].id
+      : null;
 
   const handleSend = () => {
     if (!input.trim() || isLoading) return;
@@ -311,6 +335,7 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
                 const textSources = extractSources(msg.text || "");
                 const rawSources = (msg.groundingSources && msg.groundingSources.length > 0) ? msg.groundingSources : textSources;
                 const displaySources = rawSources.filter(s => s.url && !isFakeUrl(s.url));
+                const sourcesCount = displaySources.length;
 
                 return (
                   <div key={msg.id} className={`flex ${isBot ? 'justify-start' : 'justify-end'} animate-fade-in`}>
@@ -332,6 +357,7 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
                                 message={{...msg, groundingSources: displaySources}}
                                 sessionId={currentSession?.id} userId={typeof userId === 'string' ? userId : undefined}
                                 isDarkMode={isDarkMode} mode={mode} onPreFillInput={setInput} onRegenerateSuggestions={onRegenerateSuggestions}
+                                hideSuggestions={msg.id === hideSuggestionsForMessageId}
                            />
 
                            {isLast && !isLoading && onDeepDive && (
@@ -339,14 +365,29 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
                            )}
 
                            <MessageActionsBar
-                               content={msg.text} sourcesCount={0} currentFeedback={msg.feedback}
+                               content={msg.text} sourcesCount={sourcesCount} currentFeedback={msg.feedback}
                                onFeedback={(fb) => onFeedback(msg.id, fb)}
                                onSubmitFeedback={(fb, comment, content) => onSendFeedback(msg.id, fb, comment, content)}
                                onToggleSources={() => onToggleMessageSources(msg.id)} isSourcesVisible={!!msg.isSourcesOpen} isDarkMode={isDarkMode}
                            />
                         </>
                       ) : (
-                        <div className="whitespace-pre-wrap text-sm md:text-base leading-relaxed">{msg.text}</div>
+                        <div className="relative whitespace-pre-wrap text-sm md:text-base leading-relaxed">
+                          {onDeleteMessage && (
+                            <button
+                              onClick={() => onDeleteMessage(msg.id)}
+                              className={`absolute -top-1 -right-1 text-[10px] px-2 py-1 rounded-full border ${
+                                isDarkMode
+                                  ? 'border-slate-700 text-slate-400 hover:bg-slate-800'
+                                  : 'border-slate-300 text-slate-500 hover:bg-slate-100'
+                              }`}
+                              title="Excluir esta mensagem"
+                            >
+                              ✕
+                            </button>
+                          )}
+                          {msg.text}
+                        </div>
                       )}
                     </div>
                   </div>
