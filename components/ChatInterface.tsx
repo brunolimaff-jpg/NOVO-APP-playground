@@ -145,6 +145,13 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
     navigator.clipboard.writeText(text).then(() => alert("Copiado!")).catch(() => alert("Erro ao copiar."));
   };
 
+  // ✅ FUNÇÃO PARA RETRY DURANTE LOADING
+  const handleRetryDuringLoading = () => {
+    if (lastUserQuery) {
+      onSendMessage(lastUserQuery);
+    }
+  };
+
   const headerTitle = cleanTitle(currentSession?.title || 'Nova Investigação');
   const displayTitle = headerTitle.length > 35 ? headerTitle.substring(0, 32) + '...' : headerTitle;
   const hasReport = messages.some((m) => m.sender === Sender.Bot && !m.isThinking && !m.isError && (m.text?.length || 0) > 100);
@@ -211,12 +218,20 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
                 if (msg.isThinking) {
                   return (
                     <div key={msg.id} className={`flex justify-start animate-fade-in`}>
-                      <div className={`rounded-2xl p-4 shadow-sm ${isDarkMode ? 'bg-slate-900' : 'bg-white'} border border-gray-700/30 px-3 md:px-5 py-3 md:py-4 w-full`}>
+                      <div className={`rounded-2xl p-4 shadow-sm ${isDarkMode ? 'bg-slate-900' : 'bg-white'} border ${isDarkMode ? 'border-gray-700/30' : 'border-gray-200'} px-3 md:px-5 py-3 md:py-4 w-full`}>
                         <div className="flex items-center justify-between mb-2 opacity-70 text-[10px] uppercase font-bold tracking-wider select-none">
                           <span>{mode === 'operacao' ? '🚺 Operação' : '✈️ Diretoria'}</span>
                           <span>{msg.timestamp.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
                         </div>
-                        <LoadingSmart isLoading={isLoading} mode={mode} isDarkMode={isDarkMode} onStop={isLoading ? onStop : undefined} processing={processing} searchQuery={lastUserQuery} />
+                        <LoadingSmart 
+                          isLoading={isLoading} 
+                          mode={mode} 
+                          isDarkMode={isDarkMode} 
+                          onStop={isLoading ? onStop : undefined} 
+                          onRetry={handleRetryDuringLoading}
+                          processing={processing} 
+                          searchQuery={lastUserQuery} 
+                        />
                       </div>
                     </div>
                   );
@@ -266,7 +281,7 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
 
                 return (
                   <div key={msg.id} className={`flex ${isBot ? 'justify-start' : 'justify-end'} animate-fade-in`}>
-                    <div className={`rounded-2xl p-4 shadow-sm relative group ${isBot ? `${isDarkMode ? 'bg-slate-900' : 'bg-white'} border border-gray-700/30 px-3 md:px-5 py-3 md:py-4 w-full` : `${isDarkMode ? 'bg-emerald-900/20 border border-emerald-900/30 text-emerald-100' : 'bg-emerald-50 border border-emerald-100 text-slate-800'} max-w-[90%] md:max-w-[75%] lg:max-w-[60%]`}`}>
+                    <div className={`rounded-2xl p-4 shadow-sm relative group ${isBot ? `${isDarkMode ? 'bg-slate-900' : 'bg-white'} border ${isDarkMode ? 'border-gray-700/30' : 'border-gray-200'} px-3 md:px-5 py-3 md:py-4 w-full` : `${isDarkMode ? 'bg-emerald-900/20 border border-emerald-900/30 text-emerald-100' : 'bg-emerald-50 border border-emerald-100 text-slate-800'} max-w-[90%] md:max-w-[75%] lg:max-w-[60%]`}`}>
                       <div className="flex items-center justify-between mb-2 opacity-70 text-[10px] uppercase font-bold tracking-wider select-none">
                         <span>{isBot ? (mode === 'operacao' ? '🚺 Operação' : '✈️ Diretoria') : '👤 Você'}</span>
                         <span>{msg.timestamp.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
