@@ -179,3 +179,15 @@ export function extractAllSourceMentions(text: string): Array<{ title: string; u
   
   return sources;
 }
+
+// Stubs seguros para manter compatibilidade com o MarkdownRenderer
+// Podem ser evoluídos depois para reescrever links e auto-linkar produtos Senior
+export function rewriteMarkdownLinksToGoogle(markdownText: string): string {
+  if (!markdownText) return markdownText;
+  return markdownText;
+}
+
+export function autoLinkSeniorTerms(markdownText: string): string {
+  if (!markdownText) return markdownText;
+  return markdownText;
+}
