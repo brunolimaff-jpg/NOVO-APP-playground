@@ -100,42 +100,30 @@ const MermaidChart: React.FC<MermaidProps> = ({ chart, isDarkMode }) => {
 
 // ---------------------------------------------------------------------------
 // sanitizeMermaidCode
-// Corrige os padrões mais comuns que o Gemini gera e que quebram o Mermaid 10.
 // ---------------------------------------------------------------------------
 function sanitizeMermaidCode(input: string): string {
   if (!input) return '';
 
   let code = input
-    // Substituir tags HTML de quebra de linha
     .replace(/<br\s*\/?>\s*/gi, '\n')
     .replace(/&lt;br\s*\/?&gt;\s*/gi, '\n')
-    // Remover comentários HTML
     .replace(/<!--[\s\S]*?-->/g, '')
-    // Remover emojis (range ampliado para cobrir mais casos)
     .replace(/[\u{1F000}-\u{1FFFF}]/gu, '')
-    .replace(/[\u2600}-\u27BF]/gu, '') // símbolos e dingbats
-    // Substituir travessões por hífen
+    .replace(/[\u2600-\u27BF]/gu, '')
     .replace(/[\u2013\u2014]/g, '-')
-    // Remover caracteres não-alfanuméricos no início
     .replace(/^[^a-zA-Z0-9]+/, '')
     .trim();
 
-  // --- CORREÇÃO CRÍTICA: subgraph labels com espaços/parênteses ---
-  // Mermaid 10 exige que labels com espaços ou caracteres especiais
-  // estejam entre aspas: subgraph "Meu Label"
-  // O Gemini gera: subgraph O Campo e a Máquina  (sem aspas) → ERRO
+  // Corrigir subgraph labels com espaços ou parênteses (Mermaid 10 exige aspas)
   code = code.replace(
     /^(\s*subgraph\s+)([^"'\n\[\]{]+?)(\s*)$/gm,
     (full, prefix, label, suffix) => {
       const t = label.trim();
-      // Se não tem espaços nem caracteres especiais, deixa como está
       if (!t || !/[\s()\[\]\/\\%:]/.test(t)) return full;
-      // Envolve em aspas, substituindo aspas duplas internas por simples
       return prefix + '"' + t.replace(/"/g, "'") + '"' + suffix;
     }
   );
 
-  // --- Validar que começa com uma declaração Mermaid válida ---
   const mermaidStart =
     /(graph\s+(?:TB|TD|LR|RL|BT)?|flowchart\s+(?:TB|TD|LR|RL|BT)?|sequenceDiagram|gantt|classDiagram|stateDiagram-v2?|erDiagram|journey|pie|quadrantChart|gitGraph)/i;
   const match = code.match(mermaidStart);
@@ -170,24 +158,26 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
     let text = content;
 
     // 1) Converter {"mermaid":"..."} → bloco mermaid
-    // Usa FENCE = '`'.repeat(3) para não ter backticks triplos dentro de
-    // template literal — isso quebrava o esbuild (erro linha 129 anterior).
     const FENCE = '`'.repeat(3);
     text = text.replace(/\{"mermaid":"([\s\S]*?)"\}/g, (_m, raw: string) => {
       const unescaped = raw.replace(/\\n/g, '\n').replace(/\\t/g, '\t');
       return '\n' + FENCE + 'mermaid\n' + unescaped + '\n' + FENCE + '\n';
     });
 
-    // 2) Corrigir links falsos e limpar bloco textual de fontes no final
+    // 2) Corrigir links falsos e limpar fontes no final
     text = fixFakeLinks(text);
     text = rewriteMarkdownLinksToGoogle(text);
     text = autoLinkSeniorTerms(text);
     text = cleanFakeSourcesBlock(text);
 
-    // 3) Badge de fonte confirmada [🟢 CONFIRMADO OFICIAL - Descrição]
+    // 3) Badges de confirmação/evidência — padrão ampliado:
+    //    [🟢/🟡/🟠/🔴 TIPO - Label]  ou  [🟢/🟡/🟠/🔴 TIPO]
+    //    Tipos suportados: CONFIRMADO OFICIAL, CONFIRMADO, EVIDÊNCIA FORTE,
+    //                      EVIDENCIA FORTE, NÃO CONFIRMADO, NAO CONFIRMADO, SUSPEITO
     text = text.replace(
-      /\[(🟢|🟡|🔴)\s*CONFIRMADO OFICIAL\s*-\s*([^\]]+)\]/gi,
-      '<verified data-level="$1" data-label="$2"></verified>'
+      /\[(🟢|🟡|🟠|🔴)\s+(CONFIRMADO\s*OFICIAL|CONFIRMADO|EVIDÊNCIA\s*FORTE|EVIDENCIA\s*FORTE|NÃO\s*CONFIRMADO|NAO\s*CONFIRMADO|SUSPEITO)(?:\s*[-–]\s*([^\]\n]+))?\]/gi,
+      (_, level, kind, label) =>
+        `<verified data-level="${level}" data-kind="${kind.trim().toUpperCase()}" data-label="${(label || '').trim()}"></verified>`
     );
 
     return text;
@@ -195,11 +185,9 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
 
   // -------------------------------------------------------------------------
   // Componentes de renderização
-  // IMPORTANTE: há apenas UM renderer de `code` que trata mermaid E inline.
-  // NÃO criar um segundo renderer de `code` em nenhum outro objeto —
-  // o spread seria sobrescrito e o mermaid pararia de funcionar.
   // -------------------------------------------------------------------------
   const components: any = {
+    // Único renderer de code — trata Mermaid E inline code
     code: ({ inline, className, children, ...props }: any) => {
       const langMatch = /language-(\w+)/.exec(className || '');
       const isMermaid = !inline && langMatch && langMatch[1] === 'mermaid';
@@ -223,19 +211,35 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
       );
     },
 
+    // Badge de confirmação — renderizado como pill colorido
     verified: (props: any) => {
-      const level = props['data-level'] as string;
-      const label = props['data-label'] as string;
+      const level = String(props['data-level'] || '');
+      const kind  = String(props['data-kind']  || '').toUpperCase();
+      const label = String(props['data-label'] || '');
+
+      // Texto descritivo do tipo de confirmação
+      const kindText =
+        /EVIDÊNCIA|EVIDENCIA/i.test(kind) ? 'Evidência forte' :
+        /NÃO\s*CONFIRMADO|NAO\s*CONFIRMADO/i.test(kind) ? 'Não confirmado' :
+        /SUSPEITO/i.test(kind) ? 'Suspeito' :
+        'Fonte oficial';
+
+      const displayText = label ? `${kindText}: ${label}` : kindText;
+
+      // Cor por emoji
       const colorClasses =
         level === '🟢'
           ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-300 dark:border-emerald-700'
           : level === '🟡'
           ? 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/40 dark:text-amber-300 dark:border-amber-700'
+          : level === '🟠'
+          ? 'bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-900/40 dark:text-orange-300 dark:border-orange-700'
           : 'bg-red-50 text-red-700 border-red-200 dark:bg-red-900/40 dark:text-red-300 dark:border-red-700';
+
       return (
         <span className={'inline-flex items-center gap-1 px-2 py-0.5 ml-1 rounded-full text-[10px] font-semibold border align-middle ' + colorClasses}>
           <span>{level}</span>
-          <span>Fonte oficial: {label}</span>
+          <span>{displayText}</span>
         </span>
       );
     },
@@ -279,7 +283,6 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
     ),
   };
 
-  // Fontes centralizadas no ícone de livro — sem bloco duplicado aqui.
   return (
     <div className="markdown-body">
       <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]} components={components}>

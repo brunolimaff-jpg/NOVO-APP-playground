@@ -204,8 +204,6 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
   const handleRetryFlash = () => {
     setShowRetryToast(false);
     if (lastUserQuery) {
-      // TODO: Implementar flag para forçar modelo Flash no backend
-      // Por enquanto, envia normalmente
       onSendMessage(lastUserQuery);
     }
   };
@@ -338,8 +336,29 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
                 const sourcesCount = displaySources.length;
 
                 return (
-                  <div key={msg.id} className={`flex ${isBot ? 'justify-start' : 'justify-end'} animate-fade-in`}>
-                    <div className={`rounded-2xl p-4 shadow-sm relative group ${isBot ? `${isDarkMode ? 'bg-slate-900' : 'bg-white'} border ${isDarkMode ? 'border-gray-700/30' : 'border-gray-200'} px-3 md:px-5 py-3 md:py-4 w-full` : `${isDarkMode ? 'bg-emerald-900/20 border border-emerald-900/30 text-emerald-100' : 'bg-emerald-50 border border-emerald-100 text-slate-800'} max-w-[90%] md:max-w-[75%] lg:max-w-[60%]`}`}>
+                  // ── Wrapper externo com group/msg para hover no lixeira fora do balão ──
+                  <div key={msg.id} className={`flex ${isBot ? 'justify-start' : 'justify-end'} animate-fade-in group/msg items-start gap-1.5`}>
+
+                    {/* 🗑️ Botão excluir FORA do balão — aparece no hover, à esquerda da mensagem do usuário */}
+                    {!isBot && onDeleteMessage && (
+                      <button
+                        onClick={() => onDeleteMessage(msg.id)}
+                        className={`self-start mt-[38px] flex-shrink-0 opacity-0 group-hover/msg:opacity-100 transition-opacity duration-150 p-1.5 rounded-lg text-sm ${
+                          isDarkMode
+                            ? 'text-slate-600 hover:text-red-400 hover:bg-slate-800'
+                            : 'text-slate-300 hover:text-red-500 hover:bg-red-50'
+                        }`}
+                        title="Excluir esta mensagem"
+                      >
+                        🗑️
+                      </button>
+                    )}
+
+                    <div className={`rounded-2xl p-4 shadow-sm relative ${
+                      isBot
+                        ? `${isDarkMode ? 'bg-slate-900' : 'bg-white'} border ${isDarkMode ? 'border-gray-700/30' : 'border-gray-200'} px-3 md:px-5 py-3 md:py-4 w-full`
+                        : `${isDarkMode ? 'bg-emerald-900/20 border border-emerald-900/30 text-emerald-100' : 'bg-emerald-50 border border-emerald-100 text-slate-800'} max-w-[90%] md:max-w-[75%] lg:max-w-[60%]`
+                    }`}>
                       <div className="flex items-center justify-between mb-2 opacity-70 text-[10px] uppercase font-bold tracking-wider select-none">
                         <span>{isBot ? (mode === 'operacao' ? '🚺 Operação' : '✈️ Diretoria') : '👤 Você'}</span>
                         <span>{msg.timestamp.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
@@ -372,20 +391,8 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
                            />
                         </>
                       ) : (
-                        <div className="relative whitespace-pre-wrap text-sm md:text-base leading-relaxed">
-                          {onDeleteMessage && (
-                            <button
-                              onClick={() => onDeleteMessage(msg.id)}
-                              className={`absolute -top-1 -right-1 text-[10px] px-2 py-1 rounded-full border ${
-                                isDarkMode
-                                  ? 'border-slate-700 text-slate-400 hover:bg-slate-800'
-                                  : 'border-slate-300 text-slate-500 hover:bg-slate-100'
-                              }`}
-                              title="Excluir esta mensagem"
-                            >
-                              ✕
-                            </button>
-                          )}
+                        // Mensagem do usuário — sem botão interno, lixeira já está fora
+                        <div className="whitespace-pre-wrap text-sm md:text-base leading-relaxed">
                           {msg.text}
                         </div>
                       )}
@@ -478,23 +485,39 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder={isLoading ? "Aguarde a resposta..." : "Digite sua mensagem..."}
+                placeholder={isLoading ? "Gerando resposta..." : "Digite sua mensagem..."}
                 disabled={isLoading}
                 rows={1}
                 className={`flex-1 bg-transparent text-sm outline-none resize-none min-h-[36px] max-h-[100px] mb-1 px-2 custom-scrollbar ${isDarkMode ? 'text-white placeholder-slate-500' : 'text-slate-900 placeholder-slate-400'}`}
                 style={{ overflow: 'hidden' }}
               />
-              <button
-                onClick={handleSend}
-                disabled={!input.trim() || isLoading}
-                className={`absolute right-2 bottom-2 w-10 h-10 flex items-center justify-center rounded-xl transition-all shadow-md ${
-                  !input.trim() || isLoading 
-                    ? (isDarkMode ? 'bg-slate-700 text-slate-500' : 'bg-slate-200 text-slate-400') 
-                    : 'bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-white hover:scale-105 active:scale-95 shadow-emerald-500/30'
-                }`}
-              >
-                {isLoading ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <span className="text-lg ml-0.5">➤</span>}
-              </button>
+
+              {/* ⏹ Botão PARAR — aparece durante o loading no lugar do enviar */}
+              {isLoading ? (
+                <button
+                  onClick={handleStopWithToast}
+                  className={`absolute right-2 bottom-2 w-10 h-10 flex items-center justify-center rounded-xl transition-all border ${
+                    isDarkMode
+                      ? 'bg-red-950/70 hover:bg-red-900/90 border-red-900/60 text-red-400 hover:text-red-300'
+                      : 'bg-red-50 hover:bg-red-100 border-red-200 text-red-500 hover:text-red-600'
+                  }`}
+                  title="Parar geração"
+                >
+                  <span className="text-base leading-none">⏹</span>
+                </button>
+              ) : (
+                <button
+                  onClick={handleSend}
+                  disabled={!input.trim()}
+                  className={`absolute right-2 bottom-2 w-10 h-10 flex items-center justify-center rounded-xl transition-all shadow-md ${
+                    !input.trim()
+                      ? (isDarkMode ? 'bg-slate-700 text-slate-500' : 'bg-slate-200 text-slate-400') 
+                      : 'bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-white hover:scale-105 active:scale-95 shadow-emerald-500/30'
+                  }`}
+                >
+                  <span className="text-lg ml-0.5">➤</span>
+                </button>
+              )}
             </div>
           </div>
         </div>
