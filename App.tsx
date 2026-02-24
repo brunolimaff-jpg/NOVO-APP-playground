@@ -6,6 +6,7 @@ import { useAuth } from './contexts/AuthContext';
 import { useMode } from './contexts/ModeContext';
 import { useCRM } from './contexts/CRMContext';
 import { CRMPipeline } from './components/CRMPipeline';
+import { CRMDetail } from './components/CRMDetail';
 import { Message, Sender, Feedback, ChatSession, ExportFormat, ReportType, AppError, CRMStage } from './types';
 import { sendMessageToGemini, generateNewSuggestions, generateConsolidatedDossier, resetChatSession } from './services/geminiService';
 import { listRemoteSessions, getRemoteSession, saveRemoteSession } from './services/sessionRemoteStore';
@@ -442,6 +443,7 @@ const App: React.FC = () => {
   const [pdfReportContent, setPdfReportContent] = useState<string | null>(null);
   const [investigationLogged, setInvestigationLogged] = useState(false);
   const [activeView, setActiveView] = useState<'chat' | 'crm'>('chat');
+  const [selectedCRMCardId, setSelectedCRMCardId] = useState<string | null>(null);
 
   // Modal States
   const [showEmailModal, setShowEmailModal] = useState(false);
@@ -459,6 +461,7 @@ const App: React.FC = () => {
 
   const currentSession = sessions.find(s => s.id === currentSessionId) || null;
   const allMessages = currentSession ? currentSession.messages : [];
+  const selectedCRMCard = selectedCRMCardId ? cards.find(c => c.id === selectedCRMCardId) || null : null;
 
   // ============================================
   // INITIALIZATION
@@ -1253,7 +1256,8 @@ const App: React.FC = () => {
 
   const handleSaveToCRM = async () => {
     if (!currentSession) return;
-    await createCardFromSession(currentSession);
+    const card = await createCardFromSession(currentSession);
+    setSelectedCRMCardId(card.id);
     setActiveView('crm');
   };
 
@@ -1262,9 +1266,23 @@ const App: React.FC = () => {
   };
 
   const handleSelectCRMCard = (cardId: string) => {
-    // Futuro: poder filtrar sessão ligada ao card
-    console.log('Selecionar card CRM', cardId);
+    setSelectedCRMCardId(cardId);
+    setActiveView('crm');
+  };
+
+  const handleCloseCRMDetail = () => {
+    setSelectedCRMCardId(null);
+  };
+
+  const handleMoveStageFromDetail = async (stage: string) => {
+    if (!selectedCRMCardId) return;
+    await moveCardToStage(selectedCRMCardId, stage as CRMStage);
+  };
+
+  const handleSelectSessionFromDetail = async (sessionId: string) => {
+    await handleSelectSession(sessionId);
     setActiveView('chat');
+    setSelectedCRMCardId(null);
   };
 
   // ============================================
@@ -1374,6 +1392,15 @@ const App: React.FC = () => {
       <AuthModal />
 
       {activeView === 'chat' ? chatElement : crmElement}
+
+      <CRMDetail
+        card={selectedCRMCard}
+        sessions={sessions}
+        onClose={handleCloseCRMDetail}
+        onSelectSession={handleSelectSessionFromDetail}
+        onMoveStage={handleMoveStageFromDetail}
+        isDarkMode={isDarkMode}
+      />
 
       {/* Botões flutuantes de controle do CRM */}
       <div className="fixed bottom-4 right-4 flex flex-col gap-2 z-40">
