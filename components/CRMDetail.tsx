@@ -70,9 +70,12 @@ export const CRMDetail: React.FC<CRMDetailProps> = ({
   const exactLocked = exactScanStatus === 'ok';
 
   // Estado local para anotações de prospecção
-  const initialProspeccaoNotes: string =
-    card.stages?.prospeccao?.crmNotes || '';
+  const initialProspeccaoNotes: string = card.stages?.prospeccao?.crmNotes || '';
   const [prospectionNotes, setProspectionNotes] = useState(initialProspeccaoNotes);
+
+  // Estado local para conteúdo bruto copiado do Spotter (armazenado em technicalNotes da prospecção)
+  const initialSpotterRaw: string = card.stages?.prospeccao?.technicalNotes || '';
+  const [spotterRaw, setSpotterRaw] = useState(initialSpotterRaw);
 
   const cleanDigits = (value: string) => value.replace(/\D/g, '');
 
@@ -108,6 +111,27 @@ export const CRMDetail: React.FC<CRMDetailProps> = ({
         prospeccao: {
           ...existingStage,
           crmNotes: value,
+        },
+      },
+    };
+
+    await updateCard(updated);
+  };
+
+  const persistSpotterRaw = async (value: string) => {
+    const existingStage = card.stages?.prospeccao || {
+      transcriptions: [],
+      executiveNotes: '',
+      technicalNotes: '',
+    };
+
+    const updated = {
+      ...card,
+      stages: {
+        ...(card.stages || {}),
+        prospeccao: {
+          ...existingStage,
+          technicalNotes: value,
         },
       },
     };
@@ -396,6 +420,29 @@ export const CRMDetail: React.FC<CRMDetailProps> = ({
                   <p className="mt-2 text-[11px] text-red-400">
                     Nao parece ser um link valido do ExactSpotter. Confirme se copiou o endereco publico completo.
                   </p>
+                )}
+
+                {card.stage === 'prospeccao' && (
+                  <div className="mt-4 space-y-2">
+                    <label className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                      Conteudo copiado do Spotter (opcional)
+                    </label>
+                    <textarea
+                      rows={5}
+                      value={spotterRaw}
+                      onChange={e => setSpotterRaw(e.target.value)}
+                      onBlur={() => persistSpotterRaw(spotterRaw)}
+                      placeholder="Abra o link publico do ExactSpotter, copie todo o texto da ficha (Ctrl+A, Ctrl+C) e cole aqui."
+                      className={`w-full rounded-lg border px-3 py-2 text-[11px] resize-y ${
+                        isDarkMode
+                          ? 'bg-slate-900 border-slate-700 text-slate-100 placeholder-slate-600'
+                          : 'bg-white border-slate-300 text-slate-900 placeholder-slate-400'
+                      }`}
+                    />
+                    <p className="text-[11px] text-slate-400 dark:text-slate-500">
+                      Esse texto bruto fica salvo apenas neste dossie (etapa de prospeccao) e podera ser usado depois para gerar resumos ou insights com IA.
+                    </p>
+                  </div>
                 )}
               </div>
             </div>
