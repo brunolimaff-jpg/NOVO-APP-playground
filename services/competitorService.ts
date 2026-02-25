@@ -3,6 +3,15 @@
 // NÃO usa dados fixos de mercado. Tudo é pesquisado em tempo real.
 
 import { CONCORRENTES, getConcorrente, getRevendasPorEstado, Concorrente } from './competitors';
+import { sanitizeExternalContent } from '../utils/promptGuard';
+
+/**
+ * Sanitiza e limita o nome da empresa para uso seguro em prompts Gemini.
+ * Evita prompt injection via nomes de empresa maliciosos.
+ */
+function safeCompanyName(name: string): string {
+  return sanitizeExternalContent(name).slice(0, 200).replace(/"/g, "'");
+}
 
 // ===================================================================
 // TIPOS
@@ -53,6 +62,7 @@ export interface PricingIntel {
 // ===================================================================
 
 function buildDetectPrompt(nomeEmpresa: string, estado?: string): string {
+  const safeName = safeCompanyName(nomeEmpresa);
   const revendasEstado = estado ? getRevendasPorEstado(estado) : [];
   const revendasCtx = revendasEstado.length > 0
     ? `\n\nREVENDAS ATIVAS EM ${estado}:\n` + revendasEstado.map(r =>
@@ -61,16 +71,16 @@ function buildDetectPrompt(nomeEmpresa: string, estado?: string): string {
     : '';
 
   return `
-Você é um analista de inteligência competitiva. Pesquise AGORA, usando busca na web, qual sistema ERP ou software de gestão a empresa "${nomeEmpresa}" utiliza atualmente.
+Você é um analista de inteligência competitiva. Pesquise AGORA, usando busca na web, qual sistema ERP ou software de gestão a empresa <company_name>${safeName}</company_name> utiliza atualmente.
 
 USE ESTAS ESTRATÉGIAS DE BUSCA (em ordem de prioridade):
 
 1. LinkedIn da empresa → vagas abertas mencionando ERP, ferramenta ou sistema (ex: "analista SAP", "consultor TOTVS", "implantação Protheus")
 2. Site oficial da empresa → press releases, notícias, seção "sobre", "tecnologia", "parceiros"
-3. Google: "${nomeEmpresa}" implementação ERP OR SAP OR TOTVS OR Sankhya OR Senior OR SIAGRI OR Protheus
+3. Google: "${safeName}" implementação ERP OR SAP OR TOTVS OR Sankhya OR Senior OR SIAGRI OR Protheus
 4. Reclame Aqui: reclamações que mencionem o nome do sistema
 5. YouTube: buscar vídeos de treinamento ou evento da empresa
-6. Case studies de fornecedores: buscar "${nomeEmpresa}" nos sites da SAP, TOTVS, Sankhya, Senior, SIAGRI
+6. Case studies de fornecedores: buscar "${safeName}" nos sites da SAP, TOTVS, Sankhya, Senior, SIAGRI
 7. JusBrasil: processos trabalhistas que mencionem consultores ou implantação de sistema
 ${revendasCtx}
 

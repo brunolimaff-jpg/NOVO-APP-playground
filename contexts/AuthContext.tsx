@@ -91,7 +91,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     localStorage.removeItem(STORAGE_KEY_USER);
     localStorage.removeItem(STORAGE_KEY_OLD_ID);
     setUser(null);
-    window.location.reload();
+    // Não faz reload — setUser(null) já provoca re-render e exibe AuthModal
   };
 
   return (

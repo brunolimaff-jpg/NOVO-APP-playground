@@ -70,7 +70,8 @@ const ErrorMessageCard: React.FC<ErrorMessageCardProps> = ({
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            {/* ✅ BOTÃO RETRY: SEMPRE VISÍVEL (mesmo que error.retryable seja false) */}
+            {/* Botão retry: exibido apenas quando erro é recuperável */}
+            {error.retryable && (
             <button
               onClick={(e) => {
                   e.stopPropagation();
@@ -95,6 +96,7 @@ const ErrorMessageCard: React.FC<ErrorMessageCardProps> = ({
                   </>
               )}
             </button>
+            )}
 
             {/* Report Button */}
             {onReportError && (
@@ -137,7 +139,7 @@ const ErrorMessageCard: React.FC<ErrorMessageCardProps> = ({
                 {error.httpStatus && <p><strong>Status:</strong> {error.httpStatus}</p>}
                 <p><strong>Message:</strong> {error.message}</p>
                 {error.transient && <p><strong>Transient:</strong> Yes</p>}
-                {!error.retryable && <p className="text-red-500"><strong>Retryable:</strong> No (forçando botão mesmo assim)</p>}
+                {!error.retryable && <p className="text-red-500"><strong>Retryable:</strong> No</p>}
               </div>
             )}
           </div>

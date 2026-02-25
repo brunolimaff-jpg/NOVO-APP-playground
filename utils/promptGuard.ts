@@ -172,21 +172,38 @@ function checkBudget(text: string): { exceeded: boolean; riskScore: number } {
 }
 
 // ─────────────────────────────────────────────
-// CAMADA 4 — Rate limiter
+// CAMADA 4 — Rate limiter (persistido em localStorage)
 // ─────────────────────────────────────────────
 
-const _rateLimitBucket: number[] = [];
+const RATE_BUCKET_KEY = 'scout360_rate_bucket_v1';
+
+function loadRateBucket(): number[] {
+  try {
+    const raw = localStorage.getItem(RATE_BUCKET_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveRateBucket(bucket: number[]): void {
+  try {
+    localStorage.setItem(RATE_BUCKET_KEY, JSON.stringify(bucket));
+  } catch {
+    // localStorage indisponível — ignora silenciosamente
+  }
+}
 
 function checkRateLimit(): { blocked: boolean; reason?: string } {
   const now = Date.now();
-  // Remove timestamps fora da janela
-  while (_rateLimitBucket.length > 0 && _rateLimitBucket[0] < now - RATE_LIMIT_WINDOW_MS) {
-    _rateLimitBucket.shift();
-  }
-  if (_rateLimitBucket.length >= RATE_LIMIT_MAX_MSGS) {
+  // Carrega bucket persistido e filtra timestamps fora da janela
+  const bucket = loadRateBucket().filter(t => t > now - RATE_LIMIT_WINDOW_MS);
+  if (bucket.length >= RATE_LIMIT_MAX_MSGS) {
+    saveRateBucket(bucket); // persiste sem adicionar (já bloqueado)
     return { blocked: true, reason: 'rate_limit:exceeded' };
   }
-  _rateLimitBucket.push(now);
+  bucket.push(now);
+  saveRateBucket(bucket);
   return { blocked: false };
 }
 

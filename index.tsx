@@ -4,6 +4,7 @@ import App from './App';
 import { AuthProvider } from './contexts/AuthContext';
 import { ModeProvider } from './contexts/ModeContext';
 import { CRMProvider } from './contexts/CRMContext';
+import ErrorBoundary from './components/ErrorBoundary';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -13,12 +14,14 @@ if (!rootElement) {
 const root = createRoot(rootElement);
 root.render(
   <React.StrictMode>
-    <AuthProvider>
-      <ModeProvider>
-        <CRMProvider>
-          <App />
-        </CRMProvider>
-      </ModeProvider>
-    </AuthProvider>
+    <ErrorBoundary>
+      <AuthProvider>
+        <ModeProvider>
+          <CRMProvider>
+            <App />
+          </CRMProvider>
+        </ModeProvider>
+      </AuthProvider>
+    </ErrorBoundary>
   </React.StrictMode>
 );
