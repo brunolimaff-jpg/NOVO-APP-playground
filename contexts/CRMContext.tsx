@@ -7,6 +7,13 @@ const LOCAL_KEY = 'scout360_crm_cards_v1';
 interface CRMContextValue {
   cards: CRMCard[];
   createCardFromSession: (session: ChatSession) => Promise<CRMCard>;
+  createManualCard: (input: {
+    companyName: string;
+    cnpj?: string;
+    website?: string;
+    briefDescription?: string;
+    stage?: CRMStage;
+  }) => Promise<CRMCard>;
   updateCard: (card: CRMCard) => Promise<void>;
   deleteCard: (cardId: string) => Promise<void>;
   moveCardToStage: (cardId: string, stage: CRMStage) => Promise<void>;
@@ -151,6 +158,42 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return base;
   };
 
+  const createManualCard = async (input: {
+    companyName: string;
+    cnpj?: string;
+    website?: string;
+    briefDescription?: string;
+    stage?: CRMStage;
+  }): Promise<CRMCard> => {
+    const now = new Date().toISOString();
+    const stage: CRMStage = input.stage || 'prospeccao';
+
+    const cleanCnpj = input.cnpj ? String(input.cnpj).replace(/\D/g, '') : undefined;
+
+    const base: CRMCard = {
+      id: `crm_manual_${Date.now()}`,
+      companyName: input.companyName.trim() || 'Empresa sem nome',
+      cnpj: cleanCnpj && cleanCnpj.length === 14 ? cleanCnpj : undefined,
+      cnpjs: cleanCnpj && cleanCnpj.length === 14 ? [cleanCnpj] : undefined,
+      website: input.website?.trim() || undefined,
+      briefDescription: input.briefDescription?.trim() || undefined,
+      exactLink: undefined,
+      linkedSessionIds: [],
+      stage,
+      createdAt: now,
+      updatedAt: now,
+      movedToStageAt: { [stage]: now },
+      stages: {},
+      latestScorePorta: undefined,
+      health: 'green',
+      newsRadarEnabled: false,
+    };
+
+    setCards(prev => [base, ...prev]);
+    await saveFull(base);
+    return base;
+  };
+
   const updateCard = async (card: CRMCard) => {
     const updated: CRMCard = { ...card, updatedAt: new Date().toISOString(), health: computeHealth(card) };
     setCards(prev => prev.map(c => (c.id === card.id ? updated : c)));
@@ -183,6 +226,7 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const value: CRMContextValue = {
     cards,
     createCardFromSession,
+    createManualCard,
     updateCard,
     deleteCard,
     moveCardToStage,
