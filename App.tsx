@@ -89,8 +89,6 @@ function convertMarkdownToHTML(md: string, includeSources: boolean = true): stri
         </div>`;
       }
     )
-    .replace(/^-----+$/gm, '<hr>')
-    .replace(/^---+$/gm, '<hr>')
     .replace(/^>\s*(.*$)/gm, '<blockquote>$1</blockquote>')
     .replace(/^#### (.*$)/gm, '<h4>$1</h4>')
     .replace(/^### (.*$)/gm, '<h3>$1</h3>')
@@ -109,7 +107,9 @@ function convertMarkdownToHTML(md: string, includeSources: boolean = true): stri
     .replace(/^[\-\*] (.*$)/gm, '<li>$1</li>')
     .replace(/^\d+\. (.*$)/gm, '<li>$1</li>')
     .replace(/\n\n/g, '</p><p>')
-    .replace(/\n/g, '<br>');
+    .replace(/\n/g, '<br>')
+    .replace(/^-----+$/gm, '<hr>')
+    .replace(/^---+$/gm, '<hr>');
 
   html = html.replace(/(<li>[\s\S]*?<\/li>(?:\s*<li>[\s\S]*?<\/li>)*)/g, '<ul>$1</ul>');
 
@@ -117,6 +117,8 @@ function convertMarkdownToHTML(md: string, includeSources: boolean = true): stri
     const content = match.replace(/<\/?blockquote>/g, '');
     return '<blockquote>' + content + '</blockquote>';
   });
+
+  html = html.replace(/<p><hr><\/p>/g, '<hr>');
 
   if (includeSources && allLinks.length > 0) {
     html += formatSourcesForExport(allLinks);
@@ -129,10 +131,10 @@ function convertMarkdownToHTML(md: string, includeSources: boolean = true): stri
 // REPORT COLLECTION (COM LINKS)
 // ============================================
 
-function collectFullReport(messages: any[]): { text: string; sections: string[]; allLinks: SourceRef[] } {
+function collectFullReport(messages: Message[]): { text: string; sections: string[]; allLinks: SourceRef[] } {
   const botMessages = messages.filter((m: any) => {
-    const sender = m.sender || m.role || m.type || '';
-    const text = m.text || m.content || m.message || '';
+    const sender = m.sender || (m as any).role || (m as any).type || '';
+    const text = m.text || (m as any).content || (m as any).message || '';
     return (sender === 'bot' || sender === 'assistant' || sender === 'model') 
       && typeof text === 'string' 
       && text.length > 50;
@@ -143,7 +145,7 @@ function collectFullReport(messages: any[]): { text: string; sections: string[];
   const sections: string[] = [];
   const allLinks: SourceRef[] = [];
 
-  const dossieText = botMessages[0].text || botMessages[0].content || '';
+  const dossieText = (botMessages[0] as any).text || (botMessages[0] as any).content || '';
   sections.push(dossieText);
 
   const dossieLinks = extractAllLinksFromMarkdown(dossieText);
@@ -154,14 +156,14 @@ function collectFullReport(messages: any[]): { text: string; sections: string[];
   });
 
   for (let i = 1; i < botMessages.length; i++) {
-    const botText = botMessages[i].text || botMessages[i].content || '';
+    const botText = (botMessages[i] as any).text || (botMessages[i] as any).content || '';
 
-    const botIndex = messages.indexOf(botMessages[i]);
+    const botIndex = messages.indexOf(botMessages[i] as Message);
     let userQuestion = '';
     for (let j = botIndex - 1; j >= 0; j--) {
-      const s = messages[j].sender || messages[j].role || '';
+      const s = (messages[j] as any).sender || (messages[j] as any).role || '';
       if (s === 'user' || s === 'human') {
-        userQuestion = messages[j].text || messages[j].content || '';
+        userQuestion = (messages[j] as any).text || (messages[j] as any).content || '';
         break;
       }
     }
@@ -465,6 +467,7 @@ const App: React.FC = () => {
   // Refs
   const lastActionRef = useRef<LastAction | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const lastStatusRef = useRef<string | null>(null);
 
   const currentSession = sessions.find(s => s.id === currentSessionId) || null;
   const allMessages = currentSession ? currentSession.messages : [];
@@ -523,6 +526,7 @@ const App: React.FC = () => {
       setIsInitialized(true);
     };
     initApp();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -600,6 +604,12 @@ const App: React.FC = () => {
   };
 
   const handleDeleteSession = (sessionId: string) => {
+    if (sessionId === currentSessionId && isLoading && abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+      setIsLoading(false);
+    }
+
     const newSessions = sessions.filter(s => s.id !== sessionId);
     setSessions(newSessions);
     if (currentSessionId === sessionId) {
@@ -732,12 +742,18 @@ const App: React.FC = () => {
           onStatus: (newStatus) => {
             setLoadingStatus(prev => {
               if (prev && prev !== newStatus) {
-                setCompletedLoadingStatuses(completed =>
-                  completed.includes(prev) ? completed : [...completed, prev]
-                );
+                lastStatusRef.current = prev;
               }
               return newStatus;
             });
+            if (lastStatusRef.current && lastStatusRef.current !== newStatus) {
+              const statusToAdd = lastStatusRef.current;
+              setCompletedLoadingStatuses(completed =>
+                statusToAdd && !completed.includes(statusToAdd)
+                  ? [...completed, statusToAdd]
+                  : completed
+              );
+            }
           },
           nomeVendedor: typeof user?.displayName === 'string' ? user.displayName : 'Vendedor',
         }
@@ -895,19 +911,19 @@ const App: React.FC = () => {
   const handleRegenerateSuggestions = async (messageId: string) => {
     lastActionRef.current = { type: 'regenerateSuggestions', payload: { messageId } };
 
-    const currentSession = sessions.find(s => s.id === currentSessionId);
-    if (!currentSession) return;
+    const targetSession = sessions.find(s => s.id === currentSessionId);
+    if (!targetSession) return;
 
-    const targetMessage = currentSession.messages.find(m => m.id === messageId);
+    const targetMessage = targetSession.messages.find(m => m.id === messageId);
     if (!targetMessage) return;
 
     const companyName =
-      currentSession.empresaAlvo ||
-      extractCompanyName(currentSession.title || '') ||
+      targetSession.empresaAlvo ||
+      extractCompanyName(targetSession.title || '') ||
       'Empresa não identificada';
 
     let lastUserQuestion = '';
-    const msgs = currentSession.messages;
+    const msgs = targetSession.messages;
     const idx = msgs.findIndex(m => m.id === messageId);
     for (let i = idx - 1; i >= 0; i--) {
       if (msgs[i].sender === Sender.User) {
@@ -1351,7 +1367,7 @@ const App: React.FC = () => {
       onSaveRemote={handleSaveRemote}
       isSavingRemote={isSavingRemote}
       remoteSaveStatus={remoteSaveStatus}
-      userId={renderUserHeader() as any}
+      userHeaderNode={renderUserHeader()}
       onLogout={logout}
       lastUserQuery={lastQuery}
       processing={{ stage: loadingStatus, completedStages: completedLoadingStatuses }}
