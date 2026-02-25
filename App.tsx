@@ -416,9 +416,9 @@ const PDF_STYLES = `
 // ============================================
 
 const App: React.FC = () => {
-  const { userId, user, logout, isAuthenticated } = useAuth(); 
+  const { userId, user, logout, isAuthenticated } = useAuth();
   const { mode, systemInstruction } = useMode();
-  const { cards, createCardFromSession, moveCardToStage } = useCRM();
+  const { cards, createCardFromSession, createManualCard, moveCardToStage } = useCRM();
 
   // State
   const [sessions, setSessions] = useState<ChatSession[]>([]);
@@ -435,7 +435,7 @@ const App: React.FC = () => {
   });
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [lastQuery, setLastQuery] = useState<string>(""); 
+  const [lastQuery, setLastQuery] = useState<string>('');
   const [isSavingRemote, setIsSavingRemote] = useState(false);
   const [remoteSaveStatus, setRemoteSaveStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [exportStatus, setExportStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
@@ -444,6 +444,13 @@ const App: React.FC = () => {
   const [investigationLogged, setInvestigationLogged] = useState(false);
   const [activeView, setActiveView] = useState<'chat' | 'crm'>('chat');
   const [selectedCRMCardId, setSelectedCRMCardId] = useState<string | null>(null);
+
+  // Mini CRM — formulário de criação manual
+  const [showNewCrmForm, setShowNewCrmForm] = useState(false);
+  const [newCrmName, setNewCrmName] = useState('');
+  const [newCrmWebsite, setNewCrmWebsite] = useState('');
+  const [newCrmResumo, setNewCrmResumo] = useState('');
+  const [isCreatingCrmCard, setIsCreatingCrmCard] = useState(false);
 
   // Modal States
   const [showEmailModal, setShowEmailModal] = useState(false);
@@ -478,13 +485,13 @@ const App: React.FC = () => {
           const parsed = JSON.parse(savedSessions);
           localSessions = parsed.map((s: any) => ({
             ...s,
-            messages: s.messages.map((m: any) => ({ 
-              ...m, 
+            messages: s.messages.map((m: any) => ({
+              ...m,
               text: cleanStatusMarkers(m.text || '').cleanText,
-              timestamp: new Date(m.timestamp) 
-            }))
+              timestamp: new Date(m.timestamp),
+            })),
           }));
-        } catch (e) { console.error("Load error", e); }
+        } catch (e) { console.error('Load error', e); }
       }
 
       try {
@@ -499,7 +506,7 @@ const App: React.FC = () => {
             sessionMap.set(r.id, r);
           }
         });
-        const mergedSessions = Array.from(sessionMap.values()).sort((a, b) => 
+        const mergedSessions = Array.from(sessionMap.values()).sort((a, b) =>
           new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
         );
         setSessions(mergedSessions);
@@ -547,7 +554,7 @@ const App: React.FC = () => {
       title: 'Nova Investigação',
       empresaAlvo: null, cnpj: null, modoPrincipal: null, scoreOportunidade: null, resumoDossie: null,
       createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
-      messages: []
+      messages: [],
     };
     setSessions(prev => [newSession, ...prev]);
     setCurrentSessionId(newSession.id);
@@ -558,7 +565,7 @@ const App: React.FC = () => {
     setPdfReportContent(null);
     setInvestigationLogged(false);
     lastActionRef.current = null;
-    setLastQuery("");
+    setLastQuery('');
     setLoadingStatus('Iniciando análise');
   }, [isLoading]);
 
@@ -585,7 +592,7 @@ const App: React.FC = () => {
           setSessions(prev => prev.map(s => s.id === sessionId ? fullSession : s));
         }
       } catch (e) {
-        console.error("Lazy load error", e);
+        console.error('Lazy load error', e);
       } finally {
         setIsLoading(false);
       }
@@ -643,19 +650,19 @@ const App: React.FC = () => {
   };
 
   const handleClearChat = () => {
-    if (window.confirm("Isso apagará todas as mensagens desta investigação. Continuar?")) {
+    if (window.confirm('Isso apagará todas as mensagens desta investigação. Continuar?')) {
       resetChatSession();
       updateCurrentSession(session => ({
         ...session,
         messages: [],
         title: 'Nova Investigação',
         empresaAlvo: null,
-        updatedAt: new Date().toISOString()
+        updatedAt: new Date().toISOString(),
       }));
       setInvestigationLogged(false);
       setLoadingStatus('Realizando pesquisa...');
       lastActionRef.current = null;
-      setLastQuery("");
+      setLastQuery('');
       setVisibleCount(PAGE_SIZE);
     }
   };
@@ -667,12 +674,12 @@ const App: React.FC = () => {
   const processMessage = async (text: string, explicitSessionId?: string, explicitHistory?: Message[]) => {
     const sessionId = explicitSessionId || currentSessionId;
     if (!sessionId) {
-      console.warn("No session ID found, aborting generation.");
+      console.warn('No session ID found, aborting generation.');
       return;
     }
 
     setIsLoading(true);
-    setLoadingStatus("Realizando pesquisa...");
+    setLoadingStatus('Realizando pesquisa...');
     setCompletedLoadingStatuses([]);
     setLastQuery(text);
 
@@ -700,26 +707,26 @@ const App: React.FC = () => {
     const botMessagePlaceholder: Message = {
       id: botMessageId,
       sender: Sender.Bot,
-      text: "",
+      text: '',
       timestamp: new Date(),
       isThinking: true,
-      isSourcesOpen: false
+      isSourcesOpen: false,
     };
 
     setSessions(prev => prev.map(s => s.id === sessionId ? {
       ...s,
       messages: [...s.messages.filter(m => !m.isError), botMessagePlaceholder],
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
     } : s));
 
     setVisibleCount(prev => prev + 1);
 
     try {
       const { text: responseText, sources, suggestions, scorePorta } = await sendMessageToGemini(
-        text, 
+        text,
         historyToPass,
-        systemInstruction, 
-        { 
+        systemInstruction,
+        {
           signal,
           onText: () => {},
           onStatus: (newStatus) => {
@@ -739,28 +746,27 @@ const App: React.FC = () => {
       setSessions(prev => prev.map(s => s.id === sessionId ? {
         ...s,
         title: (s.messages.length <= 2 || s.title === 'Nova Investigação')
-               ? cleanTitle(extractCompanyName(text))
-               : s.title,
+          ? cleanTitle(extractCompanyName(text))
+          : s.title,
         empresaAlvo: (s.messages.length <= 2)
-                     ? extractCompanyName(text)
-                     : s.empresaAlvo,
+          ? extractCompanyName(text)
+          : s.empresaAlvo,
         updatedAt: new Date().toISOString(),
-        messages: s.messages.map(msg => 
-          msg.id === botMessageId ? { 
-            ...msg, 
+        messages: s.messages.map(msg =>
+          msg.id === botMessageId ? {
+            ...msg,
             text: responseText,
             groundingSources: sources,
             suggestions: suggestions,
             scorePorta: scorePorta || undefined,
-            isThinking: false
+            isThinking: false,
           } : msg
-        )
+        ),
       } : s));
 
       if (!investigationLogged && responseText.length > 500) {
         setInvestigationLogged(true);
         const titleToLog = extractCompanyName(text);
-
         fetch(BACKEND_URL, {
           method: 'POST',
           redirect: 'follow',
@@ -779,7 +785,7 @@ const App: React.FC = () => {
       if (error.name === 'AbortError' || error.message?.includes('aborted')) {
         setSessions(prev => prev.map(s => s.id === sessionId ? {
           ...s,
-          messages: s.messages.filter(msg => msg.id !== botMessageId || msg.text.trim().length > 0)
+          messages: s.messages.filter(msg => msg.id !== botMessageId || msg.text.trim().length > 0),
         } : s));
         return;
       }
@@ -790,11 +796,11 @@ const App: React.FC = () => {
         messages: [...s.messages.filter(m => m.id !== botMessageId), {
           id: uuidv4(),
           sender: Sender.Bot,
-          text: "Erro no processamento",
+          text: 'Erro no processamento',
           timestamp: new Date(),
           isError: true,
-          errorDetails: appError
-        }]
+          errorDetails: appError,
+        }],
       } : s));
     } finally {
       setIsLoading(false);
@@ -814,7 +820,7 @@ const App: React.FC = () => {
         title: immediateTitle || 'Nova Investigação',
         empresaAlvo: immediateTitle || null, cnpj: null, modoPrincipal: null, scoreOportunidade: null, resumoDossie: null,
         createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
-        messages: []
+        messages: [],
       };
       setSessions(prev => [newSession, ...prev]);
       setCurrentSessionId(sessionId);
@@ -825,34 +831,32 @@ const App: React.FC = () => {
     }
 
     const userMessage: Message = {
-      id: uuidv4(), 
-      sender: Sender.User, 
-      text: displayText || text, 
-      timestamp: new Date()
+      id: uuidv4(),
+      sender: Sender.User,
+      text: displayText || text,
+      timestamp: new Date(),
     };
 
-    setSessions(prev => prev.map(s => 
-      s.id === sessionId 
-        ? { ...s, messages: [...s.messages, userMessage], updatedAt: new Date().toISOString() } 
+    setSessions(prev => prev.map(s =>
+      s.id === sessionId
+        ? { ...s, messages: [...s.messages, userMessage], updatedAt: new Date().toISOString() }
         : s
     ));
-    setVisibleCount(prev => prev + 1); 
+    setVisibleCount(prev => prev + 1);
 
-    await processMessage(text, sessionId, currentHistory); 
+    await processMessage(text, sessionId, currentHistory);
   };
 
   // ============================================
-  // FUNÇÃO NOVA PARA OS BOTÕES (DEEP DIVE)
+  // DEEP DIVE
   // ============================================
   const handleDeepDive = async (displayMessage: string, hiddenPrompt: string) => {
-    const empresaContext = currentSession?.empresaAlvo || currentSession?.title || "a empresa desta conversa";
-    
+    const empresaContext = currentSession?.empresaAlvo || currentSession?.title || 'a empresa desta conversa';
     const finalPromptToAI = `
       Com base em [${empresaContext}], execute o seguinte protocolo de ataque e investigação forense:
       
       ${hiddenPrompt}
     `;
-
     await handleSendMessage(finalPromptToAI, displayMessage);
   };
 
@@ -881,7 +885,6 @@ const App: React.FC = () => {
 
   const handleRetry = () => {
     if (!lastActionRef.current) return;
-
     if (lastActionRef.current.type === 'sendMessage') {
       processMessage(lastActionRef.current.payload.text, currentSessionId || undefined);
     } else if (lastActionRef.current.type === 'regenerateSuggestions') {
@@ -900,10 +903,10 @@ const App: React.FC = () => {
 
     const companyName =
       currentSession.empresaAlvo ||
-      extractCompanyName(currentSession.title || "") ||
-      "Empresa não identificada";
+      extractCompanyName(currentSession.title || '') ||
+      'Empresa não identificada';
 
-    let lastUserQuestion = "";
+    let lastUserQuestion = '';
     const msgs = currentSession.messages;
     const idx = msgs.findIndex(m => m.id === messageId);
     for (let i = idx - 1; i >= 0; i--) {
@@ -913,73 +916,57 @@ const App: React.FC = () => {
       }
     }
 
-    const snippet = (targetMessage.text || "").slice(0, 3000);
-
+    const snippet = (targetMessage.text || '').slice(0, 3000);
     const contextText = [
       `EMPRESA: ${companyName}`,
-      lastUserQuestion ? `PERGUNTA_ANTERIOR: ${lastUserQuestion}` : "",
-      "TRECHO_DOSSIE:",
-      snippet
-    ].filter(Boolean).join("\n\n");
+      lastUserQuestion ? `PERGUNTA_ANTERIOR: ${lastUserQuestion}` : '',
+      'TRECHO_DOSSIE:',
+      snippet,
+    ].filter(Boolean).join('\n\n');
 
     const oldSuggestions = targetMessage.suggestions || [];
 
     updateCurrentSession(session => ({
       ...session,
-      messages: session.messages.map(msg => 
+      messages: session.messages.map(msg =>
         msg.id === messageId ? { ...msg, isRegeneratingSuggestions: true } : msg
-      )
+      ),
     }));
 
     try {
       const newSuggestions = await generateNewSuggestions(contextText, oldSuggestions);
-
       updateCurrentSession(session => ({
         ...session,
-        messages: session.messages.map(msg => 
+        messages: session.messages.map(msg =>
           msg.id === messageId ? { ...msg, suggestions: newSuggestions, isRegeneratingSuggestions: false } : msg
-        )
+        ),
       }));
     } catch (e: any) {
-      console.warn("Suggestion regeneration failed...", e);
-      alert(e.message || "Falha na conexão com a IA. As perguntas anteriores foram mantidas.");
-
+      console.warn('Suggestion regeneration failed...', e);
+      alert(e.message || 'Falha na conexão com a IA. As perguntas anteriores foram mantidas.');
       updateCurrentSession(session => ({
         ...session,
-        messages: session.messages.map(msg => 
+        messages: session.messages.map(msg =>
           msg.id === messageId ? { ...msg, isRegeneratingSuggestions: false } : msg
-        )
+        ),
       }));
     }
   };
 
   const handleReportError = async (messageId: string, error: AppError) => {
     if (!currentSession) return;
-
     const errorPayload = JSON.stringify({
-      code: error.code,
-      source: error.source,
-      message: error.message,
-      details: error.details
+      code: error.code, source: error.source, message: error.message, details: error.details,
     }, null, 2);
-
     try {
       await sendFeedbackRemote({
-        feedbackId: uuidv4(),
-        sessionId: currentSession.id,
-        messageId: messageId,
-        sectionKey: 'ERROR_REPORT',
-        sectionTitle: 'System Error',
-        type: 'dislike',
-        comment: `Automated Error Report: ${error.code}`,
-        aiContent: errorPayload, 
-        userId: userId,
-        userName: user?.displayName,
-        timestamp: new Date().toISOString()
+        feedbackId: uuidv4(), sessionId: currentSession.id, messageId,
+        sectionKey: 'ERROR_REPORT', sectionTitle: 'System Error',
+        type: 'dislike', comment: `Automated Error Report: ${error.code}`,
+        aiContent: errorPayload, userId, userName: user?.displayName,
+        timestamp: new Date().toISOString(),
       });
-    } catch (e) {
-      console.error("Failed to report error", e);
-    }
+    } catch (e) { console.error('Failed to report error', e); }
   };
 
   // ============================================
@@ -1003,17 +990,11 @@ const App: React.FC = () => {
     const totalSections = sections.length;
 
     const htmlContent = fixFakeLinksHTML(convertMarkdownToHTML(finalText, true));
-
     let sourcesHTML = '';
-    if (allLinks.length > 0) {
-      sourcesHTML = formatSourcesForExport(allLinks);
-    }
+    if (allLinks.length > 0) sourcesHTML = formatSourcesForExport(allLinks);
 
     const printWindow = window.open('', '_blank');
-    if (!printWindow) {
-      alert('Popup bloqueado. Permita popups e tente novamente.');
-      return;
-    }
+    if (!printWindow) { alert('Popup bloqueado. Permita popups e tente novamente.'); return; }
 
     printWindow.document.write(`<!DOCTYPE html>
 <html lang="pt-BR">
@@ -1054,7 +1035,6 @@ const App: React.FC = () => {
   </div>` : ''}
 
   ${htmlContent}
-
   ${sourcesHTML}
 
   <div class="doc-footer">
@@ -1071,33 +1051,27 @@ const App: React.FC = () => {
 
   const handleExportConversation = async (format: ExportFormat, reportType: ReportType) => {
     if (!currentSession) return;
-
     setExportStatus('loading');
     setExportError(null);
-
     try {
       const contentMarkdown = await generateConsolidatedDossier(currentSession.messages, systemInstruction, mode, reportType);
-
       const safeTitle = cleanTitle(currentSession.title).replace(/[^a-z0-9]/gi, '_').substring(0, 50);
       const dateStr = new Date().toISOString().slice(0, 10);
       const reportSuffix = reportType === 'executive' ? 'EXEC' : reportType === 'tech' ? 'FICHA' : 'DOSSIE';
       const filename = `SeniorScout_${safeTitle}_${reportSuffix}_${dateStr}`;
-
       if (format === 'md') {
         downloadFile(`${filename}.md`, contentMarkdown, 'text/markdown;charset=utf-8');
         setExportStatus('success');
         setTimeout(() => setExportStatus('idle'), 3000);
-
       } else if (format === 'doc') {
         const htmlContent = simpleMarkdownToHtml(contentMarkdown, currentSession.title);
         downloadFile(`${filename}.doc`, htmlContent, 'application/msword');
         setExportStatus('success');
         setTimeout(() => setExportStatus('idle'), 3000);
       }
-
     } catch (error: any) {
-      console.error("Export Error:", error);
-      setExportError(error.message || "Falha ao gerar o arquivo. Tente novamente.");
+      console.error('Export Error:', error);
+      setExportError(error.message || 'Falha ao gerar o arquivo. Tente novamente.');
       setExportStatus('error');
     }
   };
@@ -1109,68 +1083,40 @@ const App: React.FC = () => {
   async function handleSendEmail() {
     if (!emailTo.includes('@')) return;
     setEmailStatus('sending');
-
     try {
       const { text: fullText, sections } = collectFullReport(allMessages);
-
-      if (!fullText || fullText.length < 100) {
-        setEmailStatus('error');
-        return;
-      }
-
+      if (!fullText || fullText.length < 100) { setEmailStatus('error'); return; }
       const inconsistenciesSection = detectInconsistencies(sections);
       const finalText = fullText + inconsistenciesSection;
       const htmlBody = fixFakeLinksHTML(convertMarkdownToHTML(finalText, true));
-
       const response = await fetch(BACKEND_URL, {
-        method: 'POST',
-        redirect: 'follow',
+        method: 'POST', redirect: 'follow',
         headers: { 'Content-Type': 'text/plain' },
         body: JSON.stringify({
-          action: 'sendEmail',
-          email: emailTo,
-          subject: emailSubject,
-          body: htmlBody,
+          action: 'sendEmail', email: emailTo, subject: emailSubject, body: htmlBody,
           empresa: cleanTitle(extractCompanyName(currentSession?.title)),
           vendedor: user?.displayName || 'Vendedor',
         }),
       });
-
       const text = await response.text();
       let result;
-      try {
-        result = JSON.parse(text);
-      } catch {
-        result = response.ok || response.type === 'opaque'
-          ? { success: true }
-          : { success: false };
-      }
-
+      try { result = JSON.parse(text); } catch { result = response.ok || response.type === 'opaque' ? { success: true } : { success: false }; }
       if (result.success) {
         setEmailStatus('sent');
-        setTimeout(() => {
-          setShowEmailModal(false);
-          setEmailStatus(null);
-          setEmailTo('');
-        }, 3000);
+        setTimeout(() => { setShowEmailModal(false); setEmailStatus(null); setEmailTo(''); }, 3000);
       } else {
         console.error('Erro backend:', result.error);
         setEmailStatus('error');
         alert(`Falha no envio: ${result.error || 'Erro desconhecido'}`);
       }
-    } catch (err) {
-      console.error('Erro ao enviar email:', err);
-      setEmailStatus('error');
-    }
+    } catch (err) { console.error('Erro ao enviar email:', err); setEmailStatus('error'); }
   }
 
   async function handleScheduleFollowUp() {
     setFollowUpStatus('sending');
-
     try {
       const response = await fetch(BACKEND_URL, {
-        method: 'POST',
-        redirect: 'follow',
+        method: 'POST', redirect: 'follow',
         headers: { 'Content-Type': 'text/plain' },
         body: JSON.stringify({
           action: 'scheduleFollowUp',
@@ -1183,25 +1129,14 @@ const App: React.FC = () => {
           produtos: '',
         }),
       });
-
       const text = await response.text();
       let result;
       try { result = JSON.parse(text); } catch { result = { success: true }; }
-
       if (result.success || result.ok) {
         setFollowUpStatus('sent');
-        setTimeout(() => {
-          setShowFollowUpModal(false);
-          setFollowUpStatus('idle');
-          setFollowUpNotas('');
-        }, 3000);
-      } else {
-        setFollowUpStatus('error');
-      }
-    } catch (err) {
-      console.error('Erro follow-up:', err);
-      setFollowUpStatus('error');
-    }
+        setTimeout(() => { setShowFollowUpModal(false); setFollowUpStatus('idle'); setFollowUpNotas(''); }, 3000);
+      } else { setFollowUpStatus('error'); }
+    } catch (err) { console.error('Erro follow-up:', err); setFollowUpStatus('error'); }
   }
 
   // ============================================
@@ -1211,23 +1146,23 @@ const App: React.FC = () => {
   const handleFeedback = (messageId: string, feedback: Feedback) => {
     if (!currentSession) return;
     updateCurrentSession(session => ({
-      ...session, messages: session.messages.map(m => m.id === messageId ? { ...m, feedback: m.feedback === feedback ? undefined : feedback } : m)
+      ...session, messages: session.messages.map(m => m.id === messageId ? { ...m, feedback: m.feedback === feedback ? undefined : feedback } : m),
     }));
   };
 
   const handleSendFeedback = async (messageId: string, feedback: Feedback, comment: string, content: string) => {
     if (!currentSession) return;
     updateCurrentSession(session => ({
-      ...session, messages: session.messages.map(m => m.id === messageId ? { ...m, feedback: feedback } : m)
+      ...session, messages: session.messages.map(m => m.id === messageId ? { ...m, feedback } : m),
     }));
     try {
       await sendFeedbackRemote({
-        feedbackId: uuidv4(),
-        sessionId: currentSession.id,
-        messageId, sectionKey: null, sectionTitle: null,
-        type: feedback === 'up' ? 'like' : 'dislike', comment, aiContent: content, userId, userName: user?.displayName, timestamp: new Date().toISOString()
+        feedbackId: uuidv4(), sessionId: currentSession.id, messageId,
+        sectionKey: null, sectionTitle: null,
+        type: feedback === 'up' ? 'like' : 'dislike', comment, aiContent: content,
+        userId, userName: user?.displayName, timestamp: new Date().toISOString(),
       });
-    } catch (e) { console.error("Feedback error", e); }
+    } catch (e) { console.error('Feedback error', e); }
   };
 
   const handleSectionFeedback = (messageId: string, sectionTitle: string, feedback: Feedback) => {
@@ -1240,13 +1175,13 @@ const App: React.FC = () => {
           if (newVal === undefined) delete newSections[sectionTitle]; else newSections[sectionTitle] = newVal;
           return { ...msg, sectionFeedback: newSections };
         } return msg;
-      })
+      }),
     }));
   };
 
   const handleToggleMessageSources = (messageId: string) => {
     updateCurrentSession(session => ({
-      ...session, messages: session.messages.map(msg => msg.id === messageId ? { ...msg, isSourcesOpen: !msg.isSourcesOpen } : msg)
+      ...session, messages: session.messages.map(msg => msg.id === messageId ? { ...msg, isSourcesOpen: !msg.isSourcesOpen } : msg),
     }));
   };
 
@@ -1254,12 +1189,43 @@ const App: React.FC = () => {
   // MINI CRM HELPERS
   // ============================================
 
+  // Anti-duplicata: o id do card gerado por sessão é sempre crm_{sessionId}
   const handleSaveToCRM = async (sessionId: string) => {
     const session = sessions.find(s => s.id === sessionId);
     if (!session) return;
+    const existingCard = cards.find(c => c.id === `crm_${sessionId}`);
+    if (existingCard) {
+      // Card já existe — apenas abre o detalhe sem duplicar
+      setSelectedCRMCardId(existingCard.id);
+      setActiveView('crm');
+      return;
+    }
     const card = await createCardFromSession(session);
     setSelectedCRMCardId(card.id);
     setActiveView('crm');
+  };
+
+  // Criação manual de empresa no CRM
+  const handleCreateManualCRMCard = async () => {
+    if (!newCrmName.trim()) return;
+    setIsCreatingCrmCard(true);
+    try {
+      const card = await createManualCard({
+        companyName: newCrmName.trim(),
+        website: newCrmWebsite.trim() || undefined,
+        briefDescription: newCrmResumo.trim() || undefined,
+        stage: 'prospeccao',
+      });
+      setNewCrmName('');
+      setNewCrmWebsite('');
+      setNewCrmResumo('');
+      setShowNewCrmForm(false);
+      setSelectedCRMCardId(card.id);
+    } catch (err) {
+      console.error('Erro ao criar card manual:', err);
+    } finally {
+      setIsCreatingCrmCard(false);
+    }
   };
 
   const handleMoveCRMCard = async (cardId: string, toStage: CRMStage) => {
@@ -1285,6 +1251,20 @@ const App: React.FC = () => {
     setSelectedCRMCardId(null);
   };
 
+  // Caminho inverso: CRM → nova investigação Chat pré-preenchida com o nome da empresa
+  const handleCreateSessionFromDetail = () => {
+    if (!selectedCRMCard) return;
+    const companyName = selectedCRMCard.companyName || 'Empresa';
+    setSelectedCRMCardId(null);
+    setActiveView('chat');
+    // Pequeno delay para o modal fechar antes de abrir nova sessão
+    setTimeout(() => {
+      handleNewSession();
+      // Pré-preenche o campo de texto via evento customizado que o ChatInterface escuta
+      window.dispatchEvent(new CustomEvent('scout:prefill', { detail: { text: companyName } }));
+    }, 80);
+  };
+
   const handleOpenKanban = () => {
     setActiveView('crm');
     setSelectedCRMCardId(null);
@@ -1296,10 +1276,9 @@ const App: React.FC = () => {
 
   const renderUserHeader = () => {
     if (!user) return null;
-    const displayName = typeof user.displayName === 'string' 
-      ? user.displayName 
+    const displayName = typeof user.displayName === 'string'
+      ? user.displayName
       : (user.displayName as any)?.perfil_cliente || 'Usuário';
-
     return (
       <div className="hidden lg:flex items-center gap-2 mr-2 border-r border-slate-300 dark:border-slate-700 pr-3">
         <span className="text-xs font-medium text-slate-500 dark:text-slate-400 truncate max-w-[120px]">
@@ -1330,7 +1309,7 @@ const App: React.FC = () => {
   }
 
   const chatElement = (
-    <ChatInterface 
+    <ChatInterface
       currentSession={currentSession}
       sessions={sessions}
       onNewSession={handleNewSession}
@@ -1344,9 +1323,7 @@ const App: React.FC = () => {
       isLoading={isLoading}
       hasMore={allMessages.length > visibleCount}
       onSendMessage={handleSendMessage}
-      
-      onDeepDive={handleDeepDive} 
-      
+      onDeepDive={handleDeepDive}
       onFeedback={handleFeedback}
       onSendFeedback={handleSendFeedback}
       onSectionFeedback={handleSectionFeedback}
@@ -1355,8 +1332,8 @@ const App: React.FC = () => {
       onExportPDF={handleExportPDF}
       onExportMessage={() => {}}
       onRetry={handleRetry}
-      onStop={handleStopGeneration} 
-      onReportError={handleReportError} 
+      onStop={handleStopGeneration}
+      onReportError={handleReportError}
       onClearChat={handleClearChat}
       onRegenerateSuggestions={handleRegenerateSuggestions}
       isDarkMode={isDarkMode}
@@ -1384,19 +1361,92 @@ const App: React.FC = () => {
 
   const crmElement = (
     <div className={`flex h-full w-full ${isDarkMode ? 'bg-slate-950' : 'bg-slate-50'}`}>
-      <div className="flex-1 p-4 md:p-6">
-        <div className="flex items-center justify-between mb-4">
+      <div className="flex-1 p-4 md:p-6 overflow-y-auto">
+        {/* Header do CRM */}
+        <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Pipeline de Vendas · Kanban</p>
             <h1 className="text-sm md:text-base font-semibold text-slate-800 dark:text-slate-100">Mini CRM</h1>
           </div>
-          <button
-            onClick={() => setActiveView('chat')}
-            className="text-[11px] px-3 py-1.5 rounded-full border border-slate-300/70 dark:border-slate-700 text-slate-600 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-          >
-            ← Voltar para Investigação
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowNewCrmForm(prev => !prev)}
+              className={`text-[11px] px-3 py-1.5 rounded-full font-medium transition-colors ${
+                showNewCrmForm
+                  ? 'bg-emerald-600 text-white hover:bg-emerald-500'
+                  : 'bg-emerald-500 text-white hover:bg-emerald-600'
+              }`}
+            >
+              {showNewCrmForm ? '✕ Cancelar' : '+ Nova empresa'}
+            </button>
+            <button
+              onClick={() => setActiveView('chat')}
+              className="text-[11px] px-3 py-1.5 rounded-full border border-slate-300/70 dark:border-slate-700 text-slate-600 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            >
+              ← Voltar para Investigação
+            </button>
+          </div>
         </div>
+
+        {/* Formulário de nova empresa */}
+        {showNewCrmForm && (
+          <div className={`mb-5 rounded-xl border p-4 space-y-3 ${
+            isDarkMode ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200'
+          }`}>
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Nova empresa no CRM</p>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div>
+                <label className="text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1 block">Nome da empresa *</label>
+                <input
+                  type="text"
+                  value={newCrmName}
+                  onChange={e => setNewCrmName(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleCreateManualCRMCard()}
+                  placeholder="Ex: Fazenda São João"
+                  autoFocus
+                  className={`w-full rounded-lg border px-3 py-2 text-sm bg-transparent ${
+                    isDarkMode ? 'border-slate-700 text-slate-100 placeholder-slate-600' : 'border-slate-300 text-slate-900 placeholder-slate-400'
+                  }`}
+                />
+              </div>
+              <div>
+                <label className="text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1 block">Website (opcional)</label>
+                <input
+                  type="text"
+                  value={newCrmWebsite}
+                  onChange={e => setNewCrmWebsite(e.target.value)}
+                  placeholder="https://"
+                  className={`w-full rounded-lg border px-3 py-2 text-sm bg-transparent ${
+                    isDarkMode ? 'border-slate-700 text-slate-100 placeholder-slate-600' : 'border-slate-300 text-slate-900 placeholder-slate-400'
+                  }`}
+                />
+              </div>
+              <div>
+                <label className="text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1 block">Resumo breve (opcional)</label>
+                <input
+                  type="text"
+                  value={newCrmResumo}
+                  onChange={e => setNewCrmResumo(e.target.value)}
+                  placeholder="Segmento, porte, contexto..."
+                  className={`w-full rounded-lg border px-3 py-2 text-sm bg-transparent ${
+                    isDarkMode ? 'border-slate-700 text-slate-100 placeholder-slate-600' : 'border-slate-300 text-slate-900 placeholder-slate-400'
+                  }`}
+                />
+              </div>
+            </div>
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={handleCreateManualCRMCard}
+                disabled={!newCrmName.trim() || isCreatingCrmCard}
+                className="px-4 py-2 rounded-lg text-[12px] font-semibold bg-emerald-600 text-white hover:bg-emerald-500 disabled:bg-slate-400 disabled:cursor-not-allowed transition-colors"
+              >
+                {isCreatingCrmCard ? 'Criando...' : 'Criar empresa'}
+              </button>
+            </div>
+          </div>
+        )}
+
         <CRMPipeline
           cards={cards}
           onMoveCard={handleMoveCRMCard}
@@ -1411,7 +1461,9 @@ const App: React.FC = () => {
       <AuthModal />
 
       <div className={`flex flex-col h-screen w-full ${isDarkMode ? 'bg-slate-950' : 'bg-slate-50'}`}>
-        <header className={`h-12 px-3 md:px-4 flex items-center justify-between border-b backdrop-blur-sm ${isDarkMode ? 'bg-slate-950/80 border-slate-800' : 'bg-white/80 border-slate-200'}`}>
+        <header className={`h-12 px-3 md:px-4 flex items-center justify-between border-b backdrop-blur-sm ${
+          isDarkMode ? 'bg-slate-950/80 border-slate-800' : 'bg-white/80 border-slate-200'
+        }`}>
           <div className="flex items-center gap-3 min-w-0">
             <div className="flex items-center gap-2">
               <span className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">Senior Scout 360</span>
@@ -1442,7 +1494,6 @@ const App: React.FC = () => {
               </button>
             </div>
           </div>
-
           <div className="flex items-center gap-2">
             {renderUserHeader()}
           </div>
@@ -1453,12 +1504,14 @@ const App: React.FC = () => {
         </div>
       </div>
 
+      {/* CRM Detail Modal */}
       <CRMDetail
         card={selectedCRMCard}
         sessions={sessions}
         onClose={handleCloseCRMDetail}
         onSelectSession={handleSelectSessionFromDetail}
         onMoveStage={handleMoveStageFromDetail}
+        onCreateSessionFromCard={handleCreateSessionFromDetail}
         isDarkMode={isDarkMode}
       />
 
@@ -1470,30 +1523,18 @@ const App: React.FC = () => {
             <div className="bg-gray-800 border border-gray-700 rounded-2xl p-6 max-w-md w-full shadow-xl pointer-events-auto">
               <h3 className="text-lg font-bold text-white mb-1">📧 Enviar Dossiê por Email</h3>
               <p className="text-sm text-gray-400 mb-4">O dossiê será enviado formatado diretamente para o email informado.</p>
-
               <div className="space-y-3 mb-4">
                 <div>
                   <label className="text-xs text-gray-400 mb-1 block">Email do destinatário</label>
-                  <input
-                    type="email"
-                    value={emailTo}
-                    onChange={(e) => setEmailTo(e.target.value)}
-                    placeholder="vendedor@senior.com.br"
-                    className="w-full px-3 py-2.5 rounded-lg bg-gray-900 border border-gray-700/50 text-white text-sm focus:outline-none focus:border-emerald-500 transition-colors"
-                    autoFocus
-                  />
+                  <input type="email" value={emailTo} onChange={(e) => setEmailTo(e.target.value)} placeholder="vendedor@senior.com.br"
+                    className="w-full px-3 py-2.5 rounded-lg bg-gray-900 border border-gray-700/50 text-white text-sm focus:outline-none focus:border-emerald-500 transition-colors" autoFocus />
                 </div>
                 <div>
                   <label className="text-xs text-gray-400 mb-1 block">Assunto</label>
-                  <input
-                    type="text"
-                    value={emailSubject}
-                    onChange={(e) => setEmailSubject(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-lg bg-gray-900 border border-gray-700/50 text-white text-sm focus:outline-none focus:border-emerald-500 transition-colors"
-                  />
+                  <input type="text" value={emailSubject} onChange={(e) => setEmailSubject(e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-lg bg-gray-900 border border-gray-700/50 text-white text-sm focus:outline-none focus:border-emerald-500 transition-colors" />
                 </div>
               </div>
-
               {emailStatus && (
                 <div className="text-sm mb-4 p-2 rounded-lg text-emerald-400 bg-emerald-500/10">
                   {emailStatus === 'sending' && '⏳ Enviando...'}
@@ -1501,7 +1542,6 @@ const App: React.FC = () => {
                   {emailStatus === 'error' && '❌ Erro ao enviar. Verifique o email e tente novamente.'}
                 </div>
               )}
-
               <div className="flex gap-3">
                 <button onClick={() => { setShowEmailModal(false); setEmailStatus(null); }} className="flex-1 px-4 py-2.5 rounded-lg border border-gray-600 text-gray-300 hover:bg-gray-700 transition-colors text-sm font-medium">Cancelar</button>
                 <button onClick={handleSendEmail} disabled={emailStatus === 'sending' || !emailTo.includes('@')} className="flex-1 px-4 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:bg-gray-600 disabled:cursor-not-allowed text-white transition-colors text-sm font-medium">{emailStatus === 'sending' ? 'Enviando...' : 'Enviar'}</button>
@@ -1519,37 +1559,31 @@ const App: React.FC = () => {
             <div className="bg-gray-800 border border-gray-700 rounded-2xl p-6 max-w-md w-full shadow-xl pointer-events-auto">
               <h3 className="text-lg font-bold text-white mb-1">📅 Agendar Follow-up</h3>
               <p className="text-sm text-gray-400 mb-4">
-                {currentSession?.title 
+                {currentSession?.title
                   ? `Lembrete para retomar contato com ${cleanTitle(extractCompanyName(currentSession.title))}`
                   : 'Selecione o prazo para o lembrete'}
               </p>
-
               <div className="grid grid-cols-4 gap-2 mb-4">
                 {[3, 7, 15, 30].map(d => (
-                  <button
-                    key={d}
-                    onClick={() => setFollowUpDias(d)}
-                    className={`p-3 rounded-xl border text-center transition-all ${followUpDias === d ? 'border-emerald-500 bg-emerald-500/10 text-white' : 'border-gray-700/30 bg-gray-800/50 text-gray-400 hover:border-gray-600'}`}
-                  >
+                  <button key={d} onClick={() => setFollowUpDias(d)}
+                    className={`p-3 rounded-xl border text-center transition-all ${followUpDias === d ? 'border-emerald-500 bg-emerald-500/10 text-white' : 'border-gray-700/30 bg-gray-800/50 text-gray-400 hover:border-gray-600'}`}>
                     <p className="text-lg font-bold">{d}</p>
                     <p className="text-xs">dias</p>
                   </button>
                 ))}
               </div>
-
               <div className="mb-3">
                 <label className="text-xs text-gray-400 mb-1 block">Seu email (receber lembrete)</label>
-                <input type="email" value={emailTo} onChange={(e) => setEmailTo(e.target.value)} placeholder="vendedor@senior.com.br" className="w-full px-3 py-2.5 rounded-lg bg-gray-900 border border-gray-700/50 text-white text-sm focus:outline-none focus:border-emerald-500 transition-colors" />
+                <input type="email" value={emailTo} onChange={(e) => setEmailTo(e.target.value)} placeholder="vendedor@senior.com.br"
+                  className="w-full px-3 py-2.5 rounded-lg bg-gray-900 border border-gray-700/50 text-white text-sm focus:outline-none focus:border-emerald-500 transition-colors" />
               </div>
-
               <div className="mb-4">
                 <label className="text-xs text-gray-400 mb-1 block">Notas (opcional)</label>
-                <input type="text" value={followUpNotas} onChange={(e) => setFollowUpNotas(e.target.value)} placeholder="Ex: Retomar conversa sobre SimpleFarm" className="w-full px-3 py-2.5 rounded-lg bg-gray-900 border border-gray-700/50 text-white text-sm focus:outline-none focus:border-emerald-500 transition-colors" />
+                <input type="text" value={followUpNotas} onChange={(e) => setFollowUpNotas(e.target.value)} placeholder="Ex: Retomar conversa sobre SimpleFarm"
+                  className="w-full px-3 py-2.5 rounded-lg bg-gray-900 border border-gray-700/50 text-white text-sm focus:outline-none focus:border-emerald-500 transition-colors" />
               </div>
-
               {followUpStatus === 'sent' && (<div className="text-sm mb-4 p-2 rounded-lg text-emerald-400 bg-emerald-500/10">✅ Follow-up agendado! Você receberá um lembrete.</div>)}
               {followUpStatus === 'error' && (<div className="text-sm mb-4 p-2 rounded-lg text-red-400 bg-red-500/10">❌ Erro ao agendar. Tente novamente.</div>)}
-
               <div className="flex gap-3">
                 <button onClick={() => setShowFollowUpModal(false)} className="flex-1 px-4 py-2.5 rounded-lg border border-gray-600 text-gray-300 hover:bg-gray-700 transition-colors text-sm font-medium">Cancelar</button>
                 <button onClick={handleScheduleFollowUp} disabled={followUpStatus === 'sending'} className="flex-1 px-4 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:bg-gray-600 disabled:cursor-not-allowed text-white transition-colors text-sm font-medium">{followUpStatus === 'sending' ? 'Agendando...' : `Agendar (${followUpDias} dias)`}</button>
