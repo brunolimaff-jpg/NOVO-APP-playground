@@ -87,6 +87,21 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
   const [showRetryToast, setShowRetryToast] = useState(false);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // ============================================
+  // PRÉ-PREENCHIMENTO VIA EVENTO (CRM → Chat)
+  // ============================================
+  useEffect(() => {
+    const handlePrefill = (e: Event) => {
+      const detail = (e as CustomEvent<{ text: string }>).detail;
+      if (detail?.text) {
+        setInput(detail.text);
+        setTimeout(() => textareaRef.current?.focus(), 100);
+      }
+    };
+    window.addEventListener('scout:prefill', handlePrefill);
+    return () => window.removeEventListener('scout:prefill', handlePrefill);
+  }, []);
+
   useLayoutEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = 'inherit';
