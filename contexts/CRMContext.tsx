@@ -21,7 +21,31 @@ interface CRMContextValue {
 
 const CRMContext = createContext<CRMContextValue | undefined>(undefined);
 
-function computeHealth(_card: CRMCard): DealHealth {
+function computeHealth(card: CRMCard): DealHealth {
+  const now = Date.now();
+
+  const movedAt = card.movedToStageAt[card.stage];
+  const daysSinceMoved = movedAt
+    ? (now - new Date(movedAt).getTime()) / 86_400_000
+    : 0;
+
+  const daysSinceUpdated = (now - new Date(card.updatedAt).getTime()) / 86_400_000;
+
+  const score = card.latestScorePorta;
+
+  // Vermelho: score baixo OU negócio parado há muito tempo sem atualização
+  if (
+    (score !== undefined && score < 40) ||
+    (daysSinceMoved > 30 && daysSinceUpdated > 14)
+  ) {
+    return 'red';
+  }
+
+  // Amarelo: score mediano OU negócio sem movimentação recente
+  if ((score !== undefined && score < 60) || daysSinceMoved > 15) {
+    return 'yellow';
+  }
+
   return 'green';
 }
 

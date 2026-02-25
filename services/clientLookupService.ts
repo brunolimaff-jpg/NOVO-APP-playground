@@ -79,44 +79,68 @@ async function fetchWithRetry(url: string, retries: number = MAX_RETRIES): Promi
   throw lastError || new Error('Falha após todas as tentativas');
 }
 
+// Cache em memória por sessão — evita requests duplicados para o mesmo nome
+const _lookupCache = new Map<string, LookupResponse>();
+
+function normalizeCacheKey(name: string): string {
+  return name
+    .replace(/^(grupo|empresa|fazenda|usina|cia)\s+/i, '')
+    .replace(/\s+(ltda|s\/a|sa|eireli|me|epp)\.?$/i, '')
+    .replace(/[.,;:!?]+$/, '')
+    .trim()
+    .toLowerCase();
+}
+
 export async function lookupCliente(nomeEmpresa: string): Promise<LookupResponse> {
   console.log("[LOOKUP] === INÍCIO ===");
-  
-  let nomeLimpo = nomeEmpresa
+
+  const nomeLimpo = nomeEmpresa
     .replace(/^(grupo|empresa|fazenda|usina|cia)\s+/i, '')
     .replace(/\s+(ltda|s\/a|sa|eireli|me|epp)\.?$/i, '')
     .replace(/[.,;:!?]+$/, '')
     .trim();
-  
-  console.log("[LOOKUP] Query:", nomeLimpo);
-  
-  try {
-    // Tentativa 1: nome completo
-    let data = await fetchLookup(nomeLimpo);
-    
-    // Tentativa 2: primeira palavra
-    if (!data.encontrado && nomeLimpo.includes(' ')) {
-      const p1 = nomeLimpo.split(/\s+/).filter(p => p.length > 2)[0];
-      if (p1) {
-        console.log("[LOOKUP] Retry (First Word):", p1);
-        data = await fetchLookup(p1);
-      }
-    }
 
-    // Tentativa 3: palavra mais longa
-    if (!data.encontrado) {
-      const words = nomeLimpo.split(/\s+/).filter(w => w.length > 3);
-      if (words.length > 0) {
-        const strongest = words.sort((a, b) => b.length - a.length)[0];
-        const p1 = nomeLimpo.split(/\s+/).filter(p => p.length > 2)[0];
-        if (strongest !== nomeLimpo && strongest !== p1) {
-          console.log("[LOOKUP] Retry (Strongest):", strongest);
-          data = await fetchLookup(strongest);
-        }
-      }
-    }
-    
+  const cacheKey = normalizeCacheKey(nomeEmpresa);
+
+  // Cache hit: retorna imediatamente sem novas chamadas HTTP
+  if (_lookupCache.has(cacheKey)) {
+    console.log("[LOOKUP] Cache hit:", cacheKey);
+    return _lookupCache.get(cacheKey)!;
+  }
+
+  console.log("[LOOKUP] Query:", nomeLimpo);
+
+  try {
+    // Monta variantes de busca únicas para disparo paralelo
+    const p1 = nomeLimpo.includes(' ')
+      ? nomeLimpo.split(/\s+/).filter(p => p.length > 2)[0] ?? null
+      : null;
+    const words = nomeLimpo.split(/\s+/).filter(w => w.length > 3);
+    const strongest = words.length > 0
+      ? [...words].sort((a, b) => b.length - a.length)[0]
+      : null;
+
+    const variants: string[] = [nomeLimpo];
+    if (p1 && p1 !== nomeLimpo) variants.push(p1);
+    if (strongest && strongest !== nomeLimpo && strongest !== p1) variants.push(strongest);
+
+    // Dispara todas as variantes em paralelo (substitui 3 chamadas sequenciais)
+    const settled = await Promise.allSettled(variants.map(v => fetchLookup(v)));
+
+    // Usa o primeiro resultado com encontrado=true, senão o primeiro disponível
+    const found = settled.find(
+      (r): r is PromiseFulfilledResult<LookupResponse> =>
+        r.status === 'fulfilled' && r.value.encontrado
+    );
+
+    const data = found
+      ? found.value
+      : settled[0].status === 'fulfilled'
+        ? settled[0].value
+        : { ok: false, query: nomeLimpo, encontrado: false, total: 0, results: [] };
+
     console.log("[LOOKUP] Resultado:", data.encontrado ? "ENCONTRADO ✅" : "NÃO ENCONTRADO", "| Total:", data.total);
+    _lookupCache.set(cacheKey, data);
     return data;
   } catch (err: any) {
     console.error("[LOOKUP] ERRO:", err.message);

@@ -46,16 +46,28 @@ const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
       />
       
       {/* Drawer lateral direito */}
-      <div className="fixed right-0 top-0 h-full w-80 md:w-96 bg-gray-900 border-l border-gray-700/50 z-50 overflow-y-auto shadow-2xl transform transition-transform duration-300 animate-slide-in">
-        
+      <div className={`fixed right-0 top-0 h-full w-80 md:w-96 border-l z-50 overflow-y-auto shadow-2xl transform transition-transform duration-300 animate-slide-in ${
+        isDarkMode
+          ? 'bg-gray-900 border-gray-700/50'
+          : 'bg-white border-gray-200'
+      }`}>
+
         {/* Header do painel */}
-        <div className="flex items-center justify-between p-5 border-b border-gray-700/50 bg-gray-900/95 sticky top-0 backdrop-blur-md z-10">
-          <h2 className="text-lg font-bold text-white flex items-center gap-2">
+        <div className={`flex items-center justify-between p-5 border-b sticky top-0 backdrop-blur-md z-10 ${
+          isDarkMode
+            ? 'border-gray-700/50 bg-gray-900/95'
+            : 'border-gray-200 bg-white/95'
+        }`}>
+          <h2 className={`text-lg font-bold flex items-center gap-2 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
             <span>⚙️</span> Configurações
           </h2>
-          <button 
+          <button
             onClick={onClose}
-            className="text-gray-400 hover:text-white text-xl p-2 hover:bg-gray-800 rounded-lg transition-colors"
+            className={`text-xl p-2 rounded-lg transition-colors ${
+              isDarkMode
+                ? 'text-gray-400 hover:text-white hover:bg-gray-800'
+                : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'
+            }`}
           >
             ✕
           </button>
@@ -65,24 +77,28 @@ const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
         
           {/* ===== PERFIL ===== */}
           <section>
-            <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3 ml-1">Perfil</h3>
-            
+            <h3 className={`text-xs font-bold uppercase tracking-wider mb-3 ml-1 ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>Perfil</h3>
+
             <div className="space-y-2">
-              <label className="text-sm text-gray-300 font-medium">Como quer ser chamado?</label>
+              <label className={`text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>Como quer ser chamado?</label>
               <input
                 type="text"
                 value={userName}
                 onChange={(e) => onUpdateName(e.target.value)}
                 placeholder="Ex: Bruno Lima"
-                className="w-full px-4 py-3 rounded-xl bg-gray-800 border border-gray-700 text-white text-sm focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all placeholder-gray-600"
+                className={`w-full px-4 py-3 rounded-xl border text-sm focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all ${
+                  isDarkMode
+                    ? 'bg-gray-800 border-gray-700 text-white placeholder-gray-600'
+                    : 'bg-gray-50 border-gray-300 text-gray-900 placeholder-gray-400'
+                }`}
               />
-              <p className="text-[10px] text-gray-500 ml-1">Usado na saudação e nos relatórios exportados.</p>
+              <p className={`text-[10px] ml-1 ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>Usado na saudação e nos relatórios exportados.</p>
             </div>
           </section>
           
           {/* ===== MODO DE INVESTIGAÇÃO ===== */}
           <section>
-            <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3 ml-1">Modo de Investigação</h3>
+            <h3 className={`text-xs font-bold uppercase tracking-wider mb-3 ml-1 ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>Modo de Investigação</h3>
             
             <div className="grid gap-3">
               {/* Operação */}
@@ -123,14 +139,14 @@ const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
           
           {/* ===== APARÊNCIA ===== */}
           <section>
-            <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3 ml-1">Aparência</h3>
-            
-            <div className="flex items-center justify-between p-4 rounded-xl bg-gray-800/50 border border-gray-700/50">
+            <h3 className={`text-xs font-bold uppercase tracking-wider mb-3 ml-1 ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>Aparência</h3>
+
+            <div className={`flex items-center justify-between p-4 rounded-xl border ${isDarkMode ? 'bg-gray-800/50 border-gray-700/50' : 'bg-gray-50 border-gray-200'}`}>
               <div className="flex items-center gap-3">
                 <span className="text-xl">{isDarkMode ? '🌙' : '☀️'}</span>
                 <div>
-                  <p className="text-sm font-medium text-white">Tema Escuro</p>
-                  <p className="text-xs text-gray-400">{isDarkMode ? 'Ativado' : 'Desativado'}</p>
+                  <p className={`text-sm font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Tema Escuro</p>
+                  <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>{isDarkMode ? 'Ativado' : 'Desativado'}</p>
                 </div>
               </div>
               <button
@@ -148,28 +164,32 @@ const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
           
           {/* ===== AÇÕES ===== */}
           <section>
-            <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3 ml-1">Ações</h3>
-            
+            <h3 className={`text-xs font-bold uppercase tracking-wider mb-3 ml-1 ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>Ações</h3>
+
             <div className="space-y-2">
               {/* Dashboard */}
               <button
                 onClick={() => { onOpenDashboard(); onClose(); }}
-                className="w-full flex items-center gap-3 p-3 rounded-xl bg-gray-800/30 border border-gray-700/30 hover:bg-gray-800 hover:border-gray-600 transition-all text-left group"
+                className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all text-left group ${
+                  isDarkMode
+                    ? 'bg-gray-800/30 border-gray-700/30 hover:bg-gray-800 hover:border-gray-600'
+                    : 'bg-gray-50 border-gray-200 hover:bg-gray-100 hover:border-gray-300'
+                }`}
               >
-                <span className="text-lg bg-gray-700 p-2 rounded-lg group-hover:bg-gray-600 transition-colors">📊</span>
+                <span className={`text-lg p-2 rounded-lg transition-colors ${isDarkMode ? 'bg-gray-700 group-hover:bg-gray-600' : 'bg-gray-200 group-hover:bg-gray-300'}`}>📊</span>
                 <div>
-                  <p className="text-sm font-medium text-white">Dashboard</p>
-                  <p className="text-xs text-gray-400">Histórico e estatísticas</p>
+                  <p className={`text-sm font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Dashboard</p>
+                  <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>Histórico e estatísticas</p>
                 </div>
               </button>
             </div>
           </section>
-          
+
           {/* ===== SOBRE ===== */}
           <section>
-            <div className="text-center pt-6 border-t border-gray-700/30">
-              <p className="text-xs font-bold text-gray-500">Senior Scout 360 · v4.5</p>
-              <p className="text-[10px] text-gray-600 mt-1">Inteligência Comercial para Agronegócio</p>
+            <div className={`text-center pt-6 border-t ${isDarkMode ? 'border-gray-700/30' : 'border-gray-200'}`}>
+              <p className={`text-xs font-bold ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>Senior Scout 360 · v4.5</p>
+              <p className={`text-[10px] mt-1 ${isDarkMode ? 'text-gray-600' : 'text-gray-400'}`}>Inteligência Comercial para Agronegócio</p>
             </div>
           </section>
           
