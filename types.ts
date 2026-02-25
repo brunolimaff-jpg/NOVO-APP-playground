@@ -105,6 +105,10 @@ export interface ChatInterfaceProps {
   onNewSession: () => void;
   onSelectSession: (sessionId: string) => void;
   onDeleteSession: (sessionId: string) => void;
+  // Props anteriormente faltantes — adicionadas na Fase 1
+  onSaveToCRM: (sessionId: string) => void;
+  onDeepDive: (displayMessage: string, hiddenPrompt: string) => Promise<void>;
+  onOpenKanban: () => void;
   isSidebarOpen: boolean;
   onToggleSidebar: () => void;
   messages: Message[];
@@ -134,14 +138,15 @@ export interface ChatInterfaceProps {
   pdfReportContent: string | null;
   onOpenEmailModal: () => void;
   onOpenFollowUpModal: () => void;
-  userId: React.ReactNode;
+  // Renomeado de userId para deixar claro que é um nó React, não uma string
+  userHeaderNode: React.ReactNode;
   onLogout: () => void;
   lastUserQuery?: string;
   processing?: {
     stage?: string;
     completedStages?: string[];
   };
-  // NOVO: deletar mensagem do usuário
+  // Deletar mensagem do usuário
   onDeleteMessage?: (id: string) => void;
 }
 
