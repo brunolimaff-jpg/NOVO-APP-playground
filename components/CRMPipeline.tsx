@@ -1,20 +1,153 @@
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { CRMPipelineProps, CRM_STAGE_LABELS, CRMStage } from '../types';
 
 export const CRMPipeline: React.FC<CRMPipelineProps> = ({ cards, onMoveCard, onSelectCard }) => {
   const stages: CRMStage[] = ['prospeccao', 'primeira_reuniao', 'levantamento', 'defesa_tecnica', 'dossie_final'];
+  
+  // Estado para controle visual do drag
+  const [draggedCardId, setDraggedCardId] = useState<string | null>(null);
+  const [dragOverStage, setDragOverStage] = useState<CRMStage | null>(null);
+
+  // Estado para undo de movimento
+  const [lastMove, setLastMove] = useState<{ cardId: string; from: CRMStage; to: CRMStage } | null>(null);
+  const [undoVisible, setUndoVisible] = useState(false);
+  const undoTimeoutRef = useRef<number | null>(null);
+
+  const playMoveFeedback = () => {
+    try {
+      if (typeof window === 'undefined') return;
+
+      if ('vibrate' in navigator) {
+        // Pequena vibração em dispositivos que suportam
+        navigator.vibrate(25);
+      }
+
+      const AnyAudioContext = (window as any).AudioContext || (window as any).webkitAudioContext;
+      if (!AnyAudioContext) return;
+
+      const ctx = new AnyAudioContext();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc.type = 'triangle';
+      osc.frequency.value = 660;
+
+      gain.gain.setValueAtTime(0.08, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.start();
+      osc.stop(ctx.currentTime + 0.15);
+    } catch {
+      // falha silenciosa — feedback é só um plus
+    }
+  };
+
+  const handleDragStart = (e: React.DragEvent, cardId: string) => {
+    setDraggedCardId(cardId);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', cardId);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedCardId(null);
+    setDragOverStage(null);
+  };
+
+  const handleDragOver = (e: React.DragEvent, stage: CRMStage) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setDragOverStage(stage);
+  };
+
+  const handleDragLeave = () => {
+    setDragOverStage(null);
+  };
+
+  const handleDrop = (e: React.DragEvent, targetStage: CRMStage) => {
+    e.preventDefault();
+    const cardId = e.dataTransfer.getData('text/plain');
+    
+    if (cardId && targetStage) {
+      const card = cards.find(c => c.id === cardId);
+      if (card && card.stage !== targetStage) {
+        const fromStage = card.stage as CRMStage;
+        onMoveCard(cardId, targetStage);
+        setLastMove({ cardId, from: fromStage, to: targetStage });
+        setUndoVisible(true);
+        playMoveFeedback();
+      }
+    }
+    
+    setDraggedCardId(null);
+    setDragOverStage(null);
+  };
+
+  const handleUndoMove = () => {
+    if (lastMove) {
+      onMoveCard(lastMove.cardId, lastMove.from);
+    }
+    setLastMove(null);
+    setUndoVisible(false);
+  };
+
+  useEffect(() => {
+    if (!undoVisible || !lastMove) return;
+
+    if (undoTimeoutRef.current) {
+      window.clearTimeout(undoTimeoutRef.current);
+    }
+
+    undoTimeoutRef.current = window.setTimeout(() => {
+      setUndoVisible(false);
+      setLastMove(null);
+    }, 5000);
+
+    return () => {
+      if (undoTimeoutRef.current) {
+        window.clearTimeout(undoTimeoutRef.current);
+      }
+    };
+  }, [undoVisible, lastMove]);
 
   return (
     <div className="w-full h-full overflow-x-auto">
+      <div className="flex flex-col gap-2 mb-2">
+        {undoVisible && lastMove && (
+          <div className="mx-1 mb-1 inline-flex items-center gap-2 rounded-full bg-slate-900 text-slate-50 px-3 py-1 text-[11px] shadow-sm dark:bg-slate-800">
+            <span>
+              Empresa movida para <span className="font-semibold">{CRM_STAGE_LABELS[lastMove.to]}</span>.
+            </span>
+            <button
+              type="button"
+              onClick={handleUndoMove}
+              className="rounded-full bg-emerald-500 px-2 py-0.5 text-[10px] font-semibold text-white hover:bg-emerald-600 transition-colors"
+            >
+              Desfazer
+            </button>
+          </div>
+        )}
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4 min-w-[980px]">
         {stages.map(stage => {
           const stageCards = cards.filter(c => c.stage === stage);
           const total = stageCards.length;
+          const isDragOver = dragOverStage === stage;
 
           return (
             <div
               key={stage}
-              className="rounded-2xl border bg-slate-50/70 dark:bg-slate-900/70 border-slate-200 dark:border-slate-800 p-3 flex flex-col shadow-sm"
+              onDragOver={(e) => handleDragOver(e, stage)}
+              onDragLeave={handleDragLeave}
+              onDrop={(e) => handleDrop(e, stage)}
+              className={`rounded-2xl border p-3 flex flex-col shadow-sm transition-colors duration-200 ${
+                isDragOver
+                  ? 'bg-emerald-50/70 dark:bg-emerald-900/30 border-emerald-400 dark:border-emerald-500'
+                  : 'bg-slate-50/70 dark:bg-slate-900/70 border-slate-200 dark:border-slate-800'
+              }`}
             >
               <div className="flex items-center justify-between mb-2">
                 <div>
@@ -30,6 +163,8 @@ export const CRMPipeline: React.FC<CRMPipelineProps> = ({ cards, onMoveCard, onS
               <div className="flex-1 space-y-2 overflow-y-auto min-h-[140px] pb-1">
                 {stageCards.map(raw => {
                   const card: any = raw;
+                  const isDragging = draggedCardId === card.id;
+                  const isRecentlyMoved = lastMove && lastMove.cardId === card.id && lastMove.to === stage && undoVisible;
 
                   const porta = card.latestScorePorta as number | undefined;
                   const portaColor = porta >= 71 ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300' :
@@ -51,10 +186,21 @@ export const CRMPipeline: React.FC<CRMPipelineProps> = ({ cards, onMoveCard, onS
                     : null;
 
                   return (
-                    <button
+                    <div
                       key={card.id}
+                      draggable
+                      onDragStart={(e) => handleDragStart(e, card.id)}
+                      onDragEnd={handleDragEnd}
                       onClick={() => onSelectCard(card.id)}
-                      className="w-full text-left rounded-2xl border border-slate-200 dark:border-slate-700 bg-white/90 dark:bg-slate-900/90 hover:border-emerald-500/70 hover:shadow-md transition-all p-3 flex flex-col gap-1.5"
+                      className={`w-full text-left rounded-2xl border bg-white/90 dark:bg-slate-900/90 p-3 flex flex-col gap-1.5 cursor-pointer transition-all duration-150 ${
+                        isDragging
+                          ? 'opacity-50 border-dashed border-slate-400'
+                          : 'hover:border-emerald-500/70 hover:shadow-md border-slate-200 dark:border-slate-700'
+                      } ${
+                        isRecentlyMoved
+                          ? 'ring-2 ring-emerald-400 ring-offset-2 ring-offset-slate-100 dark:ring-offset-slate-900 animate-pulse'
+                          : ''
+                      }`}
                     >
                       <div className="flex items-start justify-between gap-2">
                         <p className="text-xs font-semibold text-slate-900 dark:text-slate-50 truncate">
@@ -93,17 +239,6 @@ export const CRMPipeline: React.FC<CRMPipelineProps> = ({ cards, onMoveCard, onS
                               {investigationsCount} inv.
                             </span>
                           )}
-                          <select
-                            value={stage}
-                            onChange={e => onMoveCard(card.id, e.target.value as CRMStage)}
-                            className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-full px-2 py-0.5 text-[10px] text-slate-600 dark:text-slate-300 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                          >
-                            {stages.map(s => (
-                              <option key={s} value={s}>
-                                {CRM_STAGE_LABELS[s]}
-                              </option>
-                            ))}
-                          </select>
                         </div>
                       </div>
 
@@ -112,7 +247,7 @@ export const CRMPipeline: React.FC<CRMPipelineProps> = ({ cards, onMoveCard, onS
                           Atualizado em {updatedAt}
                         </p>
                       )}
-                    </button>
+                    </div>
                   );
                 })}
 

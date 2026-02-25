@@ -21,6 +21,20 @@ export interface GeminiRequestOptions {
   nomeVendedor?: string;
 }
 
+// Dados estruturados extraídos de uma ficha do ExactSpotter
+export interface SpotterExtractedData {
+  companyName?: string;
+  contactName?: string;
+  contactRole?: string;
+  contactEmail?: string;
+  contactPhone?: string;
+  segment?: string;
+  size?: string;
+  pains?: string[];
+  currentSystems?: string[];
+  summary?: string;
+}
+
 // ===================================================================
 // CONFIGURAÇÃO DOS MODELOS (ROTEAMENTO INTELIGENTE)
 // ===================================================================
@@ -270,6 +284,90 @@ function getReadableTitle(source: { uri?: string; title?: string }): string {
   if (knownKey) return DOMAIN_NAMES[knownKey];
   return domain || title || 'Fonte Externa';
 }
+
+export const extractSpotterData = async (raw: string): Promise<SpotterExtractedData> => {
+  if (!raw.trim()) {
+    return {};
+  }
+
+  const ai = getGenAI();
+
+  const systemInstruction = `
+Você é um analista SDR lendo uma ficha pública colada do ExactSpotter.
+
+TAREFA:
+- Extrair APENAS os campos pedidos abaixo, sem "viajar" no que não estiver claro.
+- Se um campo não aparecer claramente no texto, deixe como null ou lista vazia.
+
+FORMATO DA RESPOSTA (OBRIGATÓRIO):
+Retorne EXCLUSIVAMENTE um JSON com a estrutura:
+
+{
+  "companyName": string | null,
+  "contactName": string | null,
+  "contactRole": string | null,
+  "contactEmail": string | null,
+  "contactPhone": string | null,
+  "segment": string | null,
+  "size": string | null,
+  "pains": string[],
+  "currentSystems": string[],
+  "summary": string | null
+}
+
+REGRAS:
+- "segment" = ramo / setor (ex.: "agropecuária", "transportes", "indústria de alimentos").
+- "size" = porte (ex.: "pequena", "média", "grande", ou algo equivalente que esteja no texto).
+- "pains" = 3 a 8 dores ou problemas citados ou claramente implícitos. Use frases curtas.
+- "currentSystems" = ERPs, CRMs ou outros sistemas de gestão mencionados (TOTVS, Senior, SAP, etc.).
+- "summary" = resumo em 2~3 frases do contexto comercial para prospecção.
+
+IMPORTANTE:
+- Não invente email, telefone ou sistemas se não estiverem na ficha.
+- NÃO inclua comentários fora do JSON. Apenas o objeto JSON puro.
+`;
+
+  const response = await ai.models.generateContent({
+    model: ROUTER_MODEL_ID,
+    contents: [
+      {
+        role: 'user',
+        parts: [
+          {
+            text: `${systemInstruction}\n\nFICHA COPIADA DO SPOTTER:\n\n${raw}`,
+          },
+        ],
+      },
+    ],
+    config: {
+      responseMimeType: 'application/json',
+      temperature: 0.2,
+    },
+  });
+
+  try {
+    const text = response.text || '{}';
+    const parsed = JSON.parse(text);
+
+    const data: SpotterExtractedData = {
+      companyName: parsed.companyName || undefined,
+      contactName: parsed.contactName || undefined,
+      contactRole: parsed.contactRole || undefined,
+      contactEmail: parsed.contactEmail || undefined,
+      contactPhone: parsed.contactPhone || undefined,
+      segment: parsed.segment || undefined,
+      size: parsed.size || undefined,
+      pains: Array.isArray(parsed.pains) ? parsed.pains : [],
+      currentSystems: Array.isArray(parsed.currentSystems) ? parsed.currentSystems : [],
+      summary: parsed.summary || undefined,
+    };
+
+    return data;
+  } catch (err) {
+    console.error('Erro ao parsear JSON do Spotter:', err);
+    return {};
+  }
+};
 
 export const createChatSession = (
   systemInstruction: string, 
