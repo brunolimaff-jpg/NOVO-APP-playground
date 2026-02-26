@@ -44,7 +44,7 @@ export interface SpotterExtractedData {
 const ROUTER_MODEL_ID = 'gemini-2.5-flash'; 
 
 // Rota 1: Tática (Mais rápido, focado em ferramentas e respostas pontuais)
-const TACTICAL_MODEL_ID = 'gemini-3.1-pro-preview-customtools';
+const TACTICAL_MODEL_ID = 'gemini-2.5-flash';
 
 // Rota 2: Dossiê Profundo via Chat (streaming, compatível com UI de status/marcadores)
 const DEEP_CHAT_MODEL_ID = 'gemini-2.5-pro';
