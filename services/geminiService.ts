@@ -726,7 +726,7 @@ ${safeRagContext}
       text: finalText,
       sources: sources,
       suggestions: [],
-      scorePorta: finalParsed.scorePorta,
+      scorePorta: (empresa && isConcorrenteOuPropria(empresa)) ? undefined : finalParsed.scorePorta,
       statuses: finalParsed.statuses,
       empresa,
     };
