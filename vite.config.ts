@@ -20,20 +20,12 @@ export default defineConfig(({ mode }) => {
         '~': resolve(__dirname, '.'),
       },
     },
-    optimizeDeps: {
-      include: [
-        'firebase/auth',
-        'firebase/firestore',
-        'firebase/app',
-        'firebase/analytics'
-      ]
-    },
     build: {
       rollupOptions: {
         external: [],
         output: {
           manualChunks: {
-            firebase: ['firebase/app', 'firebase/auth', 'firebase/firestore'],
+            vendor: ['react', 'react-dom'],
           },
         },
       },
