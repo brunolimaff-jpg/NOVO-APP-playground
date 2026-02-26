@@ -715,15 +715,34 @@ ${safeRagContext}
     const finalParsed = parseMarkers(rawAccumulator);
     let finalText = enforceOpeningWithSeller(finalParsed.text, nomeParaInjetar);
 
-    // ✅ AUDITORIA: Adiciona seção "Fontes Consultadas" com todos os links do grounding
-    const sources = groundingChunks
+    // ✅ STRIP DE LINKS INLINE: remove URLs do corpo da resposta e coleta para o rodapé
+    const inlineLinks: Array<{ title: string; url: string }> = [];
+    finalText = finalText.replace(
+      /\[([^\]\n]{1,120})\]\((https?:\/\/[^)\s]{4,})\)/g,
+      (_, title, url) => {
+        const clean = title.trim();
+        if (!inlineLinks.some(l => l.url === url)) {
+          inlineLinks.push({ title: clean, url });
+        }
+        return clean; // mantém o texto, remove o (url)
+      }
+    );
+
+    // ✅ AUDITORIA: Adiciona seção "Fontes consultadas" com grounding + links inline coletados
+    const groundingSources = groundingChunks
       .filter(c => c.web?.uri)
       .map(c => ({ title: getReadableTitle(c.web), url: c.web.uri }));
 
-    if (sources.length > 0) {
-      finalText += `\n\n---\n\n## 📚 Fontes Consultadas\n\n`;
-      finalText += `*A IA consultou ${sources.length} página${sources.length > 1 ? 's' : ''} durante a pesquisa. Abaixo estão todos os links acessados:*\n\n`;
-      finalText += sources.map((s, i) => `${i + 1}. [${s.title}](${s.url})`).join('\n');
+    // Merge: grounding sources primeiro, depois inline links não duplicados
+    const allSources = [
+      ...groundingSources,
+      ...inlineLinks.filter(il => !groundingSources.some(s => s.url === il.url)),
+    ];
+    const sources = allSources; // mantém compatibilidade com o return abaixo
+
+    if (allSources.length > 0) {
+      finalText += `\n\n---\n\n## 📚 Fontes consultadas para contexto\n\n`;
+      finalText += allSources.map((s, i) => `${i + 1}. [${s.title}](${s.url})`).join('\n');
     }
 
     return {
