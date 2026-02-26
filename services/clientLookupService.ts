@@ -97,8 +97,10 @@ export async function lookupCliente(nomeEmpresa: string): Promise<LookupResponse
   const nomeLimpo = nomeEmpresa
     .replace(/^(grupo|empresa|fazenda|usina|cia)\s+/i, '')
     .replace(/\s+(ltda|s\/a|sa|eireli|me|epp)\.?$/i, '')
-    .replace(/[.,;:!?]+$/, '')
-    .trim();
+    .replace(/,\s*/g, ' ')   // vírgula vira espaço ("SENIOR, TOTVS" → "SENIOR TOTVS")
+    .replace(/[.;:!?]+$/, '')
+    .trim()
+    .replace(/\s+/g, ' ');   // normaliza espaços múltiplos
 
   const cacheKey = normalizeCacheKey(nomeEmpresa);
 
