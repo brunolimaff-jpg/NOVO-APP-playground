@@ -2,6 +2,25 @@
 // CORRIGIDO: Timeout + Retry para App Script
 
 import { LOOKUP_URL } from "./apiConfig";
+import { CONCORRENTES } from "./competitors";
+
+// Deriva termos-raiz a partir dos IDs dos concorrentes cadastrados (ex: 'totvs_protheus' → 'totvs')
+// + termos extras (própria empresa e produtos legados)
+const _concorrentesSet = new Set<string>([
+  'senior',                                          // própria empresa
+  ...CONCORRENTES.map(c => c.id.split('_')[0]),      // sap, totvs, sankhya, chb, siagri, benner, lg, viasoft, unisystem
+  'protheus', 'microsiga', 'datasul',                // produtos TOTVS antigos
+  'oracle', 'microsoft', 'linx',                     // outros players
+]);
+
+/**
+ * Retorna true se a empresa for um concorrente cadastrado ou a própria Senior.
+ * Evita chamadas desnecessárias ao App Script para nomes que jamais serão clientes.
+ */
+export function isConcorrenteOuPropria(empresa: string): boolean {
+  const first = empresa.toLowerCase().trim().split(/[\s,]+/)[0];
+  return _concorrentesSet.has(first);
+}
 
 const LOOKUP_API_URL = LOOKUP_URL;
 const TIMEOUT_MS = 10000; // 10 segundos
@@ -97,8 +116,10 @@ export async function lookupCliente(nomeEmpresa: string): Promise<LookupResponse
   const nomeLimpo = nomeEmpresa
     .replace(/^(grupo|empresa|fazenda|usina|cia)\s+/i, '')
     .replace(/\s+(ltda|s\/a|sa|eireli|me|epp)\.?$/i, '')
-    .replace(/[.,;:!?]+$/, '')
-    .trim();
+    .replace(/,\s*/g, ' ')   // vírgula vira espaço ("SENIOR, TOTVS" → "SENIOR TOTVS")
+    .replace(/[.;:!?]+$/, '')
+    .trim()
+    .replace(/\s+/g, ' ');   // normaliza espaços múltiplos
 
   const cacheKey = normalizeCacheKey(nomeEmpresa);
 

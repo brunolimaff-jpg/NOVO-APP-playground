@@ -5,7 +5,7 @@ import { normalizeAppError } from '../utils/errorHelpers';
 import { withAutoRetry } from '../utils/retry';
 import { Message } from '../types';
 import { stripMarkdown, cleanSuggestionText } from '../utils/textCleaners';
-import { lookupCliente, formatarParaPrompt, benchmarkClientes, formatarBenchmarkParaPrompt } from './clientLookupService';
+import { lookupCliente, formatarParaPrompt, benchmarkClientes, formatarBenchmarkParaPrompt, isConcorrenteOuPropria } from './clientLookupService';
 import { addInvestigation } from '../components/InvestigationDashboard';
 import { CompetitorDetection, getContextoConcorrentesRegionais } from './competitorService';
 import { buscarContextoPinecone } from './ragService';
@@ -568,9 +568,13 @@ export const sendMessageToGemini = async (
     const sessionId = currentCompanyContext?.sessionId;
 
     if (empresa) {
-      onStatus?.(`Buscando histórico de ${empresa} na base interna...`);
-      const lookup = await lookupCliente(empresa);
-      enrichments.push(lookup.encontrado ? formatarParaPrompt(lookup) : `\n[Lookup: "${empresa}" não encontrado na base interna]\n`);
+      if (!isConcorrenteOuPropria(empresa)) {
+        onStatus?.(`Buscando histórico de ${empresa} na base interna...`);
+        const lookup = await lookupCliente(empresa);
+        enrichments.push(lookup.encontrado ? formatarParaPrompt(lookup) : `\n[Lookup: "${empresa}" não encontrado na base interna]\n`);
+      } else {
+        console.log(`[LOOKUP] Skipped — "${empresa}" é concorrente ou a própria empresa.`);
+      }
 
       enrichments.push(generateContextReminder(empresa, sessionId));
 
