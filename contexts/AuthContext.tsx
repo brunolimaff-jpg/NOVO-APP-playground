@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 
 export interface AuthUser {
   id: string;
@@ -18,42 +18,90 @@ interface AuthContextType {
   error: string | null;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+// ─── Base de usuários pré-carregada ──────────────────────────────────────────
+// Para adicionar ou remover usuários, edite esta lista.
+// Cada entrada: { email, password, displayName }
+// ─────────────────────────────────────────────────────────────────────────────
+interface UserRecord {
+  email: string;
+  password: string;
+  displayName: string;
+}
 
-const MASTER_PASSWORD = 'Senior2026!';
+const USERS_DB: UserRecord[] = [
+  { email: 'admin@senior.com.br',   password: 'Senior2026!',  displayName: 'Administrador'  },
+  { email: 'bruno@senior.com.br',   password: 'Bruno2026!',   displayName: 'Bruno Lima'     },
+  { email: 'vendas@senior.com.br',  password: 'Vendas2026!',  displayName: 'Equipe Vendas'  },
+  // Adicione mais usuários aqui ↓
+];
+// ─────────────────────────────────────────────────────────────────────────────
+
+const SESSION_KEY = 'scout360_session';
+
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<AuthUser | null>(null);
-  const [loading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Restaura sessão salva ao carregar a página
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(SESSION_KEY);
+      if (saved) {
+        setUser(JSON.parse(saved));
+      }
+    } catch {
+      localStorage.removeItem(SESSION_KEY);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   const login = async (email: string, password: string) => {
     setError(null);
+
     if (!email || !email.includes('@')) {
       setError('Informe um e-mail válido.');
       throw new Error('invalid-email');
     }
-    if (password !== MASTER_PASSWORD) {
+
+    const record = USERS_DB.find(
+      (u) => u.email.toLowerCase() === email.toLowerCase()
+    );
+
+    if (!record) {
+      setError('E-mail não encontrado.');
+      throw new Error('user-not-found');
+    }
+
+    if (record.password !== password) {
       setError('Senha incorreta.');
       throw new Error('wrong-password');
     }
-    const displayName = email.split('@')[0];
+
     const newUser: AuthUser = {
-      id: email,
-      displayName,
-      email,
+      id: record.email,
+      displayName: record.displayName,
+      email: record.email,
       isGuest: false,
     };
+
     setUser(newUser);
+    localStorage.setItem(SESSION_KEY, JSON.stringify(newUser));
   };
 
   const logout = async () => {
     setUser(null);
+    localStorage.removeItem(SESSION_KEY);
   };
 
   const updateName = (name: string) => {
     if (!user) return;
-    setUser({ ...user, displayName: name });
+    const updated = { ...user, displayName: name };
+    setUser(updated);
+    localStorage.setItem(SESSION_KEY, JSON.stringify(updated));
   };
 
   return (

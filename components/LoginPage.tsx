@@ -63,7 +63,7 @@ export const LoginPage: React.FC = () => {
                 placeholder="Senha fornecida pelo administrador"
                 className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition"
               />
-              <p className="text-[11px] text-gray-500 mt-1">Senha padrão inicial: <span className="font-mono text-emerald-400">Senior2026!</span></p>
+              <p className="text-[11px] text-gray-500 mt-1">Solicite sua senha ao administrador do sistema.</p>
             </div>
 
             {error && (
