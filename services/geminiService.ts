@@ -185,11 +185,74 @@ export function parseMarkers(content: string): ParsedContent {
 
   text = text.replace(/\[\[COMPETITOR:[^\]]*\]\]/g, '');
   text = text.replace(/\[\[[A-Z_]+:[^\n]*?\]\]/g, '');
+  // Remove texto redundante "Score PORTA: X/100 — ..." que o LLM às vezes escreve antes do marcador
+  text = text.replace(/\*{0,2}Score PORTA:\*{0,2}\s*\d+\/100\s*[—–-]\s*(?:Alta|Média|Baixa)\s*Compatibilidade\.?\s*/gi, '');
   text = text.replace(/^(\s*\]\s*\n)+/, '');
   text = text.replace(/^\s*\]/, '');
   text = text.replace(/^\s*\n/gm, '\n').trim();
 
   return { text, statuses, scorePorta };
+}
+
+// ─────────────────────────────────────────────
+// DETECÇÃO DE INCONSISTÊNCIA DE DADOS
+// ─────────────────────────────────────────────
+
+/** Métricas conhecidas por empresa (persiste durante a sessão do browser) */
+const companyMetrics: Record<string, Record<string, number>> = {};
+
+function extractMetrics(text: string): Record<string, number> {
+  const m: Record<string, number> = {};
+
+  // Hectares: "1,3 mil ha", "50.000 ha", "1.300 hectares"
+  const haMatch = text.match(/(\d[\d.,]*)\s*(mil\s+)?hect(?:ares?)?\b/i);
+  if (haMatch) {
+    const raw = parseFloat(haMatch[1].replace(/\./g, '').replace(',', '.'));
+    m.ha = haMatch[2] ? raw * 1000 : raw;
+  }
+
+  // Colaboradores/funcionários: "+45.000 colaboradores", "8 mil funcionários"
+  const empMatch = text.match(/\+?(\d[\d.,]*)\s*(mil\s+)?(?:colaboradores?|funcionários?|empregados?)\b/i);
+  if (empMatch) {
+    const raw = parseFloat(empMatch[1].replace(/\./g, '').replace(',', '.'));
+    m.employees = empMatch[2] ? raw * 1000 : raw;
+  }
+
+  // Faturamento: "R$ 2,5 bilhões", "R$ 500 milhões", "R$ 1,2 bi"
+  const revMatch = text.match(/R\$\s*(\d[\d.,]*)\s*(bilh[õo]es?|bi|milh[õo]es?|mi)\b/i);
+  if (revMatch) {
+    const raw = parseFloat(revMatch[1].replace(/\./g, '').replace(',', '.'));
+    m.revenue = /bi/i.test(revMatch[2]) ? raw * 1e9 : raw * 1e6;
+  }
+
+  return m;
+}
+
+function fmtMetric(key: string, v: number): string {
+  if (key === 'ha') return v >= 1000 ? `${(v / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} mil ha` : `${v.toLocaleString('pt-BR')} ha`;
+  if (key === 'employees') return v >= 1000 ? `${(v / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} mil colaboradores` : `${v.toLocaleString('pt-BR')} colaboradores`;
+  if (key === 'revenue') return v >= 1e9 ? `R$ ${(v / 1e9).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} bi` : `R$ ${(v / 1e6).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} mi`;
+  return String(v);
+}
+
+const CONFLICT_MSGS_BIG = [
+  (p: string, n: string, pct: number) => `🚨 **Radar atualizando dados em campo!** Na pesquisa anterior eu registrei **${p}** — agora o Raio-X apurou **${n}** (${pct}% de diferença). Ou alguém comprou meia fazenda sem avisar a Receita, ou uma das fontes estava sendo bem criativa. Prevalece o dado mais recente.`,
+  (p: string, n: string, pct: number) => `😳 **Conflito detectado (${pct}%):** antes vi **${p}**, agora apareceu **${n}**. Nessa diferença normalmente tem nome e sobrenome — pode ser aquisição recente, planta nova ou uma fonte chutando bonito. Seguindo com o Raio-X.`,
+];
+const CONFLICT_MSGS_MED = [
+  (p: string, n: string) => `🤨 **Dado atualizado:** encontrei **${p}** antes, agora apurei **${n}**. Metodologias diferentes ou sazonalidade — sem pânico, prevalece o mais recente.`,
+];
+const CONFLICT_MSGS_SMALL = [
+  (p: string, n: string) => `📝 **Refinamento de dado:** **${p}** → **${n}**. Provavelmente arredondamento ou fonte mais específica. Detalhezinho.`,
+];
+
+function buildConflictNote(key: string, prev: number, next: number): string {
+  const pct = Math.round(Math.abs(next - prev) / prev * 100);
+  const p = fmtMetric(key, prev);
+  const n = fmtMetric(key, next);
+  if (pct >= 50) return CONFLICT_MSGS_BIG[Math.floor(Math.random() * CONFLICT_MSGS_BIG.length)](p, n, pct);
+  if (pct >= 20) return CONFLICT_MSGS_MED[0](p, n);
+  return CONFLICT_MSGS_SMALL[0](p, n);
 }
 
 let currentCompanyContext: {
@@ -714,6 +777,23 @@ ${safeRagContext}
 
     const finalParsed = parseMarkers(rawAccumulator);
     let finalText = enforceOpeningWithSeller(finalParsed.text, nomeParaInjetar);
+
+    // ✅ DETECÇÃO DE INCONSISTÊNCIA: compara métricas numéricas com pesquisa anterior
+    if (empresa && !isConcorrenteQuery) {
+      const newM = extractMetrics(finalText);
+      const prevM = companyMetrics[empresa] || {};
+      const conflicts: string[] = [];
+      for (const [key, newVal] of Object.entries(newM)) {
+        const prevVal = prevM[key];
+        if (prevVal && Math.abs(newVal - prevVal) / prevVal > 0.10) {
+          conflicts.push(buildConflictNote(key, prevVal, newVal));
+        }
+      }
+      companyMetrics[empresa] = { ...prevM, ...newM };
+      if (conflicts.length > 0) {
+        finalText = conflicts.map(c => `> ${c}`).join('\n>\n') + '\n\n' + finalText;
+      }
+    }
 
     // ✅ STRIP DE LINKS INLINE: remove URLs do corpo da resposta e coleta para o rodapé
     const inlineLinks: Array<{ title: string; url: string }> = [];
