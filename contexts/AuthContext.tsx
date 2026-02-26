@@ -1,13 +1,12 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import {
-  signInWithEmailAndPassword,
-  signOut,
-  onAuthStateChanged,
-  User as FirebaseUser,
-  updateProfile
-} from 'firebase/auth';
-import { doc, setDoc, serverTimestamp, increment } from 'firebase/firestore';
-import { auth, db } from '../src/lib/firebase';
+
+// Este projeto usa importmap (ESM via CDN) — Firebase via compat SDK global
+declare global {
+  interface Window {
+    firebase: any;
+    firebaseConfig: any;
+  }
+}
 
 export interface AuthUser {
   id: string;
@@ -29,15 +28,25 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-async function registrarAcesso(firebaseUser: FirebaseUser) {
+function getFirebase() {
+  if (typeof window === 'undefined' || !window.firebase) return null;
+  if (!window.firebase.apps?.length) {
+    window.firebase.initializeApp(window.firebaseConfig);
+  }
+  return window.firebase;
+}
+
+async function registrarAcesso(uid: string, email: string, displayName: string) {
   try {
-    const ref = doc(db, 'acessos', firebaseUser.uid);
-    await setDoc(ref, {
-      uid: firebaseUser.uid,
-      email: firebaseUser.email,
-      displayName: firebaseUser.displayName || firebaseUser.email,
-      ultimoAcesso: serverTimestamp(),
-      totalAcessos: increment(1)
+    const fb = getFirebase();
+    if (!fb) return;
+    const db = fb.firestore();
+    await db.collection('acessos').doc(uid).set({
+      uid,
+      email,
+      displayName,
+      ultimoAcesso: fb.firestore.FieldValue.serverTimestamp(),
+      totalAcessos: fb.firestore.FieldValue.increment(1)
     }, { merge: true });
   } catch (e) {
     console.warn('Erro ao registrar acesso:', e);
@@ -50,28 +59,40 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (firebaseUser) {
-        const mappedUser: AuthUser = {
-          id: firebaseUser.uid,
-          displayName: firebaseUser.displayName || firebaseUser.email || 'Usuário',
-          email: firebaseUser.email || '',
-          isGuest: false
-        };
-        setUser(mappedUser);
-        await registrarAcesso(firebaseUser);
-      } else {
-        setUser(null);
+    // Aguarda SDK compat carregar
+    const init = () => {
+      const fb = getFirebase();
+      if (!fb) {
+        setTimeout(init, 200);
+        return;
       }
-      setLoading(false);
-    });
-    return () => unsubscribe();
+      const auth = fb.auth();
+      const unsubscribe = auth.onAuthStateChanged(async (firebaseUser: any) => {
+        if (firebaseUser) {
+          const mappedUser: AuthUser = {
+            id: firebaseUser.uid,
+            displayName: firebaseUser.displayName || firebaseUser.email || 'Usuário',
+            email: firebaseUser.email || '',
+            isGuest: false
+          };
+          setUser(mappedUser);
+          await registrarAcesso(firebaseUser.uid, firebaseUser.email || '', firebaseUser.displayName || firebaseUser.email || '');
+        } else {
+          setUser(null);
+        }
+        setLoading(false);
+      });
+      return () => unsubscribe();
+    };
+    init();
   }, []);
 
   const login = async (email: string, password: string) => {
     setError(null);
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      const fb = getFirebase();
+      if (!fb) throw new Error('Firebase não inicializado');
+      await fb.auth().signInWithEmailAndPassword(email, password);
     } catch (err: any) {
       const messages: Record<string, string> = {
         'auth/user-not-found': 'Usuário não encontrado.',
@@ -86,15 +107,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const logout = async () => {
-    await signOut(auth);
+    const fb = getFirebase();
+    if (fb) await fb.auth().signOut();
     setUser(null);
   };
 
   const updateName = (name: string) => {
     if (!user) return;
     setUser({ ...user, displayName: name });
-    if (auth.currentUser) {
-      updateProfile(auth.currentUser, { displayName: name });
+    const fb = getFirebase();
+    if (fb?.auth().currentUser) {
+      fb.auth().currentUser.updateProfile({ displayName: name });
     }
   };
 
