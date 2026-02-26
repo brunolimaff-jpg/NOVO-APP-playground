@@ -22,19 +22,21 @@ export const LoginPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-950 flex items-center justify-center px-4">
       <div className="w-full max-w-md">
-        {/* Logo / Header */}
         <div className="text-center mb-10">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-emerald-600 mb-4">
             <svg className="w-9 h-9 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
+              />
             </svg>
           </div>
           <h1 className="text-3xl font-bold text-white tracking-tight">Scout 360</h1>
           <p className="text-gray-400 mt-2 text-sm">Inteligência competitiva · Sênior Sistemas</p>
         </div>
 
-        {/* Card */}
         <div className="bg-gray-900 border border-gray-800 rounded-2xl p-8 shadow-2xl">
           <h2 className="text-lg font-semibold text-white mb-6">Entrar na plataforma</h2>
 
@@ -46,7 +48,7 @@ export const LoginPage: React.FC = () => {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                placeholder="seu@email.com"
+                placeholder="seu@senior.com.br"
                 className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition"
               />
             </div>
@@ -58,9 +60,10 @@ export const LoginPage: React.FC = () => {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                placeholder="••••••••"
+                placeholder="Senha fornecida pelo administrador"
                 className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition"
               />
+              <p className="text-[11px] text-gray-500 mt-1">Senha padrão inicial: <span className="font-mono text-emerald-400">Senior2026!</span></p>
             </div>
 
             {error && (
@@ -82,12 +85,14 @@ export const LoginPage: React.FC = () => {
                   </svg>
                   Entrando...
                 </>
-              ) : 'Entrar'}
+              ) : (
+                'Entrar'
+              )}
             </button>
           </form>
 
           <p className="text-center text-xs text-gray-600 mt-6">
-            Acesso restrito · Solicite credenciais ao administrador
+            Acesso restrito · Solicite a senha ao administrador
           </p>
         </div>
       </div>
