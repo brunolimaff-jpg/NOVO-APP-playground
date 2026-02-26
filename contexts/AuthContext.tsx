@@ -1,107 +1,113 @@
-
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { v4 as uuidv4 } from 'uuid';
+import {
+  signInWithEmailAndPassword,
+  signOut,
+  onAuthStateChanged,
+  User as FirebaseUser,
+  updateProfile
+} from 'firebase/auth';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { auth, db } from '../src/lib/firebase';
 
 export interface AuthUser {
   id: string;
   displayName: string;
+  email: string;
   isGuest: boolean;
 }
 
 interface AuthContextType {
   user: AuthUser | null;
-  userId: string; // Mantido para compatibilidade (retorna user.id ou vazio)
+  userId: string;
   isAuthenticated: boolean;
-  login: (name?: string) => void;
-  logout: () => void;
-  updateName: (name: string) => void; // Nova função
+  loading: boolean;
+  login: (email: string, password: string) => Promise<void>;
+  logout: () => Promise<void>;
+  updateName: (name: string) => void;
+  error: string | null;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const STORAGE_KEY_USER = 'scout360.user';
-const STORAGE_KEY_OLD_ID = 'scout360.userId';
+async function registrarAcesso(firebaseUser: FirebaseUser) {
+  try {
+    const ref = doc(db, 'acessos', firebaseUser.uid);
+    await setDoc(ref, {
+      uid: firebaseUser.uid,
+      email: firebaseUser.email,
+      displayName: firebaseUser.displayName || firebaseUser.email,
+      ultimoAcesso: serverTimestamp(),
+      totalAcessos: (await import('firebase/firestore')).then(m => m.increment(1))
+    }, { merge: true });
+  } catch (e) {
+    console.warn('Erro ao registrar acesso:', e);
+  }
+}
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<AuthUser | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // 1. Tenta carregar o usuário novo (JSON)
-    const savedUserJson = localStorage.getItem(STORAGE_KEY_USER);
-    
-    if (savedUserJson) {
-      try {
-        const parsed = JSON.parse(savedUserJson);
-        if (parsed && parsed.id) {
-          setUser(parsed);
-          return;
-        }
-      } catch (e) {
-        console.error("Erro ao ler usuário salvo", e);
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        const mappedUser: AuthUser = {
+          id: firebaseUser.uid,
+          displayName: firebaseUser.displayName || firebaseUser.email || 'Usuário',
+          email: firebaseUser.email || '',
+          isGuest: false
+        };
+        setUser(mappedUser);
+        await registrarAcesso(firebaseUser);
+      } else {
+        setUser(null);
       }
-    }
-
-    // 2. Fallback / Migração: Tenta carregar o formato antigo (apenas string ID)
-    const oldId = localStorage.getItem(STORAGE_KEY_OLD_ID);
-    if (oldId) {
-      // Migra o usuário antigo para o novo formato assumindo que o ID era o nome (comportamento anterior)
-      const migratedUser: AuthUser = {
-        id: oldId, // Mantém o ID antigo para não perder histórico
-        displayName: oldId, // Antes o ID era o input do usuário
-        isGuest: false
-      };
-      setUser(migratedUser);
-      localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(migratedUser));
-      // Não removemos o oldId imediatamente por segurança, mas o novo tem preferência
-    }
+      setLoading(false);
+    });
+    return () => unsubscribe();
   }, []);
 
-  const login = (name?: string) => {
-    let newUser: AuthUser;
-
-    if (name && name.trim()) {
-      // Modo Nomeado
-      newUser = {
-        id: uuidv4(),
-        displayName: name.trim(),
-        isGuest: false
+  const login = async (email: string, password: string) => {
+    setError(null);
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+    } catch (err: any) {
+      const messages: Record<string, string> = {
+        'auth/user-not-found': 'Usuário não encontrado.',
+        'auth/wrong-password': 'Senha incorreta.',
+        'auth/invalid-email': 'E-mail inválido.',
+        'auth/too-many-requests': 'Muitas tentativas. Tente novamente mais tarde.',
+        'auth/invalid-credential': 'E-mail ou senha incorretos.'
       };
-    } else {
-      // Modo Convidado
-      newUser = {
-        id: uuidv4(),
-        displayName: "Convidado",
-        isGuest: true
-      };
+      setError(messages[err.code] || 'Erro ao fazer login.');
+      throw err;
     }
+  };
 
-    setUser(newUser);
-    localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(newUser));
-    localStorage.removeItem(STORAGE_KEY_OLD_ID);
+  const logout = async () => {
+    await signOut(auth);
+    setUser(null);
   };
 
   const updateName = (name: string) => {
     if (!user) return;
-    const updatedUser = { ...user, displayName: name };
-    setUser(updatedUser);
-    localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(updatedUser));
-  };
-
-  const logout = () => {
-    localStorage.removeItem(STORAGE_KEY_USER);
-    localStorage.removeItem(STORAGE_KEY_OLD_ID);
-    setUser(null);
-    // Não faz reload — setUser(null) já provoca re-render e exibe AuthModal
+    setUser({ ...user, displayName: name });
+    if (auth.currentUser) {
+      updateProfile(auth.currentUser, { displayName: name });
+    }
   };
 
   return (
-    <AuthContext.Provider value={{ 
-      user, 
-      userId: user?.id || '', 
+    <AuthContext.Provider value={{
+      user,
+      userId: user?.id || '',
       isAuthenticated: !!user,
+      loading,
       login,
       logout,
-      updateName
+      updateName,
+      error
     }}>
       {children}
     </AuthContext.Provider>
