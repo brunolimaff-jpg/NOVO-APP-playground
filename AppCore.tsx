@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { useOffline } from './hooks/useOffline';
+import { PDFGenerator } from './utils/PDFGenerator';
 import ChatInterface from './components/ChatInterface';
 import { AuthModal } from './components/AuthModal';
 import { useAuth } from './contexts/AuthContext';
@@ -192,19 +193,6 @@ function simpleMarkdownToHtml(md: string, title: string): string {
   `;
 }
 
-const PDF_STYLES = `
-  @page { margin: 1.5cm 1.8cm; size: A4; }
-  @media print { .no-print { display: none !important; } body { padding-top: 0; } }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'Segoe UI', -apple-system, Arial, sans-serif; color: #1e293b; max-width: 760px; margin: 0 auto; padding: 24px 32px; line-height: 1.55; font-size: 12px; background: #fff; padding-top: 60px; text-align: justify; }
-  .doc-header { background: linear-gradient(135deg, #064e3b 0%, #059669 60%, #10b981 100%); color: white; padding: 22px 26px; border-radius: 8px; margin-bottom: 20px; position: relative; overflow: hidden; }
-  h1 { color: #064e3b; font-size: 16px; font-weight: 700; margin: 22px 0 6px; padding: 6px 0 4px; border-bottom: 2px solid #059669; }
-  h2 { color: #064e3b; font-size: 14px; font-weight: 700; margin: 18px 0 5px; }
-  p { margin: 0 0 6px; } strong { color: #064e3b; } a { color: #059669; text-decoration: underline; }
-  ul, ol { margin: 4px 0 8px; padding-left: 20px; } li { margin: 2px 0; }
-  .porta-score { border-radius: 8px; padding: 14px 18px; margin: 12px 0; }
-  .sources-section { margin-top: 24px; padding-top: 16px; border-top: 2px solid #059669; }
-`;
 
 const AppCore: React.FC = () => {
   const { userId, user, logout, isAuthenticated } = useAuth();
@@ -667,24 +655,29 @@ const AppCore: React.FC = () => {
   };
 
   function handleExportPDF() {
-    const { text: fullText, sections, allLinks } = collectFullReport(allMessages);
-    if (!fullText || fullText.length < 100) { alert('Nenhum dossiê para exportar.'); return; }
-    const inconsistenciesSection = detectInconsistencies(sections);
-    const finalText = fullText + inconsistenciesSection;
-    const empresa = cleanTitle(extractCompanyName(currentSession?.title));
-    const dataStr = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
-    const horaStr = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-    const totalSections = sections.length;
-    const htmlContent = fixFakeLinksHTML(convertMarkdownToHTML(finalText, true));
-    let sourcesHTML = '';
-    if (allLinks.length > 0) sourcesHTML = formatSourcesForExport(allLinks);
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) { alert('Popup bloqueado.'); return; }
-    printWindow.document.write(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>${empresa}</title><style>${PDF_STYLES}</style></head><body>
-  <div class="doc-header"><h1>${empresa}</h1><p>${dataStr} às ${horaStr} · ${totalSections} seções</p></div>
-  ${htmlContent}${sourcesHTML}
-</body></html>`);
-    printWindow.document.close();
+    try {
+      const { text: fullText, sections, allLinks } = collectFullReport(allMessages);
+      if (!fullText || fullText.length < 100) { alert('Nenhum dossiê para exportar.'); return; }
+
+      const inconsistenciesSection = detectInconsistencies(sections);
+      const finalText = fullText + inconsistenciesSection;
+      const empresa = cleanTitle(extractCompanyName(currentSession?.title));
+      const now = new Date();
+      const dataStr = now.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+      const horaStr = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+      const metaLine = `${dataStr} às ${horaStr} · ${sections.length} seção${sections.length !== 1 ? 'ões' : ''}`;
+
+      const pdf = new PDFGenerator();
+      pdf.addHeader(empresa, metaLine);
+      pdf.renderMarkdown(finalText);
+      pdf.addSources(allLinks.map(l => ({ text: l.text || l.url, url: l.url })));
+
+      const safeTitle = empresa.replace(/[^a-z0-9]/gi, '_').substring(0, 50);
+      pdf.save(`SeniorScout_${safeTitle}_${now.toISOString().slice(0, 10)}.pdf`);
+    } catch (e) {
+      console.error('Erro ao gerar PDF:', e);
+      alert('Erro ao gerar PDF. Tente novamente.');
+    }
   }
 
   const handleExportConversation = async (format: ExportFormat, reportType: ReportType) => {
