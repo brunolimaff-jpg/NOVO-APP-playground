@@ -6,7 +6,7 @@ import {
   User as FirebaseUser,
   updateProfile
 } from 'firebase/auth';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp, increment } from 'firebase/firestore';
 import { auth, db } from '../src/lib/firebase';
 
 export interface AuthUser {
@@ -37,7 +37,7 @@ async function registrarAcesso(firebaseUser: FirebaseUser) {
       email: firebaseUser.email,
       displayName: firebaseUser.displayName || firebaseUser.email,
       ultimoAcesso: serverTimestamp(),
-      totalAcessos: (await import('firebase/firestore')).then(m => m.increment(1))
+      totalAcessos: increment(1)
     }, { merge: true });
   } catch (e) {
     console.warn('Erro ao registrar acesso:', e);
@@ -77,7 +77,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         'auth/user-not-found': 'Usuário não encontrado.',
         'auth/wrong-password': 'Senha incorreta.',
         'auth/invalid-email': 'E-mail inválido.',
-        'auth/too-many-requests': 'Muitas tentativas. Tente novamente mais tarde.',
+        'auth/too-many-requests': 'Muitas tentativas. Tente mais tarde.',
         'auth/invalid-credential': 'E-mail ou senha incorretos.'
       };
       setError(messages[err.code] || 'Erro ao fazer login.');
