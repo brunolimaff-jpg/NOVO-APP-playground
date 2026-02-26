@@ -1,10 +1,11 @@
 import React from 'react';
-import { 
-  PROMPT_RAIO_X_OPERACIONAL_ATAQUE, 
-  PROMPT_TECH_STACK_GOD_MODE_ATAQUE, 
-  PROMPT_RISCOS_COMPLIANCE_GOD_MODE, 
-  PROMPT_RADAR_EXPANSAO_GOD_MODE, 
-  PROMPT_RH_SINDICATOS_GOD_MODE
+import {
+  PROMPT_RAIO_X_OPERACIONAL_ATAQUE,
+  PROMPT_TECH_STACK_GOD_MODE_ATAQUE,
+  PROMPT_RISCOS_COMPLIANCE_GOD_MODE,
+  PROMPT_RADAR_EXPANSAO_GOD_MODE,
+  PROMPT_RH_SINDICATOS_GOD_MODE,
+  PROMPT_MAPEAMENTO_DECISORES_GOD_MODE,
 } from '../prompts/megaPrompts';
 
 interface DeepDiveTopicsProps {
@@ -47,6 +48,13 @@ export const DeepDiveTopics: React.FC<DeepDiveTopicsProps> = ({ onSelectTopic })
       tooltip: 'Mapear Headcount, sistemas de DP ocultos, CAEPF e risco FAP/RAT.',
       icon: '👥',
       hiddenPrompt: PROMPT_RH_SINDICATOS_GOD_MODE
+    },
+    {
+      id: 'mapeamento-decisores',
+      label: 'Mapa de Decisores',
+      tooltip: 'Identificar C-Level, Shadow Board, gatekeepers externos e sabotadores internos do projeto.',
+      icon: '🎭',
+      hiddenPrompt: PROMPT_MAPEAMENTO_DECISORES_GOD_MODE
     }
   ];
 
