@@ -1,6 +1,7 @@
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 import { resolve } from 'path';
+import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
@@ -9,7 +10,75 @@ export default defineConfig(({ mode }) => {
       port: 3000,
       host: '0.0.0.0',
     },
-    plugins: [react()], 
+    plugins: [
+      react(),
+      VitePWA({
+        registerType: 'autoUpdate',
+        includeAssets: ['icons/icon-192.svg', 'icons/icon-512.svg'],
+        manifest: {
+          name: 'Senior Scout 360',
+          short_name: 'Scout 360',
+          description: 'Inteligência Comercial para Agronegócio · Sênior Sistemas',
+          theme_color: '#059669',
+          background_color: '#0f172a',
+          display: 'standalone',
+          orientation: 'portrait-primary',
+          start_url: '/',
+          scope: '/',
+          lang: 'pt-BR',
+          icons: [
+            {
+              src: '/icons/icon-192.svg',
+              sizes: '192x192',
+              type: 'image/svg+xml',
+              purpose: 'any maskable',
+            },
+            {
+              src: '/icons/icon-512.svg',
+              sizes: '512x512',
+              type: 'image/svg+xml',
+              purpose: 'any maskable',
+            },
+          ],
+        },
+        workbox: {
+          // Estratégias por tipo de recurso
+          runtimeCaching: [
+            // CDN externos (Tailwind, fonts, html2pdf) → NetworkFirst, cache 7 dias
+            {
+              urlPattern: /^https:\/\/(cdn\.tailwindcss\.com|cdnjs\.cloudflare\.com|fonts\.googleapis\.com|fonts\.gstatic\.com)/,
+              handler: 'NetworkFirst',
+              options: {
+                cacheName: 'cdn-cache',
+                expiration: { maxEntries: 20, maxAgeSeconds: 60 * 60 * 24 * 7 },
+                networkTimeoutSeconds: 5,
+              },
+            },
+            // API Gemini → NetworkOnly (respostas de IA nunca cacheadas)
+            {
+              urlPattern: /^https:\/\/generativelanguage\.googleapis\.com/,
+              handler: 'NetworkOnly',
+            },
+            // Assets estáticos do próprio app → CacheFirst, 30 dias
+            {
+              urlPattern: /\.(?:png|jpg|jpeg|svg|gif|webp|ico|woff2?|ttf)$/,
+              handler: 'CacheFirst',
+              options: {
+                cacheName: 'static-assets',
+                expiration: { maxEntries: 60, maxAgeSeconds: 60 * 60 * 24 * 30 },
+              },
+            },
+          ],
+          // Não cacheamos rotas de API ou tokens de sessão
+          navigateFallback: 'index.html',
+          navigateFallbackDenylist: [/^\/api\//],
+        },
+        devOptions: {
+          // Ativa SW em desenvolvimento para facilitar testes
+          enabled: false,
+        },
+      }),
+    ],
     define: {
       'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
       'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),

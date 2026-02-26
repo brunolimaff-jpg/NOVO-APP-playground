@@ -1,6 +1,7 @@
 
 import React from 'react';
 import { ChatMode } from '../constants';
+import { usePWA } from '../hooks/usePWA';
 
 interface SettingsDrawerProps {
   isOpen: boolean;
@@ -35,6 +36,7 @@ const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
   onScheduleFollowUp,
   exportStatus
 }) => {
+  const { canInstall, isInstalled, installApp } = usePWA();
   if (!isOpen) return null;
 
   return (
@@ -167,6 +169,30 @@ const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
             <h3 className={`text-xs font-bold uppercase tracking-wider mb-3 ml-1 ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>Ações</h3>
 
             <div className="space-y-2">
+              {/* Instalar PWA */}
+              {canInstall && (
+                <button
+                  onClick={installApp}
+                  className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all text-left group border-emerald-500/40 ${
+                    isDarkMode
+                      ? 'bg-emerald-900/20 hover:bg-emerald-900/40'
+                      : 'bg-emerald-50 hover:bg-emerald-100'
+                  }`}
+                >
+                  <span className={`text-lg p-2 rounded-lg ${isDarkMode ? 'bg-emerald-800/60' : 'bg-emerald-200'}`}>📲</span>
+                  <div>
+                    <p className={`text-sm font-medium ${isDarkMode ? 'text-emerald-300' : 'text-emerald-800'}`}>Instalar aplicativo</p>
+                    <p className={`text-xs ${isDarkMode ? 'text-emerald-500' : 'text-emerald-600'}`}>Adicionar à tela inicial</p>
+                  </div>
+                </button>
+              )}
+              {isInstalled && (
+                <div className={`flex items-center gap-3 p-3 rounded-xl border ${isDarkMode ? 'border-emerald-700/30 bg-emerald-900/10' : 'border-emerald-200 bg-emerald-50'}`}>
+                  <span className="text-lg">✅</span>
+                  <p className={`text-xs ${isDarkMode ? 'text-emerald-400' : 'text-emerald-700'}`}>App instalado na tela inicial</p>
+                </div>
+              )}
+
               {/* Dashboard */}
               <button
                 onClick={() => { onOpenDashboard(); onClose(); }}

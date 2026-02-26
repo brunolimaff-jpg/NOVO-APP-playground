@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
+import { useOffline } from './hooks/useOffline';
 import ChatInterface from './components/ChatInterface';
 import { AuthModal } from './components/AuthModal';
 import { useAuth } from './contexts/AuthContext';
@@ -209,6 +210,7 @@ const AppCore: React.FC = () => {
   const { userId, user, logout, isAuthenticated } = useAuth();
   const { mode, systemInstruction } = useMode();
   const { cards, createCardFromSession, createManualCard, moveCardToStage } = useCRM();
+  const { isOnline, wasOffline, clearWasOffline } = useOffline();
 
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
@@ -969,6 +971,30 @@ const AppCore: React.FC = () => {
   return (
     <>
       <AuthModal />
+
+      {/* Banner offline */}
+      {!isOnline && (
+        <div className="fixed top-0 inset-x-0 z-[100] flex items-center justify-center gap-2 bg-amber-500 text-amber-950 text-xs font-semibold py-1.5 px-4 shadow-lg">
+          <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 5.636a9 9 0 010 12.728M15.536 8.464a5 5 0 010 7.072M8.464 8.464a5 5 0 000 7.072M5.636 5.636a9 9 0 000 12.728M12 12v.01" />
+          </svg>
+          Sem conexão — algumas funções ficam indisponíveis offline
+        </div>
+      )}
+
+      {/* Banner "voltou online" */}
+      {isOnline && wasOffline && (
+        <div
+          className="fixed top-0 inset-x-0 z-[100] flex items-center justify-center gap-2 bg-emerald-600 text-white text-xs font-semibold py-1.5 px-4 shadow-lg cursor-pointer"
+          onClick={clearWasOffline}
+        >
+          <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+          </svg>
+          Conexão restabelecida ✕
+        </div>
+      )}
+
       <div className={`flex flex-col h-screen w-full ${isDarkMode ? 'bg-slate-950' : 'bg-slate-50'}`}>
         <header className={`h-12 px-3 md:px-4 flex items-center justify-between border-b backdrop-blur-sm ${
           isDarkMode ? 'bg-slate-950/80 border-slate-800' : 'bg-white/80 border-slate-200'
