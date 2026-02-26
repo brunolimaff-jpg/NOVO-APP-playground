@@ -1,143 +1,46 @@
-
 <!DOCTYPE html>
 <html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>Senior Scout 360 | Sales Intelligence</title>
+    <!-- Firebase CSP -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.gstatic.com https://*.gstatic.com https://*.firebaseio.com https://*.googleapis.com; connect-src 'self' https://*.firebaseio.com https://*.googleapis.com https://*.googletagmanager.com wss://*.firebaseio.com; frame-src 'self' https://*.firebase.google.com;">
+    <script src="https://www.gstatic.com/firebasejs/11.0.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.0.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.0.1/firebase-analytics-compat.js"></script>
+    <script>
+      window.firebaseConfig = {
+        apiKey: 'AIzaSyBP8o94tu5z8hPWNaS7nHgeexa7TZfoZbM',
+        authDomain: 'mvp-scout.firebaseapp.com',
+        projectId: 'mvp-scout',
+        storageBucket: 'mvp-scout.firebasestorage.app',
+        messagingSenderId: '320823705923',
+        appId: '1:320823705923:web:db9a1b7dead3a4e587eff6',
+        measurementId: 'G-PM0BQS73BG'
+      };
+    </script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
       body {
         font-family: 'Inter', sans-serif;
-        /* Background color removed here to be managed by React App for theme toggling */
         transition: background-color 0.3s ease, color 0.3s ease;
       }
-      .font-mono {
-        font-family: 'JetBrains Mono', monospace;
-      }
-      /* Custom scrollbar for dark theme */
-      .dark ::-webkit-scrollbar {
-        width: 8px;
-      }
-      .dark ::-webkit-scrollbar-track {
-        background: #0f172a; 
-      }
-      .dark ::-webkit-scrollbar-thumb {
-        background: #334155; 
-        border-radius: 4px;
-      }
-      .dark ::-webkit-scrollbar-thumb:hover {
-        background: #475569; 
-      }
-
-      /* Custom scrollbar for light theme */
-      .light ::-webkit-scrollbar {
-        width: 8px;
-      }
-      .light ::-webkit-scrollbar-track {
-        background: #f1f5f9; 
-      }
-      .light ::-webkit-scrollbar-thumb {
-        background: #cbd5e1; 
-        border-radius: 4px;
-      }
-      .light ::-webkit-scrollbar-thumb:hover {
-        background: #94a3b8; 
-      }
-
-      /* Animations */
-      @keyframes fade-in {
-        from { opacity: 0; transform: translateY(10px); }
-        to { opacity: 1; transform: translateY(0); }
-      }
-      .animate-fade-in {
-        animation: fade-in 0.6s ease-out forwards;
-      }
-
-      @keyframes slide-in {
-        from { opacity: 0; transform: translateY(20px); }
-        to { opacity: 1; transform: translateY(0); }
-      }
-      .animate-slide-in {
-        animation: slide-in 0.4s ease-out forwards;
-      }
-
-      @keyframes shimmer {
-        0% { transform: translateX(-100%); }
-        100% { transform: translateX(100%); }
-      }
-      .animate-shimmer {
-        animation: shimmer 1.5s ease-in-out infinite;
-      }
-
-      /* Print Styles for PDF Export */
-      @media print {
-        body {
-          background-color: white !important;
-          color: black !important;
-        }
-        /* Hide UI elements not needed for report */
-        header button, 
-        footer, 
-        ::-webkit-scrollbar,
-        .no-print {
-          display: none !important;
-        }
-        
-        /* Reset layout for document flow */
-        .flex-col, .h-screen, .overflow-y-auto {
-          display: block !important;
-          height: auto !important;
-          overflow: visible !important;
-        }
-
-        header {
-          position: static !important;
-          background: none !important;
-          border-bottom: 2px solid #000 !important;
-          color: black !important;
-        }
-        header h1, header span {
-          color: black !important;
-          text-shadow: none !important;
-        }
-        
-        main {
-          padding: 0 !important;
-        }
-
-        /* Style messages for print */
-        .shadow-xl {
-          box-shadow: none !important;
-          border: 1px solid #ddd !important;
-          background: white !important;
-          color: black !important;
-          max-width: 100% !important;
-          margin-bottom: 20px !important;
-          break-inside: avoid;
-        }
-
-        /* Typography overrides for print */
-        .prose {
-          color: black !important;
-        }
-        .prose strong, .prose h1, .prose h2, .prose h3 {
-          color: #000 !important;
-        }
-        .prose code {
-          background-color: #f3f4f6 !important;
-          color: #000 !important;
-          border: 1px solid #ddd;
-        }
-        
-        /* Links */
-        a {
-          text-decoration: underline;
-          color: #000 !important;
-        }
-      }
+      .font-mono { font-family: 'JetBrains Mono', monospace; }
+      .dark ::-webkit-scrollbar { width: 8px; }
+      .dark ::-webkit-scrollbar-track { background: #0f172a; }
+      .dark ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+      .dark ::-webkit-scrollbar-thumb:hover { background: #475569; }
+      .light ::-webkit-scrollbar { width: 8px; }
+      .light ::-webkit-scrollbar-track { background: #f1f5f9; }
+      .light ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+      .light ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+      @keyframes fade-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+      .animate-fade-in { animation: fade-in 0.6s ease-out forwards; }
+      @media print { body { background-color: white !important; color: black !important; } }
     </style>
   <script type="importmap">
 {
