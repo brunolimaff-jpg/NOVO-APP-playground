@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 
-// Este projeto usa importmap (ESM via CDN) — Firebase via compat SDK global
 declare global {
   interface Window {
     firebase: any;
@@ -28,20 +27,21 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-function getFirebase() {
-  if (typeof window === 'undefined' || !window.firebase) return null;
-  if (!window.firebase.apps?.length) {
-    window.firebase.initializeApp(window.firebaseConfig);
+function initFirebase() {
+  if (typeof window === 'undefined') return null;
+  const fb = window.firebase;
+  if (!fb) return null;
+  if (!fb.apps || !fb.apps.length) {
+    fb.initializeApp(window.firebaseConfig);
   }
-  return window.firebase;
+  return fb;
 }
 
 async function registrarAcesso(uid: string, email: string, displayName: string) {
   try {
-    const fb = getFirebase();
+    const fb = initFirebase();
     if (!fb) return;
-    const db = fb.firestore();
-    await db.collection('acessos').doc(uid).set({
+    await fb.firestore().collection('acessos').doc(uid).set({
       uid,
       email,
       displayName,
@@ -49,7 +49,7 @@ async function registrarAcesso(uid: string, email: string, displayName: string) 
       totalAcessos: fb.firestore.FieldValue.increment(1)
     }, { merge: true });
   } catch (e) {
-    console.warn('Erro ao registrar acesso:', e);
+    console.warn('registrarAcesso falhou:', e);
   }
 }
 
@@ -59,15 +59,25 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Aguarda SDK compat carregar
-    const init = () => {
-      const fb = getFirebase();
+    let unsubscribe: (() => void) | null = null;
+    let attempts = 0;
+    const maxAttempts = 30; // 3 segundos max
+
+    const tryInit = () => {
+      const fb = initFirebase();
       if (!fb) {
-        setTimeout(init, 200);
+        attempts++;
+        if (attempts >= maxAttempts) {
+          // Firebase não carregou, libera sem auth
+          console.warn('Firebase SDK não carregou após 3s');
+          setLoading(false);
+          return;
+        }
+        setTimeout(tryInit, 100);
         return;
       }
-      const auth = fb.auth();
-      const unsubscribe = auth.onAuthStateChanged(async (firebaseUser: any) => {
+
+      unsubscribe = fb.auth().onAuthStateChanged(async (firebaseUser: any) => {
         if (firebaseUser) {
           const mappedUser: AuthUser = {
             id: firebaseUser.uid,
@@ -76,38 +86,39 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             isGuest: false
           };
           setUser(mappedUser);
-          await registrarAcesso(firebaseUser.uid, firebaseUser.email || '', firebaseUser.displayName || firebaseUser.email || '');
+          registrarAcesso(firebaseUser.uid, firebaseUser.email || '', firebaseUser.displayName || '');
         } else {
           setUser(null);
         }
         setLoading(false);
       });
-      return () => unsubscribe();
     };
-    init();
+
+    tryInit();
+    return () => { if (unsubscribe) unsubscribe(); };
   }, []);
 
   const login = async (email: string, password: string) => {
     setError(null);
     try {
-      const fb = getFirebase();
-      if (!fb) throw new Error('Firebase não inicializado');
+      const fb = initFirebase();
+      if (!fb) throw new Error('Firebase não disponível');
       await fb.auth().signInWithEmailAndPassword(email, password);
     } catch (err: any) {
-      const messages: Record<string, string> = {
+      const msgs: Record<string, string> = {
         'auth/user-not-found': 'Usuário não encontrado.',
         'auth/wrong-password': 'Senha incorreta.',
         'auth/invalid-email': 'E-mail inválido.',
         'auth/too-many-requests': 'Muitas tentativas. Tente mais tarde.',
         'auth/invalid-credential': 'E-mail ou senha incorretos.'
       };
-      setError(messages[err.code] || 'Erro ao fazer login.');
+      setError(msgs[err.code] || 'Erro ao fazer login.');
       throw err;
     }
   };
 
   const logout = async () => {
-    const fb = getFirebase();
+    const fb = initFirebase();
     if (fb) await fb.auth().signOut();
     setUser(null);
   };
@@ -115,7 +126,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const updateName = (name: string) => {
     if (!user) return;
     setUser({ ...user, displayName: name });
-    const fb = getFirebase();
+    const fb = initFirebase();
     if (fb?.auth().currentUser) {
       fb.auth().currentUser.updateProfile({ displayName: name });
     }
@@ -139,6 +150,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
 export const useAuth = () => {
   const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error('useAuth deve estar dentro de AuthProvider');
+  if (!ctx) throw new Error('useAuth fora do AuthProvider');
   return ctx;
 };
