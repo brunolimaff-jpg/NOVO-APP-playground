@@ -33,7 +33,8 @@ export async function sendFeedbackRemote(entry: RemoteFeedbackPayload) {
         redirect: "follow",
         // CRITICAL FOR APPS SCRIPT CORS: Use text/plain
         headers: { "Content-Type": "text/plain;charset=utf-8" },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(10000), // 10s — Apps Script pode ser lento
     });
     
     // Safely read body once
