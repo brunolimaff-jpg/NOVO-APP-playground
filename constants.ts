@@ -759,7 +759,7 @@ REGRAS:
 3. Se não houver informação suficiente para um pilar, use sua melhor estimativa e marque "(estimativa)".
 4. NUNCA omita o marcador [[PORTA:...]] — ele é obrigatório em TODO dossiê.
 5. Se os hectares não forem conhecidos, não aplique o bônus (bônus = 0).
-6. Antes do marcador, escreva UMA linha explicativa: "**Score PORTA:** X/100 — [Alta/Média/Baixa] Compatibilidade"
+6. NÃO escreva nenhum texto sobre o score antes do marcador — o score é renderizado visualmente pelo sistema automaticamente.
 
 -----
 

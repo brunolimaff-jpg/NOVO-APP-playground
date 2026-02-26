@@ -521,6 +521,28 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
                             isSourcesVisible={!!msg.isSourcesOpen}
                             isDarkMode={isDarkMode}
                           />
+
+                          {msg.isSourcesOpen && displaySources.length > 0 && (
+                            <div className={`mt-3 pt-3 border-t ${isDarkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+                              <p className={`text-xs font-semibold uppercase tracking-wide mb-2 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                                📚 Fontes consultadas para contexto
+                              </p>
+                              <ul className="space-y-1.5">
+                                {displaySources.map((s, i) => (
+                                  <li key={i} className="text-xs">
+                                    <a
+                                      href={s.url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-emerald-600 hover:text-emerald-700 hover:underline break-all"
+                                    >
+                                      {s.title || s.url}
+                                    </a>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
                         </>
                       ) : (
                         <div className="whitespace-pre-wrap text-sm md:text-base leading-relaxed">
