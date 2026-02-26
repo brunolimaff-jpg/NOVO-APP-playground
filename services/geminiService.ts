@@ -41,13 +41,13 @@ export interface SpotterExtractedData {
 // ===================================================================
 
 // O "Maestro" - Rápido, barato, decide para onde a pergunta vai
-const ROUTER_MODEL_ID = 'gemini-2.5-flash'; 
+const ROUTER_MODEL_ID = 'gemini-2.5-flash-lite';
 
 // Rota 1: Tática (Mais rápido, focado em ferramentas e respostas pontuais)
 const TACTICAL_MODEL_ID = 'gemini-3.1-pro-preview-customtools';
 
 // Rota 2: Dossiê Profundo via Chat (streaming, compatível com UI de status/marcadores)
-const DEEP_CHAT_MODEL_ID = 'gemini-2.5-pro';
+const DEEP_CHAT_MODEL_ID = 'gemini-3.1-pro-preview';
 
 // Rota 3: Deep Research Agent (Interactions API — usado no War Room OSINT)
 const DEEP_RESEARCH_MODEL_ID = 'deep-research-pro-preview-12-2025';
@@ -590,8 +590,15 @@ export const sendMessageToGemini = async (
       }
     }
 
-    // ✅ RAG: Aguarda o resultado do Pinecone e injeta no contexto (sanitizado)
-    const ragContext = await ragContextPromise;
+    // ✅ RAG: Aguarda o resultado do Pinecone com timeout de segurança (9s)
+    // O ragService já tem timeout de 8s, mas este race é a última barreira caso algo escape.
+    const ragContext = await Promise.race([
+      ragContextPromise,
+      new Promise<string>(resolve => setTimeout(() => {
+        console.warn('[RAG] Race timeout (9s) — descartando promise RAG travada.');
+        resolve('');
+      }, 9000)),
+    ]);
     if (ragContext) {
       onStatus?.("Base de propostas TOTVS carregada — analisando estratégia...");
       const safeRagContext = sanitizeExternalContent(ragContext);
@@ -626,8 +633,22 @@ ${safeRagContext}
     let sourcesReported = 0;
     let textMilestone = 0;
 
+    // Timeout de inatividade: se nenhum chunk chegar por 45s, interrompe silenciosamente
+    const STREAM_INACTIVITY_MS = 45000;
+    let streamTimedOut = false;
+    let inactivityTimer: ReturnType<typeof setTimeout> | null = null;
+    const resetInactivity = () => {
+      if (inactivityTimer) clearTimeout(inactivityTimer);
+      inactivityTimer = setTimeout(() => {
+        streamTimedOut = true;
+        console.warn('[GEMINI] Stream inativo por 45s — interrompendo e usando resposta parcial.');
+      }, STREAM_INACTIVITY_MS);
+    };
+    resetInactivity();
+
     for await (const chunk of result) {
-      if (signal?.aborted) break;
+      if (signal?.aborted || streamTimedOut) break;
+      resetInactivity();
       const chunkText = chunk.text || "";
       rawAccumulator += chunkText;
       chunkCount++;
@@ -684,6 +705,8 @@ ${safeRagContext}
 
       onText?.(sanitizeStreamText(rawAccumulator));
     }
+
+    if (inactivityTimer) clearTimeout(inactivityTimer);
 
     const finalParsed = parseMarkers(rawAccumulator);
     let finalText = enforceOpeningWithSeller(finalParsed.text, nomeParaInjetar);
