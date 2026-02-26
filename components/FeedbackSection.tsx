@@ -31,6 +31,7 @@ export const FeedbackSection: React.FC<FeedbackSectionProps> = ({
   const [comment, setComment] = useState("");
   const [feedbackSent, setFeedbackSent] = useState<FeedbackType | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState(false);
 
   const theme = {
     text: isDarkMode ? 'text-slate-500' : 'text-slate-400', // Mais discreto
@@ -75,8 +76,11 @@ export const FeedbackSection: React.FC<FeedbackSectionProps> = ({
       });
       setFeedbackSent(type);
       setShowComment(false);
+      setTimeout(() => setFeedbackSent(null), 4000);
     } catch (err) {
       console.error("Erro ao enviar feedback:", err);
+      setSubmitError(true);
+      setTimeout(() => setSubmitError(false), 4000);
     } finally {
       setIsSubmitting(false);
     }
@@ -93,6 +97,15 @@ export const FeedbackSection: React.FC<FeedbackSectionProps> = ({
   const handleSendComment = () => {
     submitFeedback("dislike", comment);
   };
+
+  // Visual de Erro
+  if (submitError) {
+    return (
+      <div className="mt-1 flex items-center gap-1 text-[10px] text-red-400 animate-fade-in select-none">
+        <span>⚠ Falha ao enviar feedback. Tente novamente.</span>
+      </div>
+    );
+  }
 
   // Visual de Sucesso Compacto
   if (feedbackSent) {

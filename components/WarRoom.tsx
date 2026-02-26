@@ -246,14 +246,15 @@ export default function WarRoom({ isOpen, onClose, isDarkMode, onExecuteOSINT }:
                   {/* LOADING INTEGRADOR */}
                   {loadingAction === mod.id && (
                     <div className={`p-5 border-t ${isDarkMode ? 'border-slate-800 bg-slate-900/50' : 'border-slate-200 bg-slate-50'}`}>
-                      <LoadingSmart 
-                        isLoading={true} 
-                        mode={'diretoria' as ChatMode} 
-                        isDarkMode={isDarkMode} 
+                      <LoadingSmart
+                        isLoading={true}
+                        mode={'diretoria' as ChatMode}
+                        isDarkMode={isDarkMode}
                         searchQuery={target}
-                        processing={{ 
-                          stage: `Varredura Profunda em ${target} - ${segment}...`, 
-                          completedStages: ["Infiltrando bases", "Cruzando dados"] 
+                        onStop={() => setLoadingAction(null)}
+                        processing={{
+                          stage: `Varredura Profunda em ${target} - ${segment}...`,
+                          completedStages: ["Infiltrando bases", "Cruzando dados"]
                         }}
                       />
                     </div>

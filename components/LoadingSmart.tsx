@@ -128,7 +128,7 @@ const LoadingSmart: React.FC<LoadingSmartProps> = ({
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
           <span className={`text-xs font-mono px-2 py-1 rounded-md ${isDarkMode ? 'bg-slate-800 text-emerald-400' : 'bg-white text-emerald-600'}`}>
-            {Math.floor(elapsedTime / 1000)}s
+            {(() => { const s = Math.floor(elapsedTime / 1000); return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s`; })()}
           </span>
           <span className={`text-xs font-semibold uppercase tracking-wider ${isDarkMode ? 'text-slate-500' : 'text-slate-600'}`}>
             Etapa {totalSteps} em andamento
@@ -177,7 +177,7 @@ const LoadingSmart: React.FC<LoadingSmartProps> = ({
       <div className={`w-full h-1 rounded-full overflow-hidden mb-4 ${isDarkMode ? 'bg-slate-800' : 'bg-emerald-100'}`}>
         <div
           className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-emerald-400 transition-all duration-700 ease-out relative overflow-hidden"
-          style={{ width: `${Math.min(Math.max(totalSteps * 14, 8), 95)}%` }}
+          style={{ width: `${Math.min(Math.max(totalSteps * 14, 8), 100)}%` }}
         >
           <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" />
         </div>

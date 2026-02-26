@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { ChatSession } from '../types';
 import { cleanTitle } from '../utils/textCleaners';
+import ConfirmPopover from './ConfirmPopover';
 
 interface SessionsSidebarProps {
   sessions: ChatSession[];
@@ -135,7 +136,9 @@ const SessionsSidebar: React.FC<SessionsSidebarProps> = ({
 
             <div className="flex-1 overflow-y-auto px-2 pb-4 custom-scrollbar">
                 <div className={`text-[10px] font-bold uppercase tracking-wider mb-2 px-2 mt-2 ${theme.textSecondary}`}>
-                  Histórico ({filteredSessions.length})
+                  {searchTerm
+                    ? `${filteredSessions.length} de ${sessions.length} encontrada${filteredSessions.length !== 1 ? 's' : ''}`
+                    : `Histórico (${filteredSessions.length})`}
                 </div>
                 
                 {filteredSessions.length === 0 ? (
@@ -200,21 +203,21 @@ const SessionsSidebar: React.FC<SessionsSidebarProps> = ({
                               📋
                             </button>
 
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                  e.stopPropagation();
-                                  if(window.confirm(`Tem certeza que deseja excluir o dossiê de "${displayName}"?`)) {
-                                      onDeleteSession(session.id);
-                                  }
-                              }}
-                              className={`
-                                p-1.5 rounded bg-slate-100 dark:bg-slate-800 hover:bg-red-100 dark:hover:bg-red-900/30 text-slate-400 hover:text-red-500 transition-all shadow-sm
-                              `}
-                              title="Excluir Investigação"
+                            <ConfirmPopover
+                              message="Excluir dossiê?"
+                              onConfirm={() => onDeleteSession(session.id)}
                             >
-                              🗑️
-                            </button>
+                              {({ onClick }) => (
+                                <button
+                                  type="button"
+                                  onClick={(e) => { e.stopPropagation(); onClick(e); }}
+                                  className="p-1.5 rounded bg-slate-100 dark:bg-slate-800 hover:bg-red-100 dark:hover:bg-red-900/30 text-slate-400 hover:text-red-500 transition-all shadow-sm"
+                                  title="Excluir Investigação"
+                                >
+                                  🗑️
+                                </button>
+                              )}
+                            </ConfirmPopover>
                           </div>
                         </div>
                     );

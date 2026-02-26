@@ -7,11 +7,11 @@ interface ScorePortaProps extends ScorePortaData {
 }
 
 const pillars = [
-  { key: 'p', letter: 'P' },
-  { key: 'o', letter: 'O' },
-  { key: 'r', letter: 'R' },
-  { key: 't', letter: 'T' },
-  { key: 'a', letter: 'A' },
+  { key: 'p', letter: 'P', label: 'Porte Financeiro' },
+  { key: 'o', letter: 'O', label: 'Operação (escala)' },
+  { key: 'r', letter: 'R', label: 'Retorno esperado' },
+  { key: 't', letter: 'T', label: 'Tecnologia (maturidade)' },
+  { key: 'a', letter: 'A', label: 'Adoção / Cultura' },
 ];
 
 const ScorePorta: React.FC<ScorePortaProps> = ({ score, p, o, r, t, a, isDarkMode = true }) => {
@@ -48,7 +48,10 @@ const ScorePorta: React.FC<ScorePortaProps> = ({ score, p, o, r, t, a, isDarkMod
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <span style={{ fontSize: '16px' }}>🎯</span>
-          <span style={{ fontSize: '12px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: labelColor }}>
+          <span
+            title="P = Porte · O = Operação · R = Retorno · T = Tecnologia · A = Adoção"
+            style={{ fontSize: '12px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: labelColor, cursor: 'help' }}
+          >
             PORTA
           </span>
         </div>
@@ -84,9 +87,10 @@ const ScorePorta: React.FC<ScorePortaProps> = ({ score, p, o, r, t, a, isDarkMod
 
       {/* Pillar pills */}
       <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-        {pillars.map(({ key, letter }, idx) => (
+        {pillars.map(({ key, letter, label }, idx) => (
           <motion.div
             key={key}
+            title={`${label}: ${values[key]}/10`}
             initial={{ opacity: 0, scale: 0.7 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: 0.08 * (idx + 1), type: 'spring', stiffness: 300 }}
@@ -94,6 +98,7 @@ const ScorePorta: React.FC<ScorePortaProps> = ({ score, p, o, r, t, a, isDarkMod
               display: 'flex', alignItems: 'center', gap: '4px',
               padding: '3px 10px', borderRadius: '20px',
               background: pillBg, fontSize: '12px',
+              cursor: 'default',
             }}
           >
             <span style={{ fontWeight: 700, color: barColor, fontSize: '11px' }}>{letter}</span>
