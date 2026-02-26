@@ -41,13 +41,13 @@ export interface SpotterExtractedData {
 // ===================================================================
 
 // O "Maestro" - Rápido, barato, decide para onde a pergunta vai
-const ROUTER_MODEL_ID = 'gemini-2.5-flash'; 
+const ROUTER_MODEL_ID = 'gemini-2.5-flash-lite';
 
 // Rota 1: Tática (Mais rápido, focado em ferramentas e respostas pontuais)
-const TACTICAL_MODEL_ID = 'gemini-2.5-flash';
+const TACTICAL_MODEL_ID = 'gemini-3.1-pro-preview-customtools';
 
 // Rota 2: Dossiê Profundo via Chat (streaming, compatível com UI de status/marcadores)
-const DEEP_CHAT_MODEL_ID = 'gemini-2.5-pro';
+const DEEP_CHAT_MODEL_ID = 'gemini-3.1-pro-preview';
 
 // Rota 3: Deep Research Agent (Interactions API — usado no War Room OSINT)
 const DEEP_RESEARCH_MODEL_ID = 'deep-research-pro-preview-12-2025';
