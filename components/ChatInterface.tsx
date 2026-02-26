@@ -17,6 +17,7 @@ import WarRoom from './WarRoom';
 import { cleanTitle, extractSources } from '../utils/textCleaners';
 import { isFakeUrl } from '../services/apiConfig';
 import { runWarRoomOSINT } from '../services/geminiService';
+import ConfirmPopover from './ConfirmPopover';
 
 const QUICK_ACTIONS = [
   { icon: "🎯", label: "Comparar", prompt: "Compare com o principal concorrente dessa empresa" },
@@ -283,13 +284,17 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
               }`}
               title="War Room: Inteligência Competitiva"
             >⚔️</button>
-            <button
-              onClick={() => { if (window.confirm('Limpar conversa?')) onClearChat(); }}
-              className={`p-2 rounded-lg transition-all ${
-                isDarkMode ? 'text-gray-500 hover:text-red-400 hover:bg-gray-800' : 'text-gray-400 hover:text-red-500 hover:bg-gray-100'
-              }`}
-              title="Limpar conversa"
-            >🗑️</button>
+            <ConfirmPopover message="Limpar conversa?" onConfirm={onClearChat} isDarkMode={isDarkMode}>
+              {({ onClick }) => (
+                <button
+                  onClick={onClick}
+                  className={`p-2 rounded-lg transition-all ${
+                    isDarkMode ? 'text-gray-500 hover:text-red-400 hover:bg-gray-800' : 'text-gray-400 hover:text-red-500 hover:bg-gray-100'
+                  }`}
+                  title="Limpar conversa"
+                >🗑️</button>
+              )}
+            </ConfirmPopover>
             <button
               onClick={() => setShowSettings(true)}
               className={`p-2 rounded-lg transition-all ${

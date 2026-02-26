@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import { ChatSession, CRM_STAGE_LABELS } from '../types';
 import { useCRM } from '../contexts/CRMContext';
 import { sendMessageToGemini } from '../services/geminiService';
+import ConfirmPopover from './ConfirmPopover';
 
 interface CRMDetailProps {
   card: any; // intencionalmente flexível para permitir campos adicionais do CRM
@@ -629,18 +630,21 @@ export const CRMDetail: React.FC<CRMDetailProps> = ({
 
         {/* Footer */}
         <div className={`flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between p-5 border-t ${isDarkMode ? 'border-slate-700' : 'border-slate-200'}`}>
-          <button
-            type="button"
-            onClick={async () => {
-              if (window.confirm('Excluir esta empresa do Mini CRM? Esta acao nao remove os dossies de investigacao.')) {
-                await deleteCard(card.id);
-                onClose();
-              }
-            }}
-            className="order-2 md:order-1 inline-flex items-center justify-center px-3 py-2 rounded-lg border border-red-500/60 text-[12px] font-medium text-red-600 dark:text-red-400 hover:bg-red-500/10"
+          <ConfirmPopover
+            message="Excluir do CRM?"
+            onConfirm={async () => { await deleteCard(card.id); onClose(); }}
+            isDarkMode={isDarkMode}
           >
-            🗑 Excluir empresa do CRM
-          </button>
+            {({ onClick }) => (
+              <button
+                type="button"
+                onClick={onClick}
+                className="order-2 md:order-1 inline-flex items-center justify-center px-3 py-2 rounded-lg border border-red-500/60 text-[12px] font-medium text-red-600 dark:text-red-400 hover:bg-red-500/10"
+              >
+                🗑 Excluir empresa do CRM
+              </button>
+            )}
+          </ConfirmPopover>
           <button
             type="button"
             onClick={onClose}

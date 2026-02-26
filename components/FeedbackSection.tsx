@@ -75,6 +75,7 @@ export const FeedbackSection: React.FC<FeedbackSectionProps> = ({
       });
       setFeedbackSent(type);
       setShowComment(false);
+      setTimeout(() => setFeedbackSent(null), 4000);
     } catch (err) {
       console.error("Erro ao enviar feedback:", err);
     } finally {

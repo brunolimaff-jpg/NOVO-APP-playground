@@ -41,7 +41,7 @@ const MessageActionsBar: React.FC<MessageActionsBarProps> = ({
     try {
       await navigator.clipboard.writeText(content);
       setCopyState('copied');
-      setTimeout(() => setCopyState('idle'), 2000);
+      setTimeout(() => setCopyState('idle'), 3000);
     } catch (err) {
       console.warn('Clipboard API failed, trying fallback...', err);
       try {
@@ -55,7 +55,7 @@ const MessageActionsBar: React.FC<MessageActionsBarProps> = ({
         document.body.removeChild(textArea);
         if (ok) {
           setCopyState('copied');
-          setTimeout(() => setCopyState('idle'), 2000);
+          setTimeout(() => setCopyState('idle'), 3000);
         }
       } catch (fallbackErr) {
         console.error('Fallback copy error', fallbackErr);

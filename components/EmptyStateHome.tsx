@@ -182,7 +182,7 @@ const EmptyStateHome: React.FC<EmptyStateHomeProps> = ({ mode, onSendMessage, on
                 className={`${theme.cardBg} border ${theme.cardBorder} rounded-xl p-3 text-left ${theme.cardHoverBorder} ${theme.cardHover} transition-all group`}
               >
                 <div className="text-xl mb-1">{action.icon}</div>
-                <div className={`text-sm font-bold group-hover:${mode === 'operacao' ? 'text-orange-500' : 'text-green-500'} transition-colors ${theme.textPrimary}`}>
+                <div className={`text-sm font-bold ${mode === 'operacao' ? 'group-hover:text-orange-500' : 'group-hover:text-green-500'} transition-colors ${theme.textPrimary}`}>
                   {action.label}
                 </div>
                 <div className={`text-xs ${theme.textSecondary}`}>{action.desc}</div>
