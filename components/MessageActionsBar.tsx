@@ -1,6 +1,7 @@
 
 import React, { useState } from 'react';
 import { Feedback } from '../types';
+import { PDFGenerator } from '../utils/PDFGenerator';
 
 interface MessageActionsBarProps {
   content: string;
@@ -11,120 +12,6 @@ interface MessageActionsBarProps {
   onToggleSources: () => void;
   isSourcesVisible: boolean;
   isDarkMode: boolean;
-}
-
-// ============================================================
-// CONVERSOR MARKDOWN → HTML (para renderização no PDF)
-// ============================================================
-function simpleMarkdownToHTML(md: string): string {
-  return md
-    // Headings
-    .replace(/^### (.*)$/gm, '<h3 style="color:#065f46;margin:18px 0 6px;font-size:13px;font-weight:700;letter-spacing:0.3px;">$1</h3>')
-    .replace(/^## (.*)$/gm, '<h2 style="color:#047857;margin:24px 0 8px;font-size:15px;font-weight:700;border-bottom:2px solid #d1fae5;padding-bottom:6px;">$1</h2>')
-    .replace(/^# (.*)$/gm, '<h1 style="color:#065f46;margin:28px 0 10px;font-size:18px;font-weight:800;">$1</h1>')
-    // Bold / Italic
-    .replace(/\*\*\*(.*?)\*\*\*/g, '<strong><em>$1</em></strong>')
-    .replace(/\*\*(.*?)\*\*/g, '<strong style="color:#065f46;">$1</strong>')
-    .replace(/\*(.*?)\*/g, '<em>$1</em>')
-    // Horizontal rule
-    .replace(/^---$/gm, '<hr style="border:none;border-top:1px solid #d1fae5;margin:16px 0;">')
-    // Blockquote
-    .replace(/^> (.*)$/gm, '<blockquote style="border-left:3px solid #059669;margin:10px 0;padding:6px 12px;background:#f0fdf4;color:#374151;font-style:italic;font-size:11px;">$1</blockquote>')
-    // Code inline
-    .replace(/`([^`]+)`/g, '<code style="background:#f0fdf4;color:#065f46;padding:1px 5px;border-radius:3px;font-size:11px;font-family:monospace;">$1</code>')
-    // Lists
-    .replace(/^(\s*)[-•] (.*)$/gm, '<li style="margin:4px 0 4px 20px;padding-left:4px;">$2</li>')
-    .replace(/^(\s*)(\d+)\. (.*)$/gm, '<li style="margin:4px 0 4px 24px;list-style-type:decimal;padding-left:4px;">$3</li>')
-    // Wrap consecutive <li> in <ul>
-    .replace(/(<li[^>]*>.*<\/li>\n?)+/g, (match) => `<ul style="margin:6px 0;padding:0;">${match}</ul>`)
-    // Links
-    .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" style="color:#059669;text-decoration:underline;word-break:break-all;">$1</a>')
-    // Footnotes
-    .replace(/\[\^(\d+)\]/g, '<sup style="color:#059669;font-size:0.7em;font-weight:600;">[$1]</sup>')
-    // Paragraphs
-    .replace(/\n\n/g, '</p><p style="margin:0 0 10px;">')
-    .replace(/\n/g, '<br>');
-}
-
-// ============================================================
-// GERADOR DE HTML COMPLETO DO PDF
-// ============================================================
-function buildPdfHTML(content: string): string {
-  const now = new Date();
-  const dataFormatada = now.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
-  const horaFormatada = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-  const body = simpleMarkdownToHTML(content);
-
-  return `
-    <div style="
-      font-family: 'Segoe UI', Arial, sans-serif;
-      color: #1f2937;
-      line-height: 1.7;
-      max-width: 780px;
-      margin: 0 auto;
-      padding: 0;
-      background: #ffffff;
-    ">
-      <!-- CABEÇALHO -->
-      <div style="
-        background: #ffffff;
-        padding: 32px 36px 24px;
-        margin-bottom: 28px;
-        border-bottom: 3px solid #059669;
-      ">
-        <div style="display:flex;align-items:center;justify-content:space-between;">
-          <div>
-            <div style="font-size:24px;font-weight:800;color:#065f46;letter-spacing:-0.5px;">
-              🌿 Senior Scout 360
-            </div>
-            <div style="font-size:11px;color:#6b7280;margin-top:5px;letter-spacing:0.5px;text-transform:uppercase;">
-              Inteligência Comercial · Agronegócio
-            </div>
-          </div>
-          <div style="text-align:right;">
-            <div style="font-size:10px;color:#9ca3af;text-transform:uppercase;">Emitido em</div>
-            <div style="font-size:13px;font-weight:700;color:#065f46;margin-top:2px;">${dataFormatada}</div>
-            <div style="font-size:10px;color:#9ca3af;margin-top:1px;">${horaFormatada}</div>
-          </div>
-        </div>
-        <!-- Barra de aviso -->
-        <div style="
-          margin-top:18px;
-          background:#f0fdf4;
-          border-left:4px solid #059669;
-          border-radius:4px;
-          padding:10px 14px;
-          font-size:10px;
-          color:#065f46;
-          letter-spacing:0.2px;
-        ">
-          ⚠️ <strong>Uso interno</strong> — Documento de apoio à prospecção. Não distribuir externamente.
-        </div>
-      </div>
-
-      <!-- CORPO DO CONTEÚDO -->
-      <div style="padding: 0 36px 12px; font-size: 12px; color: #1f2937;">
-        <p style="margin:0 0 10px;">${body}</p>
-      </div>
-
-      <!-- RODAPÉ -->
-      <div style="
-        margin: 28px 36px 0;
-        border-top: 2px solid #e5e7eb;
-        padding-top: 14px;
-        display: flex;
-        justify-content: space-between;
-        font-size: 9px;
-        color: #9ca3af;
-      ">
-        <span>Senior Scout 360 — Plataforma de Inteligência Comercial</span>
-        <span>Gerado automaticamente via IA · ${dataFormatada}</span>
-      </div>
-
-      <!-- ESPAÇO FINAL -->
-      <div style="height: 24px;"></div>
-    </div>
-  `;
 }
 
 // ============================================================
@@ -177,41 +64,24 @@ const MessageActionsBar: React.FC<MessageActionsBarProps> = ({
   };
 
   // ============================================================
-  // EXPORTAR PDF — Layout premium
+  // EXPORTAR PDF — renderização programática via jsPDF
   // ============================================================
   const handleDownload = () => {
     try {
-      // @ts-ignore
-      if (!window.html2pdf) {
-        alert('Erro: biblioteca de PDF não carregada. Recarregue a página.');
-        return;
-      }
+      const now = new Date();
+      const dateStr = now.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+      const timeStr = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
-      const container = document.createElement('div');
-      container.innerHTML = buildPdfHTML(content);
+      // Extrai título da primeira linha de heading do conteúdo
+      const titleMatch = content.match(/^#+ (.+)/m);
+      const title = titleMatch ? titleMatch[1].trim() : 'Análise Scout 360';
 
-      const filename = `scout360_${new Date().toISOString().slice(0, 10)}_${Date.now()}.pdf`;
+      const pdf = new PDFGenerator();
+      pdf.addHeader(title, `${dateStr} às ${timeStr}`);
+      pdf.renderMarkdown(content);
 
-      const opt = {
-        margin: [0, 0, 0, 0],
-        filename,
-        image: { type: 'jpeg', quality: 0.97 },
-        html2canvas: {
-          scale: 2,
-          backgroundColor: '#ffffff',
-          useCORS: true,
-          logging: false,
-        },
-        jsPDF: {
-          unit: 'mm',
-          format: 'a4',
-          orientation: 'portrait',
-        },
-        pagebreak: { mode: ['avoid-all', 'css', 'legacy'] },
-      };
-
-      // @ts-ignore
-      window.html2pdf().set(opt).from(container).save();
+      const filename = `scout360_${now.toISOString().slice(0, 10)}_${now.getTime()}.pdf`;
+      pdf.save(filename);
     } catch (e) {
       console.error('Erro ao gerar PDF:', e);
       alert('Erro ao gerar PDF. Tente novamente.');
