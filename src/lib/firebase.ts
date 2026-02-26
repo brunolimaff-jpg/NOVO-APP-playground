@@ -1,3 +1,2 @@
-// Remove todas referências Firebase
-import React from 'react';
-// ... sem firebase imports
+// Firebase removido - autenticação local ativa
+export {};
