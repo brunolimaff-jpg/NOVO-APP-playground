@@ -87,6 +87,24 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
   const [showRetryToast, setShowRetryToast] = useState(false);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // ✅ UNDO para exclusão de mensagem (soft-delete: aguarda 5s antes de confirmar)
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const pendingDeleteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleDeleteWithUndo = (msgId: string) => {
+    if (pendingDeleteTimer.current) clearTimeout(pendingDeleteTimer.current);
+    setPendingDeleteId(msgId);
+    pendingDeleteTimer.current = setTimeout(() => {
+      onDeleteMessage?.(msgId);
+      setPendingDeleteId(null);
+    }, 5000);
+  };
+
+  const handleUndoDelete = () => {
+    if (pendingDeleteTimer.current) clearTimeout(pendingDeleteTimer.current);
+    setPendingDeleteId(null);
+  };
+
   // ============================================
   // PRÉ-PREENCHIMENTO VIA EVENTO (CRM → Chat)
   // ============================================
@@ -357,6 +375,9 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
                           processing={processing}
                           searchQuery={lastUserQuery}
                         />
+                        <div className={`mt-2 text-xs font-mono ${isDarkMode ? 'text-emerald-600' : 'text-emerald-400'} animate-pulse select-none`}>
+                          ▋
+                        </div>
                       </div>
                     </div>
                   );
@@ -425,11 +446,13 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
                     key={msg.id}
                     className={`flex ${
                       isBot ? 'justify-start' : 'justify-end'
-                    } animate-fade-in group/msg items-start gap-1.5`}
+                    } animate-fade-in group/msg items-start gap-1.5 transition-opacity duration-300 ${
+                      pendingDeleteId === msg.id ? 'opacity-30 pointer-events-none' : ''
+                    }`}
                   >
                     {!isBot && onDeleteMessage && (
                       <button
-                        onClick={() => onDeleteMessage(msg.id)}
+                        onClick={() => handleDeleteWithUndo(msg.id)}
                         className={`self-start mt-[38px] flex-shrink-0 opacity-0 group-hover/msg:opacity-100 transition-opacity duration-150 p-1.5 rounded-lg text-sm ${
                           isDarkMode
                             ? 'text-slate-600 hover:text-red-400 hover:bg-slate-800'
@@ -557,6 +580,23 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
                   ×
                 </button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* UNDO DELETE TOAST */}
+        {pendingDeleteId && (
+          <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 animate-fade-in">
+            <div className={`flex items-center gap-3 rounded-xl shadow-xl border px-4 py-2.5 ${
+              isDarkMode ? 'bg-slate-800 border-slate-700 text-slate-200' : 'bg-white border-slate-200 text-slate-800'
+            }`}>
+              <span className="text-sm">Mensagem excluída</span>
+              <button
+                onClick={handleUndoDelete}
+                className="text-sm font-bold text-emerald-500 hover:text-emerald-400 transition-colors"
+              >
+                Desfazer
+              </button>
             </div>
           </div>
         )}

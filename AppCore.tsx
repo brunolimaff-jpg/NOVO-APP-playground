@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { useOffline } from './hooks/useOffline';
+import { useToast } from './hooks/useToast';
+import ToastContainer from './components/ToastContainer';
 import { PDFGenerator } from './utils/PDFGenerator';
 import ChatInterface from './components/ChatInterface';
 import { AuthModal } from './components/AuthModal';
@@ -232,6 +234,7 @@ const AppCore: React.FC = () => {
   const [followUpNotas, setFollowUpNotas] = useState('');
   const [followUpStatus, setFollowUpStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
 
+  const { toasts, toast, dismiss: dismissToast } = useToast();
   const lastActionRef = useRef<LastAction | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const lastStatusRef = useRef<string | null>(null);
@@ -676,7 +679,7 @@ const AppCore: React.FC = () => {
       pdf.save(`SeniorScout_${safeTitle}_${now.toISOString().slice(0, 10)}.pdf`);
     } catch (e) {
       console.error('Erro ao gerar PDF:', e);
-      alert('Erro ao gerar PDF. Tente novamente.');
+      toast.error('Erro ao gerar PDF. Tente novamente.');
     }
   }
 
@@ -728,7 +731,7 @@ const AppCore: React.FC = () => {
       } else {
         setEmailStatus('error');
       }
-    } catch (err) { setEmailStatus('error'); }
+    } catch (err) { setEmailStatus('error'); toast.error('Falha ao enviar email. Verifique sua conexão.'); }
   }
 
   async function handleScheduleFollowUp() {
@@ -1072,6 +1075,7 @@ const AppCore: React.FC = () => {
           </div>
         </>
       )}
+      <ToastContainer toasts={toasts} onDismiss={dismissToast} />
     </>
   );
 };

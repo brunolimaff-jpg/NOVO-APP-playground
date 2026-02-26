@@ -136,7 +136,9 @@ const SessionsSidebar: React.FC<SessionsSidebarProps> = ({
 
             <div className="flex-1 overflow-y-auto px-2 pb-4 custom-scrollbar">
                 <div className={`text-[10px] font-bold uppercase tracking-wider mb-2 px-2 mt-2 ${theme.textSecondary}`}>
-                  Histórico ({filteredSessions.length})
+                  {searchTerm
+                    ? `${filteredSessions.length} de ${sessions.length} encontrada${filteredSessions.length !== 1 ? 's' : ''}`
+                    : `Histórico (${filteredSessions.length})`}
                 </div>
                 
                 {filteredSessions.length === 0 ? (

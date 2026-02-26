@@ -92,6 +92,7 @@ export const CRMDetail: React.FC<CRMDetailProps> = ({
   const [websiteInput, setWebsiteInput] = useState(website);
   const [briefDescriptionInput, setBriefDescriptionInput] = useState(briefDescription);
   const [isGeneratingBrief, setIsGeneratingBrief] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   const currentStage = card.stage as CRMStageKey;
   const allAttachments: CRMAttachment[] = Array.isArray(card.attachments) ? card.attachments : [];
@@ -194,6 +195,8 @@ export const CRMDetail: React.FC<CRMDetailProps> = ({
       await updateCard(updated);
     } catch (err) {
       console.error('Erro ao enviar anexos do CRM:', err);
+      setUploadError('Upload indisponível no momento. Configure o serviço de armazenamento.');
+      setTimeout(() => setUploadError(null), 5000);
     } finally {
       if (e.target) e.target.value = '';
     }
@@ -351,8 +354,15 @@ export const CRMDetail: React.FC<CRMDetailProps> = ({
                           <button
                             type="button"
                             onClick={handleValidateCnpj}
-                            className="px-2.5 py-1.5 rounded-lg text-[11px] font-medium bg-slate-900 text-white hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white"
+                            disabled={cnpjStatus === 'validating'}
+                            className="px-2.5 py-1.5 rounded-lg text-[11px] font-medium bg-slate-900 text-white hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
                           >
+                            {cnpjStatus === 'validating' && (
+                              <svg className="animate-spin w-3 h-3" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+                              </svg>
+                            )}
                             {cnpjStatus === 'validating' ? 'Validando...' : 'Validar CNPJ'}
                           </button>
                         </div>
@@ -558,6 +568,9 @@ export const CRMDetail: React.FC<CRMDetailProps> = ({
                     onChange={handleUploadAttachments}
                   />
                 </div>
+                {uploadError && (
+                  <p className="text-[11px] text-amber-500 mt-1 animate-fade-in">⚠ {uploadError}</p>
+                )}
                 {stageAttachments.length > 0 ? (
                   <ul className="space-y-1 max-h-32 overflow-y-auto text-[11px] pr-1">
                     {stageAttachments.map(att => (
