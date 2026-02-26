@@ -551,7 +551,11 @@ export const sendMessageToGemini = async (
     // ✅ RAG: Dispara busca no Pinecone em paralelo — não bloqueia o fluxo principal
     const ragContextPromise = buscarContextoPinecone(message);
 
-    const { empresa, benchmark, rota } = await analyzeUserIntent(message);
+    const { empresa: rawEmpresa, benchmark, rota } = await analyzeUserIntent(message);
+    // Se o router extraiu um concorrente como empresa, descarta — a empresa-alvo não muda.
+    // Isso evita que perguntas sobre "Protheus no Contas a Pagar" troquem o foco para Protheus.
+    const isConcorrenteQuery = rawEmpresa !== null && isConcorrenteOuPropria(rawEmpresa);
+    const empresa = isConcorrenteQuery ? null : rawEmpresa;
 
     const selectedModel = rota === 'profunda' ? DEEP_CHAT_MODEL_ID : TACTICAL_MODEL_ID;
     const isDeepResearch = rota === 'profunda';
@@ -726,7 +730,7 @@ ${safeRagContext}
       text: finalText,
       sources: sources,
       suggestions: [],
-      scorePorta: (empresa && isConcorrenteOuPropria(empresa)) ? undefined : finalParsed.scorePorta,
+      scorePorta: isConcorrenteQuery ? undefined : finalParsed.scorePorta,
       statuses: finalParsed.statuses,
       empresa,
     };
