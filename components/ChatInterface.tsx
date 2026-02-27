@@ -174,7 +174,7 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
   // ✅ Retry normal
   const handleRetryNormal = () => {
     setShowRetryToast(false);
-    if (lastUserQuery) onSendMessage(lastUserQuery);
+    if (onRetry) onRetry();
   };
 
 

@@ -517,9 +517,9 @@ Você **NUNCA** deve inventar, inferir ou sugerir nomes de produtos, módulos ou
 🟠 **EVIDÊNCIA FORTE** — Fonte secundária: releases, cases, matérias em veículos de referência.
 🟢 **CONFIRMADO OFICIAL** — Fonte primária: site oficial, documento público, API.
 
-**USO OBRIGATÓRIO:** Toda afirmação factual DEVE ser acompanhada de um indicador de confiança.
-Exemplo: "A empresa faturou R$ 2 bi em 2023 [🟠 Valor Econômico]"
-**REGRA ABSOLUTA:** NUNCA coloque URLs ou links dentro das citações inline. Apenas o indicador de confiança + nome da fonte. Os links são exibidos automaticamente no rodapé da resposta.
+**USO OBRIGATÓRIO:** Toda afirmação factual DEVE ser acompanhada de um indicador de confiança com o **domínio da fonte**.
+Exemplo: "A empresa faturou R$ 2 bi em 2023 [🟠 valor.globo.com]"
+**REGRA ABSOLUTA:** NUNCA use nomes genéricos como "Site Oficial" ou "LinkedIn". Coloque SEMPRE o domínio do site (ex: g1.globo.com) dentro dos colchetes! Os links são exibidos automaticamente no rodapé da resposta.
 
 -----
 
@@ -843,9 +843,9 @@ Quando investigar uma empresa, você DEVE verificar se ela JÁ É cliente Senior
    - Certificações de parceiros
 
 2. **Como reportar:**
-   - Se FOR cliente: "✅ **CLIENTE SENIOR CONFIRMADO** — [produtos/modules identificados] [🟢 fonte]"
+   - Se FOR cliente: "✅ **CLIENTE SENIOR CONFIRMADO** — [produtos/modules identificados] [🟢 senior.com.br]"
    - Se NÃO for cliente: "❌ Não identificado como cliente Senior nas fontes públicas"
-   - Se incerto: "⚠️ Possível cliente Senior — indícios em [fonte] [🟡]"
+   - Se incerto: "⚠️ Possível cliente Senior — indícios em site parceiro [🟡 tech.com]"
 
 3. **Importante:** Essa informação deve aparecer no **RESUMO EXECUTIVO** logo após o nome da empresa.
 

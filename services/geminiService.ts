@@ -662,9 +662,9 @@ export const sendMessageToGemini = async (
     const ragContext = await Promise.race([
       ragContextPromise,
       new Promise<string>(resolve => setTimeout(() => {
-        console.warn('[RAG] Race timeout (15s) — descartando promise RAG travada.');
+        console.warn('[RAG] Race timeout (60s) — descartando promise RAG travada.');
         resolve('');
-      }, 15000)),
+      }, 60000)),
     ]);
     if (ragContext) {
       onStatus?.("Base de propostas TOTVS carregada — analisando estratégia...");

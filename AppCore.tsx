@@ -641,6 +641,16 @@ const AppCore: React.FC = () => {
   const handleRetry = () => {
     if (!lastActionRef.current) return;
     if (lastActionRef.current.type === 'sendMessage') {
+      if (currentSessionId) {
+        updateSessionById(currentSessionId, session => {
+          const messages = session.messages;
+          const lastMsg = messages[messages.length - 1];
+          if (lastMsg && lastMsg.sender === Sender.Bot && (lastMsg.isError || !lastMsg.text || lastMsg.ghostReason)) {
+            return { ...session, messages: messages.slice(0, -1) };
+          }
+          return session;
+        });
+      }
       processMessage(lastActionRef.current.payload.text, currentSessionId || undefined);
     } else if (lastActionRef.current.type === 'regenerateSuggestions') {
       handleRegenerateSuggestions(lastActionRef.current.payload.messageId);
