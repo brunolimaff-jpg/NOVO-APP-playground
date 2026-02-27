@@ -197,7 +197,7 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
   ]);
 
   return (
-    <div className={`flex h-[100dvh] w-full overflow-hidden ${isDarkMode ? 'bg-slate-950' : 'bg-white'}`}>
+    <div className={`flex h-full w-full overflow-hidden ${isDarkMode ? 'bg-slate-950' : 'bg-white'}`}>
       <SessionsSidebar
         sessions={sessions}
         currentSessionId={currentSession?.id || null}
@@ -363,6 +363,18 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
                 >
                   ⚡
                 </button>
+              )}
+
+              {/* RETRY BUTTON FOR LOST RESPONSES */}
+              {!isLoading && messages.length > 0 && messages[messages.length - 1].sender === Sender.User && (
+                <div className={`absolute bottom-full left-0 mb-3 w-full flex justify-center animate-fade-in`}>
+                  <div className={`flex items-center gap-3 px-4 py-2 rounded-full shadow-md border text-xs font-semibold ${isDarkMode ? 'bg-slate-800 border-red-900/50 text-slate-200' : 'bg-red-50 border-red-200 text-red-700'}`}>
+                    <span>⚠️ A resposta falhou ou foi perdida no reload.</span>
+                    <button onClick={handleRetryNormal} className={`px-3 py-1 rounded-full bg-red-600 hover:bg-red-500 text-white shadow-sm transition-all flex items-center gap-1`}>
+                      <span className="text-sm">🔄</span> Gerar Resposta
+                    </button>
+                  </div>
+                </div>
               )}
 
               <textarea
