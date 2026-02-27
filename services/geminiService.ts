@@ -621,6 +621,18 @@ export const sendMessageToGemini = async (
     const isConcorrenteQuery = rawEmpresa !== null && isConcorrenteOuPropria(rawEmpresa);
     const empresa = isConcorrenteQuery ? null : rawEmpresa;
 
+    // OVERRIDE DE SEGURANÇA: Se não tem empresa alvo, descarta o prompt pesado para evitar que a IA trave a conversa exigindo alvo
+    let finalInstruction = systemInstructionFinal;
+    if (!empresa && !history.some(h => h.sender === 'bot' && h.text.includes('PORTA:'))) {
+      finalInstruction = `⚠️ [MODO TIRA-DÚVIDAS ATIVADO]
+Você é o Assistente Técnico do Senior Scout 360.
+O usuário NÃO forneceu uma empresa alvo. Ele fez uma pergunta técnica, estratégica ou sobre o sistema/concorrência.
+VOCÊ DEVE RESPONDER DIRETAMENTE À PERGUNTA.
+PROIBIDO FALAR DE 10 FASES, SCORE PORTA OU INVESTIGAÇÃO.
+PROIBIDO PEDIR NOME DE EMPRESA.
+Use o contexto técnico fornecido (Docs) para responder com clareza, em português brasileiro.`;
+    }
+
     const selectedModel = rota === 'profunda' ? DEEP_CHAT_MODEL_ID : TACTICAL_MODEL_ID;
     const isDeepResearch = rota === 'profunda';
 
@@ -628,7 +640,7 @@ export const sendMessageToGemini = async (
       onStatus?.("Deep Research ativado — varredura completa da web iniciada...");
     }
 
-    const chatSession = createChatSession(systemInstructionFinal, history, selectedModel, useGrounding, thinkingMode);
+    const chatSession = createChatSession(finalInstruction, history, selectedModel, useGrounding, thinkingMode);
     if (signal?.aborted) throw new Error("Request aborted");
 
     let enrichments: string[] = [];
