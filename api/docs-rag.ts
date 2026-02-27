@@ -16,8 +16,13 @@ export default async function handler(req: any, res: any) {
         if (!query) return res.status(200).json({ context: '' });
 
         const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
-        const pc = new Pinecone({ apiKey: process.env.PINECONE_API_KEY! });
-        const index = pc.index('scout-arsenal');
+
+        // Suporte para chave e index isolados para a base de documentação
+        const pineconeKey = process.env.PINECONE_DOCS_KEY || process.env.PINECONE_API_KEY;
+        const pineconeIndexName = process.env.PINECONE_DOCS_INDEX || 'scout-arsenal';
+
+        const pc = new Pinecone({ apiKey: pineconeKey! });
+        const index = pc.index(pineconeIndexName);
 
         // Gera embedding da query de documentação
         const embeddingResponse = await ai.models.embedContent({
