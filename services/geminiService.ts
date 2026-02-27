@@ -705,9 +705,22 @@ A palavra dentro das chaves DEVE OBRIGATORIAMENTE conter ".senior.com.br"
     }
 
     // Monta mensagem final com contexto + input seguro
+    let fallbackInstruction = '';
+    if (!empresa && !history.some(h => h.sender === 'bot' && h.text.includes('PORTA:'))) {
+      // Se não tem empresa no alvo e não estamos no meio de um dossiê, força a liberação das regras estritas
+      fallbackInstruction = `
+      
+[INSTRUÇÃO CRÍTICA DO SISTEMA PARA ESTA MENSAGEM]
+O usuário NÃO forneceu uma empresa-alvo, CNPJ ou alvo de investigação.
+Isto significa que ele quer uma resposta a uma DÚVIDA GERAL, TÉCNICA OU CONCEITUAL.
+VOCÊ ESTÁ EXPRESSAMENTE AUTORIZADO E OBRIGADO A RESPONDER DIRETAMENTE A PERGUNTA DELE, usando os conhecimentos de RAG/Documentação acima.
+PROIBIDO pedir nome de empresa. PROIBIDO falar sobre "10 fases", "varredura completa" ou iniciar protocolos investigativos.
+COMPORTE-SE COMO UM ASSISTENTE PRESTATIVO, DIRETO E TÉCNICO nesta interação.`;
+    }
+
     const messageToSend = enrichments.length > 0
-      ? enrichments.join('\n') + `\n\n${safeMessage}`
-      : safeMessage;
+      ? enrichments.join('\n') + `\n\n${safeMessage}${fallbackInstruction}`
+      : safeMessage + fallbackInstruction;
 
     if (isDeepResearch) {
       onStatus?.("IA varrendo a web — pode levar alguns minutos...");

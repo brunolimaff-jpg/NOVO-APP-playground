@@ -11,20 +11,20 @@ export type ExportFormat = 'md' | 'pdf' | 'doc';
 
 export type ReportType = 'executive' | 'full' | 'tech';
 
-export type ErrorCode = 
-  | 'NETWORK' 
-  | 'TIMEOUT' 
-  | 'RATE_LIMIT' 
-  | 'MODEL_OVERLOADED' 
-  | 'AUTH' 
-  | 'BAD_REQUEST' 
-  | 'SERVER' 
-  | 'PARSER' 
+export type ErrorCode =
+  | 'NETWORK'
+  | 'TIMEOUT'
+  | 'RATE_LIMIT'
+  | 'MODEL_OVERLOADED'
+  | 'AUTH'
+  | 'BAD_REQUEST'
+  | 'SERVER'
+  | 'PARSER'
   | 'UNKNOWN'
   | 'ABORTED'
   | 'BLOCKED_CONTENT';
 
-export type ErrorSource = 'GEMINI' | 'BRASIL_API' | 'APPS_SCRIPT' | 'EXPORT' | 'PARSER' | 'UI' | 'UNKNOWN';
+export type ErrorSource = 'GEMINI' | 'BRASIL_API' | 'APPS_SCRIPT' | 'EXPORT' | 'PARSER' | 'UI' | 'GUARD' | 'UNKNOWN';
 
 export interface AppError {
   code: ErrorCode;
