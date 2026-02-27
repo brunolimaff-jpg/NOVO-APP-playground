@@ -207,8 +207,10 @@ const AppCore: React.FC = () => {
 
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+  const sessionsRef = useRef<ChatSession[]>([]);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingSession, setIsLoadingSession] = useState(false);
   const [loadingStatus, setLoadingStatus] = useState<string>('Iniciando análise');
   const [completedLoadingStatuses, setCompletedLoadingStatuses] = useState<string[]>([]);
   const [isInitialized, setIsInitialized] = useState(false);
@@ -242,6 +244,20 @@ const AppCore: React.FC = () => {
   const abortControllerRef = useRef<AbortController | null>(null);
   const lastStatusRef = useRef<string | null>(null);
   const activeGenerationRef = useRef<Record<string, string>>({});
+
+  // Fechar modais com Escape
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (showEmailModal) setShowEmailModal(false);
+        if (showFollowUpModal) setShowFollowUpModal(false);
+      }
+    };
+    if (showEmailModal || showFollowUpModal) {
+      document.addEventListener('keydown', handleEscape);
+      return () => document.removeEventListener('keydown', handleEscape);
+    }
+  }, [showEmailModal, showFollowUpModal]);
 
   const currentSession = sessions.find(s => s.id === currentSessionId) || null;
   const allMessages = currentSession ? currentSession.messages : [];
@@ -322,7 +338,19 @@ const AppCore: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (isInitialized) localStorage.setItem(SESSIONS_STORAGE_KEY, JSON.stringify(sessions));
+    sessionsRef.current = sessions;
+    if (isInitialized) {
+      try {
+        localStorage.setItem(SESSIONS_STORAGE_KEY, JSON.stringify(sessions));
+      } catch (e: any) {
+        if (e?.name === 'QuotaExceededError' || e?.code === 22) {
+          console.warn('[Storage] Quota exceeded — clearing oldest sessions');
+          const trimmed = sessions.slice(0, Math.max(sessions.length - 5, 1));
+          try { localStorage.setItem(SESSIONS_STORAGE_KEY, JSON.stringify(trimmed)); } catch { /* fallback silencioso */ }
+          toast.error('Armazenamento local cheio. Sessões antigas foram removidas.');
+        }
+      }
+    }
   }, [sessions, isInitialized]);
 
   useEffect(() => {
@@ -372,12 +400,12 @@ const AppCore: React.FC = () => {
     setLoadingStatus('Iniciando análise');
     const targetSession = sessions.find(s => s.id === sessionId);
     if (targetSession && targetSession.messages.length === 0) {
-      setIsLoading(true);
+      setIsLoadingSession(true);
       try {
         const fullSession = await getRemoteSession(sessionId);
         if (fullSession) updateSessionById(sessionId, () => fullSession);
       } catch (e) { console.error('Lazy load error', e); }
-      finally { setIsLoading(false); }
+      finally { setIsLoadingSession(false); }
     }
   };
 
@@ -396,13 +424,13 @@ const AppCore: React.FC = () => {
         const nextSession = newSessions[0];
         setCurrentSessionId(nextSession.id);
         if (nextSession.messages.length === 0) {
-          setIsLoading(true);
+          setIsLoadingSession(true);
           getRemoteSession(nextSession.id)
             .then(fullSession => {
               if (fullSession) updateSessionById(nextSession.id, () => fullSession);
-              setIsLoading(false);
+              setIsLoadingSession(false);
             })
-            .catch(() => setIsLoading(false));
+            .catch(() => setIsLoadingSession(false));
         }
       } else {
         handleNewSession();
@@ -426,7 +454,6 @@ const AppCore: React.FC = () => {
   };
 
   const handleClearChat = () => {
-    if (!window.confirm('Isso apagará todas as mensagens desta investigação. Continuar?')) return;
     resetChatSession();
     updateCurrentSession(session => ({
       ...session, messages: [], title: 'Nova Investigação', empresaAlvo: null, updatedAt: new Date().toISOString(),
@@ -454,16 +481,13 @@ const AppCore: React.FC = () => {
     if (explicitHistory) {
       historyToPass = explicitHistory;
     } else {
-      setSessions(prev => {
-        const session = prev.find(s => s.id === sessionId);
-        if (session) {
-          const msgs = session.messages;
-          historyToPass = (msgs.length > 0 && msgs[msgs.length - 1].text === text && msgs[msgs.length - 1].sender === Sender.User)
-            ? msgs.slice(0, -1)
-            : msgs;
-        }
-        return prev;
-      });
+      const session = sessionsRef.current.find(s => s.id === sessionId);
+      if (session) {
+        const msgs = session.messages;
+        historyToPass = (msgs.length > 0 && msgs[msgs.length - 1].text === text && msgs[msgs.length - 1].sender === Sender.User)
+          ? msgs.slice(0, -1)
+          : msgs;
+      }
     }
 
     const botMessageId = uuidv4();
@@ -485,7 +509,7 @@ const AppCore: React.FC = () => {
         text, historyToPass, systemInstruction,
         {
           signal,
-          onText: () => {},
+          onText: () => { },
           onStatus: (newStatus) => {
             setLoadingStatus(prev => {
               if (prev && prev !== newStatus) lastStatusRef.current = prev;
@@ -639,7 +663,7 @@ const AppCore: React.FC = () => {
       }));
     } catch (e: any) {
       console.warn('Suggestion regeneration failed', e);
-      alert(e.message || 'Falha na conexão com a IA.');
+      toast.error(e.message || 'Falha na conexão com a IA.');
       updateSessionById(sessionId, session => ({
         ...session, messages: session.messages.map(msg => msg.id === messageId ? { ...msg, isRegeneratingSuggestions: false } : msg),
       }));
@@ -806,8 +830,9 @@ const AppCore: React.FC = () => {
     const session = sessions.find(s => s.id === sessionId);
     if (!session) return;
     const existingCard = cards.find(c => c.id === `crm_${sessionId}`);
-    if (existingCard) { setSelectedCRMCardId(existingCard.id); setActiveView('crm'); return; }
+    if (existingCard) { setSelectedCRMCardId(existingCard.id); setActiveView('crm'); toast.success('Empresa já existe no CRM.'); return; }
     const card = await createCardFromSession(session);
+    toast.success(`${card.companyName} adicionada ao CRM!`);
     setSelectedCRMCardId(card.id);
     setActiveView('crm');
   };
@@ -897,7 +922,7 @@ const AppCore: React.FC = () => {
       onLoadMore={() => setVisibleCount(prev => prev + PAGE_SIZE)}
       onExportConversation={handleExportConversation}
       onExportPDF={handleExportPDF}
-      onExportMessage={() => {}}
+      onExportMessage={() => { }}
       onRetry={handleRetry}
       onStop={handleStopGeneration}
       onReportError={handleReportError}
@@ -998,9 +1023,8 @@ const AppCore: React.FC = () => {
       )}
 
       <div className={`flex flex-col h-screen w-full ${isDarkMode ? 'bg-slate-950' : 'bg-slate-50'}`}>
-        <header className={`h-12 px-3 md:px-4 flex items-center justify-between border-b backdrop-blur-sm ${
-          isDarkMode ? 'bg-slate-950/80 border-slate-800' : 'bg-white/80 border-slate-200'
-        }`}>
+        <header className={`h-12 px-3 md:px-4 flex items-center justify-between border-b backdrop-blur-sm ${isDarkMode ? 'bg-slate-950/80 border-slate-800' : 'bg-white/80 border-slate-200'
+          }`}>
           <div className="flex items-center gap-3 min-w-0">
             <div className="flex items-center gap-2">
               <span className="text-sm font-semibold text-slate-800 dark:text-slate-100">Senior Scout 360</span>
@@ -1009,12 +1033,10 @@ const AppCore: React.FC = () => {
               </span>
             </div>
             <div className="ml-2 flex rounded-full bg-slate-100 dark:bg-slate-800 p-0.5 text-[11px]">
-              <button onClick={() => setActiveView('chat')} className={`px-3 py-1 rounded-full flex items-center gap-1 ${
-                activeView === 'chat' ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-semibold shadow-sm' : 'text-slate-500 dark:text-slate-400'
-              }`}>💬 Investigação</button>
-              <button onClick={() => setActiveView('crm')} className={`px-3 py-1 rounded-full flex items-center gap-1 ${
-                activeView === 'crm' ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-semibold shadow-sm' : 'text-slate-500 dark:text-slate-400'
-              }`}>📋 CRM</button>
+              <button onClick={() => setActiveView('chat')} className={`px-3 py-1 rounded-full flex items-center gap-1 ${activeView === 'chat' ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-semibold shadow-sm' : 'text-slate-500 dark:text-slate-400'
+                }`}>💬 Investigação</button>
+              <button onClick={() => setActiveView('crm')} className={`px-3 py-1 rounded-full flex items-center gap-1 ${activeView === 'crm' ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-semibold shadow-sm' : 'text-slate-500 dark:text-slate-400'
+                }`}>📋 CRM</button>
             </div>
           </div>
           <div className="flex items-center gap-2">{renderUserHeader()}</div>
@@ -1064,9 +1086,8 @@ const AppCore: React.FC = () => {
               <div className="grid grid-cols-4 gap-2 mb-4">
                 {[3, 7, 15, 30].map(d => (
                   <button key={d} onClick={() => setFollowUpDias(d)}
-                    className={`p-3 rounded-xl border text-center transition-all ${
-                      followUpDias === d ? 'border-emerald-500 bg-emerald-500/10 text-white' : 'border-gray-700/30 bg-gray-800/50 text-gray-400'
-                    }`}>
+                    className={`p-3 rounded-xl border text-center transition-all ${followUpDias === d ? 'border-emerald-500 bg-emerald-500/10 text-white' : 'border-gray-700/30 bg-gray-800/50 text-gray-400'
+                      }`}>
                     <p className="text-lg font-bold">{d}</p><p className="text-xs">dias</p>
                   </button>
                 ))}

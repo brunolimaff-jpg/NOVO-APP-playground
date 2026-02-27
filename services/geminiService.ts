@@ -434,11 +434,11 @@ IMPORTANTE:
 };
 
 export const createChatSession = (
-  systemInstruction: string, 
+  systemInstruction: string,
   history: Message[],
   modelId: string,
   useGrounding: boolean = true,
-  thinkingMode: boolean = false 
+  thinkingMode: boolean = false
 ): Chat => {
   const ai = getGenAI();
   const tools: any[] = useGrounding ? [{ googleSearch: {} }] : [];
@@ -485,13 +485,13 @@ export const resetChatSession = () => {
   resetCompanyContext();
 };
 
-const analyzeUserIntent = async (msg: string): Promise<{ 
-  empresa: string | null; 
+const analyzeUserIntent = async (msg: string): Promise<{
+  empresa: string | null;
   benchmark: boolean;
-  rota: 'tatica' | 'profunda' 
+  rota: 'tatica' | 'profunda'
 }> => {
   if (!msg || msg.trim().length < 5) return { empresa: null, benchmark: false, rota: 'tatica' };
-  
+
   try {
     const ai = getGenAI();
     const prompt = `
@@ -507,19 +507,19 @@ const analyzeUserIntent = async (msg: string): Promise<{
       contents: prompt,
       config: { temperature: 0, maxOutputTokens: 200 }
     });
-    
+
     const text = (response.text || 'NONE|NAO|TATICA').trim().replace(/["'`]+/g, '');
     const parts = text.split('|');
-    
+
     const empresaRaw = (parts[0] || '').trim();
     const empresa = (empresaRaw === 'NONE' || empresaRaw.length < 2) ? null : empresaRaw;
     const benchmark = parts[1]?.trim() === 'SIM';
     const rota = parts[2]?.trim() === 'PROFUNDA' ? 'profunda' : 'tatica';
 
     return { empresa, benchmark, rota };
-  } catch (err) { 
+  } catch (err) {
     console.error("Erro no roteador:", err);
-    return { empresa: null, benchmark: false, rota: 'tatica' }; 
+    return { empresa: null, benchmark: false, rota: 'tatica' };
   }
 };
 
@@ -551,15 +551,15 @@ const generateFallbackSuggestions = async (lastUserText: string, botResponseText
   try {
     const ai = getGenAI();
     const response = await ai.models.generateContent({
-      model: ROUTER_MODEL_ID, 
+      model: ROUTER_MODEL_ID,
       contents: `Gere 3 sugestões JSON baseadas nesta resposta: "${botResponseText.substring(0, 1000)}"`,
-      config: { 
+      config: {
         systemInstruction: CONTINUITY_SYSTEM,
-        responseMimeType: 'application/json', 
-        temperature: 0.3 
+        responseMimeType: 'application/json',
+        temperature: 0.3
       }
     });
-    
+
     const json = JSON.parse(response.text || "[]");
     if (!Array.isArray(json)) return ["Mapear decisores", "Verificar gaps"];
 
@@ -575,11 +575,11 @@ const generateFallbackSuggestions = async (lastUserText: string, botResponseText
 };
 
 export const sendMessageToGemini = async (
-  message: string, 
+  message: string,
   history: Message[],
-  systemInstruction: string, 
+  systemInstruction: string,
   options: GeminiRequestOptions = {}
-): Promise<{ text: string; sources: Array<{title: string, url: string}>, suggestions: string[], scorePorta: ScorePortaData | null, statuses: string[] }> => {
+): Promise<{ text: string; sources: Array<{ title: string, url: string }>, suggestions: string[], scorePorta: ScorePortaData | null, statuses: string[] }> => {
   const { useGrounding = true, thinkingMode = false, signal, onText, onStatus, onScorePorta, onCompetitor, nomeVendedor } = options;
 
   // ================================================================
@@ -757,7 +757,7 @@ ${safeRagContext}
         }
       }
 
-      if (parsed.scorePorta && parsed.scorePorta !== lastEmittedScore) {
+      if (parsed.scorePorta && JSON.stringify(parsed.scorePorta) !== JSON.stringify(lastEmittedScore)) {
         onScorePorta?.(parsed.scorePorta);
         lastEmittedScore = parsed.scorePorta;
       }
@@ -864,19 +864,19 @@ export const generateNewSuggestions = async (contextText: string, previousSugges
   const ai = getGenAI();
   try {
     const response = await ai.models.generateContent({
-      model: ROUTER_MODEL_ID, 
+      model: ROUTER_MODEL_ID,
       contents: [{
         role: "user",
         parts: [{ text: `CONTEXTO:\n${contextText}\n\nEVITAR: ${previousSuggestions.join(', ')}\nGere 3 perguntas JSON.` }]
       }],
-      config: { 
+      config: {
         systemInstruction: CONTINUITY_SYSTEM,
         responseMimeType: "application/json",
         responseSchema: { type: Type.ARRAY, items: { type: Type.STRING } },
-        temperature: 0.4 
+        temperature: 0.4
       },
     });
-    
+
     const jsonText = response.text || "[]";
     let json = JSON.parse(jsonText);
     if (!Array.isArray(json)) json = [];

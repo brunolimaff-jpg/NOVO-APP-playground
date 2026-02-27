@@ -1,4 +1,3 @@
-// @ts-nocheck
 import React from 'react';
 import { useAuth } from './contexts/AuthContext';
 import LoginPage from './components/LoginPage';
