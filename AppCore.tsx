@@ -1021,13 +1021,15 @@ const AppCore: React.FC = () => {
         </header>
         <div className="flex-1 min-h-0">{activeView === 'chat' ? chatElement : crmElement}</div>
       </div>
-      <React.Suspense fallback={null}>
-        <CRMDetail
-          card={selectedCRMCard} sessions={sessions} onClose={handleCloseCRMDetail}
-          onSelectSession={handleSelectSessionFromDetail} onMoveStage={handleMoveStageFromDetail}
-          onCreateSessionFromCard={handleCreateSessionFromDetail} isDarkMode={isDarkMode}
-        />
-      </React.Suspense>
+      {selectedCRMCard && (
+        <React.Suspense fallback={null}>
+          <CRMDetail
+            card={selectedCRMCard} sessions={sessions} onClose={handleCloseCRMDetail}
+            onSelectSession={handleSelectSessionFromDetail} onMoveStage={handleMoveStageFromDetail}
+            onCreateSessionFromCard={handleCreateSessionFromDetail} isDarkMode={isDarkMode}
+          />
+        </React.Suspense>
+      )}
       {showEmailModal && (
         <>
           <div className="fixed inset-0 bg-black/50 z-50" onClick={() => setShowEmailModal(false)} />

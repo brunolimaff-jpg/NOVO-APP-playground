@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { CRMPipelineProps, CRM_STAGE_LABELS, CRMStage } from '../types';
 
 export const CRMPipeline: React.FC<CRMPipelineProps> = ({ cards, onMoveCard, onSelectCard }) => {
@@ -112,6 +112,14 @@ export const CRMPipeline: React.FC<CRMPipelineProps> = ({ cards, onMoveCard, onS
     };
   }, [undoVisible, lastMove]);
 
+  const cardsByStage = useMemo(() => {
+    const map: Record<string, typeof cards> = {};
+    for (const stage of stages) {
+      map[stage] = cards.filter(c => c.stage === stage);
+    }
+    return map;
+  }, [cards]);
+
   return (
     <div className="w-full h-full overflow-x-auto">
       <div className="flex flex-col gap-2 mb-2">
@@ -133,7 +141,7 @@ export const CRMPipeline: React.FC<CRMPipelineProps> = ({ cards, onMoveCard, onS
 
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4 min-w-[980px]">
         {stages.map(stage => {
-          const stageCards = cards.filter(c => c.stage === stage);
+          const stageCards = cardsByStage[stage] ?? [];
           const total = stageCards.length;
           const isDragOver = dragOverStage === stage;
 
