@@ -76,6 +76,8 @@ export interface Message {
   scorePorta?: ScorePortaData;
   // NOVO: Statuses extraídos
   statuses?: string[];
+  // NOVO: Detalhes técnicos do ghost message (stream timeout)
+  ghostDetails?: string;
 }
 
 export interface ChatSession {

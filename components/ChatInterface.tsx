@@ -1,21 +1,16 @@
 import React, { useRef, useEffect, useLayoutEffect, useState, useMemo, useCallback } from 'react';
+import { VariableSizeList } from 'react-window';
+import AutoSizer from 'react-virtualized-auto-sizer';
+import MessageRow, { MessageRowData } from './MessageRow';
 import { ChatInterfaceProps, Sender } from '../types';
 import { useMode } from '../contexts/ModeContext';
 import { useAuth } from '../contexts/AuthContext';
 import SessionsSidebar from './SessionsSidebar';
-import SectionalBotMessage from './SectionalBotMessage';
-import MarkdownRenderer from './MarkdownRenderer';
-import LoadingSmart from './LoadingSmart';
-import ErrorMessageCard from './ErrorMessageCard';
 import EmptyStateHome from './EmptyStateHome';
-import MessageActionsBar from './MessageActionsBar';
-import { DeepDiveTopics } from './DeepDiveTopics';
 const InvestigationDashboard = React.lazy(() => import('./InvestigationDashboard'));
 const SettingsDrawer = React.lazy(() => import('./SettingsDrawer'));
 const WarRoom = React.lazy(() => import('./WarRoom'));
-import ScorePorta from './ScorePorta';
-import { cleanTitle, extractSources } from '../utils/textCleaners';
-import { isFakeUrl } from '../services/apiConfig';
+import { cleanTitle } from '../utils/textCleaners';
 import { runWarRoomOSINT } from '../services/geminiService';
 import ConfirmPopover from './ConfirmPopover';
 
@@ -75,6 +70,8 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const actionsMenuRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<VariableSizeList>(null);
+  const rowHeights = useRef<Record<number, number>>({});
 
   const [input, setInput] = useState('');
   const [showDashboard, setShowDashboard] = useState(false);
@@ -128,7 +125,9 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
   }, [input]);
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (messages.length > 0) {
+      listRef.current?.scrollToItem(messages.length - 1, 'end');
+    }
   };
 
   useEffect(() => {
@@ -253,6 +252,43 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
     m => m.sender === Sender.Bot && !m.isThinking && !m.isError && (m.text?.length || 0) > 100
   );
 
+  const handleHeightChange = useCallback((index: number, height: number) => {
+    if (rowHeights.current[index] !== height) {
+      rowHeights.current[index] = height;
+      listRef.current?.resetAfterIndex(index, false);
+    }
+  }, []);
+
+  const itemData = useMemo<MessageRowData>(() => ({
+    messages,
+    isLoading,
+    isDarkMode,
+    mode,
+    onRetry,
+    onDeleteMessage,
+    onReportError,
+    onFeedback,
+    onSendFeedback,
+    onToggleMessageSources,
+    onDeepDive,
+    onRegenerateSuggestions,
+    handleDeleteWithUndo,
+    pendingDeleteId,
+    hideSuggestionsForMessageId,
+    setInput,
+    sessionId: currentSession?.id,
+    userId,
+    processing,
+    lastUserQuery,
+    onStop: handleStopWithToast,
+    onHeightChange: handleHeightChange,
+  }), [
+    messages, isLoading, isDarkMode, mode, onRetry, onDeleteMessage, onReportError,
+    onFeedback, onSendFeedback, onToggleMessageSources, onDeepDive, onRegenerateSuggestions,
+    handleDeleteWithUndo, pendingDeleteId, hideSuggestionsForMessageId,
+    currentSession?.id, userId, processing, lastUserQuery, handleStopWithToast, handleHeightChange,
+  ]);
+
   return (
     <div className={`flex h-[100dvh] w-full overflow-hidden ${isDarkMode ? 'bg-slate-950' : 'bg-white'}`}>
       <SessionsSidebar
@@ -350,223 +386,37 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
           </React.Suspense>
         )}
 
-        <div className="flex-1 min-h-0 overflow-y-auto p-4 md:p-6 scroll-smooth custom-scrollbar relative">
+        <div className="flex-1 min-h-0 relative">
           {messages.length === 0 ? (
-            <EmptyStateHome mode={mode} onSendMessage={onSendMessage} onPreFill={(text) => setInput(text)} isDarkMode={isDarkMode} />
+            <div className="h-full overflow-y-auto p-4 md:p-6 scroll-smooth custom-scrollbar">
+              <EmptyStateHome mode={mode} onSendMessage={onSendMessage} onPreFill={(text) => setInput(text)} isDarkMode={isDarkMode} />
+            </div>
           ) : (
-            <div className="w-full max-w-5xl xl:max-w-6xl mx-auto space-y-6 pb-4 px-2 md:px-6 lg:px-8">
-              {hasMore && (
-                <div className="flex justify-center">
-                  <button onClick={onLoadMore} className="text-xs text-slate-500 hover:text-emerald-500">
-                    Carregar anteriores
-                  </button>
+            <AutoSizer>
+              {({ height, width }) => (
+                <div style={{ height, width }} className="relative">
+                  {hasMore && (
+                    <div className="absolute top-2 left-0 right-0 flex justify-center z-10">
+                      <button onClick={onLoadMore} className="text-xs text-slate-500 hover:text-emerald-500 bg-white/80 dark:bg-slate-900/80 backdrop-blur px-3 py-1 rounded-full shadow">
+                        Carregar anteriores
+                      </button>
+                    </div>
+                  )}
+                  <VariableSizeList
+                    ref={listRef}
+                    height={height}
+                    width={width}
+                    itemCount={messages.length}
+                    itemSize={(index) => rowHeights.current[index] || 140}
+                    itemData={itemData}
+                    overscanCount={4}
+                    className="custom-scrollbar"
+                  >
+                    {MessageRow}
+                  </VariableSizeList>
                 </div>
               )}
-
-              {messages.map((msg, idx) => {
-                const isBot = msg.sender === Sender.Bot;
-                const isLast = idx === messages.length - 1;
-
-                if (msg.isThinking) {
-                  return (
-                    <div key={msg.id} className="flex justify-start animate-fade-in">
-                      <div className={`rounded-2xl p-4 shadow-sm ${
-                        isDarkMode ? 'bg-slate-900' : 'bg-white'
-                      } border ${
-                        isDarkMode ? 'border-gray-700/30' : 'border-gray-200'
-                      } px-3 md:px-5 py-3 md:py-4 w-full`}>
-                        <div className="flex items-center justify-between mb-2 opacity-70 text-[10px] uppercase font-bold tracking-wider select-none">
-                          <span>{mode === 'operacao' ? '🚺 Operação' : '✈️ Diretoria'}</span>
-                          <span>{msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                        </div>
-                        <LoadingSmart
-                          isLoading={isLoading}
-                          mode={mode}
-                          isDarkMode={isDarkMode}
-                          onStop={isLoading ? handleStopWithToast : undefined}
-                          processing={processing}
-                          searchQuery={lastUserQuery}
-                        />
-                        <div className={`mt-2 text-xs font-mono ${isDarkMode ? 'text-emerald-600' : 'text-emerald-400'} animate-pulse select-none`}>
-                          ▋
-                        </div>
-                      </div>
-                    </div>
-                  );
-                }
-
-                if (msg.isError && msg.errorDetails) {
-                  return (
-                    <ErrorMessageCard
-                      key={msg.id}
-                      error={msg.errorDetails}
-                      onRetry={onRetry}
-                      isLoadingRetry={isLoading}
-                      isDarkMode={isDarkMode}
-                      mode={mode}
-                      onReportError={onReportError ? () => onReportError(msg.id, msg.errorDetails!) : undefined}
-                    />
-                  );
-                }
-
-                if (isBot && !msg.isThinking && !msg.isError && (!msg.text || msg.text.trim() === '')) {
-                  return (
-                    <div key={msg.id} className="flex justify-start animate-fade-in w-full max-w-3xl">
-                      <div className={`rounded-2xl p-5 shadow-sm w-full border ${
-                        isDarkMode ? 'bg-red-950/20 border-red-900/50' : 'bg-red-50 border-red-200'
-                      }`}>
-                        <div className="flex items-start gap-3">
-                          <span className="text-2xl mt-1">👻</span>
-                          <div>
-                            <h4 className={`text-xs font-black uppercase tracking-widest mb-1 ${
-                              isDarkMode ? 'text-red-400' : 'text-red-700'
-                            }`}>
-                              Conexão Degolada (Ghost Message)
-                            </h4>
-                            <p className={`text-xs leading-relaxed mb-4 ${
-                              isDarkMode ? 'text-red-300' : 'text-red-600'
-                            }`}>
-                              A conexão com o motor de inteligência foi interrompida pelo navegador (timeout ou oscilação de rede) antes da resposta chegar. O sistema preservou o histórico, mas os dados não puderam ser exibidos.
-                            </p>
-                            <button
-                              onClick={() => onRetry && onRetry()}
-                              disabled={isLoading}
-                              className={`text-[10px] font-black uppercase tracking-widest px-4 py-2 rounded-lg shadow-lg transition-all flex items-center gap-2 ${
-                                isLoading
-                                  ? 'bg-slate-700 text-slate-500 cursor-not-allowed shadow-none'
-                                  : 'bg-red-600 hover:bg-red-500 text-white shadow-red-600/20'
-                              }`}
-                            >
-                              <span>↻</span> {isLoading ? 'Processando...' : 'Tentar Novamente'}
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                }
-
-                const textSources = extractSources(msg.text || '');
-                const rawSources = (msg.groundingSources && msg.groundingSources.length > 0)
-                  ? msg.groundingSources
-                  : textSources;
-                const displaySources = rawSources.filter(s => s.url && !isFakeUrl(s.url));
-                const sourcesCount = displaySources.length;
-
-                return (
-                  <div
-                    key={msg.id}
-                    className={`flex ${
-                      isBot ? 'justify-start' : 'justify-end'
-                    } animate-fade-in group/msg items-start gap-1.5 transition-opacity duration-300 ${
-                      pendingDeleteId === msg.id ? 'opacity-30 pointer-events-none' : ''
-                    }`}
-                  >
-                    {!isBot && onDeleteMessage && (
-                      <button
-                        onClick={() => handleDeleteWithUndo(msg.id)}
-                        className={`self-start mt-[38px] flex-shrink-0 opacity-0 group-hover/msg:opacity-100 transition-opacity duration-150 p-1.5 rounded-lg text-sm ${
-                          isDarkMode
-                            ? 'text-slate-600 hover:text-red-400 hover:bg-slate-800'
-                            : 'text-slate-300 hover:text-red-500 hover:bg-red-50'
-                        }`}
-                        title="Excluir esta mensagem"
-                      >
-                        🗑️
-                      </button>
-                    )}
-
-                    <div className={`rounded-2xl p-4 shadow-sm relative ${
-                      isBot
-                        ? `${
-                            isDarkMode ? 'bg-slate-900' : 'bg-white'
-                          } border ${
-                            isDarkMode ? 'border-gray-700/30' : 'border-gray-200'
-                          } px-3 md:px-5 py-3 md:py-4 w-full`
-                        : `${
-                            isDarkMode
-                              ? 'bg-emerald-900/20 border border-emerald-900/30 text-emerald-100'
-                              : 'bg-emerald-50 border border-emerald-100 text-slate-800'
-                          } max-w-[90%] md:max-w-[75%] lg:max-w-[60%]`
-                    }`}>
-                      <div className="flex items-center justify-between mb-2 opacity-70 text-[10px] uppercase font-bold tracking-wider select-none">
-                        <span>{isBot ? (mode === 'operacao' ? '🚺 Operação' : '✈️ Diretoria') : '👤 Você'}</span>
-                        <span>{msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                      </div>
-
-                      {isBot ? (
-                        <>
-                          {msg.scorePorta && (
-                            <ScorePorta
-                              score={msg.scorePorta.score}
-                              p={msg.scorePorta.p}
-                              o={msg.scorePorta.o}
-                              r={msg.scorePorta.r}
-                              t={msg.scorePorta.t}
-                              a={msg.scorePorta.a}
-                              isDarkMode={isDarkMode}
-                            />
-                          )}
-
-                          <SectionalBotMessage
-                            message={{ ...msg, groundingSources: displaySources }}
-                            sessionId={currentSession?.id}
-                            userId={userId}
-                            isDarkMode={isDarkMode}
-                            mode={mode}
-                            onPreFillInput={setInput}
-                            onRegenerateSuggestions={onRegenerateSuggestions}
-                            hideSuggestions={msg.id === hideSuggestionsForMessageId}
-                          />
-
-                          {isLast && !isLoading && onDeepDive && (
-                            <DeepDiveTopics onSelectTopic={onDeepDive} />
-                          )}
-
-                          <MessageActionsBar
-                            content={msg.text}
-                            sourcesCount={sourcesCount}
-                            currentFeedback={msg.feedback}
-                            onFeedback={(fb) => onFeedback(msg.id, fb)}
-                            onSubmitFeedback={(fb, comment, content) => onSendFeedback(msg.id, fb, comment, content)}
-                            onToggleSources={() => onToggleMessageSources(msg.id)}
-                            isSourcesVisible={!!msg.isSourcesOpen}
-                            isDarkMode={isDarkMode}
-                          />
-
-                          {msg.isSourcesOpen && displaySources.length > 0 && (
-                            <div className={`mt-3 pt-3 border-t ${isDarkMode ? 'border-gray-700' : 'border-gray-200'}`}>
-                              <p className={`text-xs font-semibold uppercase tracking-wide mb-2 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                                📚 Fontes consultadas para contexto
-                              </p>
-                              <ul className="space-y-1.5">
-                                {displaySources.map((s, i) => (
-                                  <li key={i} className="text-xs">
-                                    <a
-                                      href={s.url}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="text-emerald-600 hover:text-emerald-700 hover:underline break-all"
-                                    >
-                                      {s.title || s.url}
-                                    </a>
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
-                        </>
-                      ) : (
-                        <div className="whitespace-pre-wrap text-sm md:text-base leading-relaxed">
-                          {msg.text}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-              <div ref={messagesEndRef} />
-            </div>
+            </AutoSizer>
           )}
         </div>
 

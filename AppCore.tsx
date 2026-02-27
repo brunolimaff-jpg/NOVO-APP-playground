@@ -481,7 +481,7 @@ const AppCore: React.FC = () => {
     setVisibleCount(prev => prev + 1);
 
     try {
-      const { text: responseText, sources, suggestions, scorePorta } = await sendMessageToGemini(
+      const { text: responseText, sources, suggestions, scorePorta, ghostReason } = await sendMessageToGemini(
         text, historyToPass, systemInstruction,
         {
           signal,
@@ -511,6 +511,7 @@ const AppCore: React.FC = () => {
         messages: s.messages.map(msg =>
           msg.id === botMessageId ? {
             ...msg, text: responseText, groundingSources: sources, suggestions, scorePorta: scorePorta || undefined, isThinking: false,
+            ...(ghostReason && { ghostDetails: ghostReason }),
           } : msg
         ),
       }));
