@@ -690,7 +690,18 @@ ${safeRagContext}
       onStatus?.("Gerando resposta...");
     }
 
-    const result = await chatSession.sendMessageStream({ message: messageToSend });
+    // Timeout de inatividade adaptativo:
+    // Deep Research faz varredura web pesada — primeiro chunk pode levar 60s+
+    // Tático é mais rápido, mas LOOKUP/RAG podem demorar na pré-fase
+    const STREAM_INACTIVITY_MS = isDeepResearch ? 120000 : 90000;
+
+    const streamPromise = chatSession.sendMessageStream({ message: messageToSend });
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error(`A conexão com o motor de inteligência travou ao iniciar (${STREAM_INACTIVITY_MS / 1000}s)`)), STREAM_INACTIVITY_MS);
+    });
+
+    const result = await Promise.race([streamPromise, timeoutPromise]);
+
     let rawAccumulator = '';
     let lastEmittedStatus = '';
     let lastEmittedScore: ScorePortaData | null = null;
@@ -700,10 +711,6 @@ ${safeRagContext}
     let sourcesReported = 0;
     let textMilestone = 0;
 
-    // Timeout de inatividade adaptativo:
-    // Deep Research faz varredura web pesada — primeiro chunk pode levar 60s+
-    // Tático é mais rápido, mas LOOKUP/RAG podem demorar na pré-fase
-    const STREAM_INACTIVITY_MS = isDeepResearch ? 120000 : 90000;
     let streamTimedOut = false;
     let inactivityTimer: ReturnType<typeof setTimeout> | null = null;
     const resetInactivity = () => {
