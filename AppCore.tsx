@@ -3,14 +3,17 @@ import { v4 as uuidv4 } from 'uuid';
 import { useOffline } from './hooks/useOffline';
 import { useToast } from './hooks/useToast';
 import ToastContainer from './components/ToastContainer';
-import { PDFGenerator } from './utils/PDFGenerator';
 import ChatInterface from './components/ChatInterface';
 import { AuthModal } from './components/AuthModal';
 import { useAuth } from './contexts/AuthContext';
 import { useMode } from './contexts/ModeContext';
 import { useCRM } from './contexts/CRMContext';
-import { CRMPipeline } from './components/CRMPipeline';
-import { CRMDetail } from './components/CRMDetail';
+const CRMPipeline = React.lazy(() =>
+  import('./components/CRMPipeline').then(m => ({ default: m.CRMPipeline }))
+);
+const CRMDetail = React.lazy(() =>
+  import('./components/CRMDetail').then(m => ({ default: m.CRMDetail }))
+);
 import { Message, Sender, Feedback, ChatSession, ExportFormat, ReportType, AppError, CRMStage } from './types';
 import { sendMessageToGemini, generateNewSuggestions, generateConsolidatedDossier, resetChatSession } from './services/geminiService';
 import { listRemoteSessions, getRemoteSession, saveRemoteSession } from './services/sessionRemoteStore';
@@ -657,7 +660,7 @@ const AppCore: React.FC = () => {
     } catch (e) { console.error('Failed to report error', e); }
   };
 
-  function handleExportPDF() {
+  async function handleExportPDF() {
     try {
       const { text: fullText, sections, allLinks } = collectFullReport(allMessages);
       if (!fullText || fullText.length < 100) { alert('Nenhum dossiê para exportar.'); return; }
@@ -670,6 +673,7 @@ const AppCore: React.FC = () => {
       const horaStr = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
       const metaLine = `${dataStr} às ${horaStr} · ${sections.length} seção${sections.length !== 1 ? 'ões' : ''}`;
 
+      const { PDFGenerator } = await import('./utils/PDFGenerator');
       const pdf = new PDFGenerator();
       pdf.addHeader(empresa, metaLine);
       pdf.renderMarkdown(finalText);
@@ -959,7 +963,9 @@ const AppCore: React.FC = () => {
             </div>
           </div>
         )}
-        <CRMPipeline cards={cards} onMoveCard={handleMoveCRMCard} onSelectCard={handleSelectCRMCard} />
+        <React.Suspense fallback={null}>
+          <CRMPipeline cards={cards} onMoveCard={handleMoveCRMCard} onSelectCard={handleSelectCRMCard} />
+        </React.Suspense>
       </div>
     </div>
   );
@@ -1015,11 +1021,13 @@ const AppCore: React.FC = () => {
         </header>
         <div className="flex-1 min-h-0">{activeView === 'chat' ? chatElement : crmElement}</div>
       </div>
-      <CRMDetail
-        card={selectedCRMCard} sessions={sessions} onClose={handleCloseCRMDetail}
-        onSelectSession={handleSelectSessionFromDetail} onMoveStage={handleMoveStageFromDetail}
-        onCreateSessionFromCard={handleCreateSessionFromDetail} isDarkMode={isDarkMode}
-      />
+      <React.Suspense fallback={null}>
+        <CRMDetail
+          card={selectedCRMCard} sessions={sessions} onClose={handleCloseCRMDetail}
+          onSelectSession={handleSelectSessionFromDetail} onMoveStage={handleMoveStageFromDetail}
+          onCreateSessionFromCard={handleCreateSessionFromDetail} isDarkMode={isDarkMode}
+        />
+      </React.Suspense>
       {showEmailModal && (
         <>
           <div className="fixed inset-0 bg-black/50 z-50" onClick={() => setShowEmailModal(false)} />
