@@ -561,6 +561,8 @@ const AppCore: React.FC = () => {
           ...s,
           messages: s.messages.filter(msg => msg.id !== botMessageId || msg.text.trim().length > 0),
         } : s));
+        setIsLoading(false);
+        abortControllerRef.current = null;
         return;
       }
       if (activeGenerationRef.current[sessionId] !== botMessageId) return;
