@@ -1,6 +1,5 @@
 import React, { useRef, useEffect, useLayoutEffect, useState, useMemo, useCallback } from 'react';
 import { VariableSizeList } from 'react-window';
-import AutoSizer from 'react-virtualized-auto-sizer';
 import MessageRow, { MessageRowData } from './MessageRow';
 import { ChatInterfaceProps, Sender } from '../types';
 import { useMode } from '../contexts/ModeContext';
@@ -13,6 +12,23 @@ const WarRoom = React.lazy(() => import('./WarRoom'));
 import { cleanTitle } from '../utils/textCleaners';
 import { runWarRoomOSINT } from '../services/geminiService';
 import ConfirmPopover from './ConfirmPopover';
+
+// Hook substituto para AutoSizer (sem dependência externa)
+function useContainerSize(ref: React.RefObject<HTMLDivElement | null>) {
+  const [size, setSize] = useState({ width: 0, height: 0 });
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([entry]) => {
+      const { width, height } = entry.contentRect;
+      setSize({ width, height });
+    });
+    ro.observe(el);
+    setSize({ width: el.offsetWidth, height: el.offsetHeight });
+    return () => ro.disconnect();
+  }, [ref]);
+  return size;
+}
 
 const QUICK_ACTIONS = [
   { icon: "🎯", label: "Comparar", prompt: "Compare com o principal concorrente dessa empresa" },
@@ -72,6 +88,8 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
   const actionsMenuRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<VariableSizeList>(null);
   const rowHeights = useRef<Record<number, number>>({});
+  const listContainerRef = useRef<HTMLDivElement>(null);
+  const containerSize = useContainerSize(listContainerRef);
 
   const [input, setInput] = useState('');
   const [showDashboard, setShowDashboard] = useState(false);
@@ -79,12 +97,8 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
   const [showActionsMenu, setShowActionsMenu] = useState(false);
   const [showWarRoom, setShowWarRoom] = useState(false);
   const [displayedSuggestions, setDisplayedSuggestions] = useState<string[]>([]);
-
-  // ✅ TOAST PÓS-CANCELAMENTO
   const [showRetryToast, setShowRetryToast] = useState(false);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // ✅ UNDO para exclusão de mensagem (soft-delete: aguarda 5s antes de confirmar)
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const pendingDeleteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -102,9 +116,6 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
     setPendingDeleteId(null);
   };
 
-  // ============================================
-  // PRÉ-PREENCHIMENTO VIA EVENTO (CRM → Chat)
-  // ============================================
   useEffect(() => {
     const handlePrefill = (e: Event) => {
       const detail = (e as CustomEvent<{ text: string }>).detail;
@@ -157,46 +168,27 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // ✅ Auto-fechar toast após 8 segundos
   useEffect(() => {
     if (showRetryToast) {
       if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
-      toastTimerRef.current = setTimeout(() => {
-        setShowRetryToast(false);
-      }, 8000);
+      toastTimerRef.current = setTimeout(() => setShowRetryToast(false), 8000);
     }
-    return () => {
-      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
-    };
+    return () => { if (toastTimerRef.current) clearTimeout(toastTimerRef.current); };
   }, [showRetryToast]);
 
-  // ==========================================
-  // LÓGICA PARA ESCONDER/EXIBIR SUGESTÕES
-  // ==========================================
   const lastBotWithSuggestionsIndex = useMemo(() =>
-    [...messages]
-      .map((m, i) => ({ m, i }))
-      .filter(({ m }) => m.sender === Sender.Bot && m.suggestions && m.suggestions.length > 0)
-      .map(({ i }) => i)
-      .pop(),
+    [...messages].map((m, i) => ({ m, i })).filter(({ m }) => m.sender === Sender.Bot && m.suggestions && m.suggestions.length > 0).map(({ i }) => i).pop(),
     [messages]
   );
 
   const lastUserIndex = useMemo(() =>
-    [...messages]
-      .map((m, i) => ({ m, i }))
-      .filter(({ m }) => m.sender === Sender.User)
-      .map(({ i }) => i)
-      .pop(),
+    [...messages].map((m, i) => ({ m, i })).filter(({ m }) => m.sender === Sender.User).map(({ i }) => i).pop(),
     [messages]
   );
 
   const hideSuggestionsForMessageId =
-    lastBotWithSuggestionsIndex !== undefined &&
-    lastUserIndex !== undefined &&
-    lastUserIndex > lastBotWithSuggestionsIndex
-      ? messages[lastBotWithSuggestionsIndex].id
-      : null;
+    lastBotWithSuggestionsIndex !== undefined && lastUserIndex !== undefined && lastUserIndex > lastBotWithSuggestionsIndex
+      ? messages[lastBotWithSuggestionsIndex].id : null;
 
   const handleSend = () => {
     if (!input.trim() || isLoading) return;
@@ -207,10 +199,7 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
   };
 
   const handleActionClick = (prompt: string) => {
@@ -228,29 +217,13 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
     navigator.clipboard.writeText(text).then(() => alert('Copiado!'));
   }, [messages]);
 
-  // ✅ STOP com toast
-  const handleStopWithToast = () => {
-    if (onStop) onStop();
-    setShowRetryToast(true);
-  };
-
-  // ✅ Retry normal
-  const handleRetryNormal = () => {
-    setShowRetryToast(false);
-    if (lastUserQuery) onSendMessage(lastUserQuery);
-  };
-
-  // ✅ Retry com modelo Flash (mais rápido)
-  const handleRetryFlash = () => {
-    setShowRetryToast(false);
-    if (lastUserQuery) onSendMessage(lastUserQuery);
-  };
+  const handleStopWithToast = () => { if (onStop) onStop(); setShowRetryToast(true); };
+  const handleRetryNormal = () => { setShowRetryToast(false); if (lastUserQuery) onSendMessage(lastUserQuery); };
+  const handleRetryFlash = () => { setShowRetryToast(false); if (lastUserQuery) onSendMessage(lastUserQuery); };
 
   const headerTitle = cleanTitle(currentSession?.title || 'Nova Investigação');
   const displayTitle = headerTitle.length > 35 ? headerTitle.substring(0, 32) + '...' : headerTitle;
-  const hasReport = messages.some(
-    m => m.sender === Sender.Bot && !m.isThinking && !m.isError && (m.text?.length || 0) > 100
-  );
+  const hasReport = messages.some(m => m.sender === Sender.Bot && !m.isThinking && !m.isError && (m.text?.length || 0) > 100);
 
   const handleHeightChange = useCallback((index: number, height: number) => {
     if (rowHeights.current[index] !== height) {
@@ -260,28 +233,11 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
   }, []);
 
   const itemData = useMemo<MessageRowData>(() => ({
-    messages,
-    isLoading,
-    isDarkMode,
-    mode,
-    onRetry,
-    onDeleteMessage,
-    onReportError,
-    onFeedback,
-    onSendFeedback,
-    onToggleMessageSources,
-    onDeepDive,
-    onRegenerateSuggestions,
-    handleDeleteWithUndo,
-    pendingDeleteId,
-    hideSuggestionsForMessageId,
-    setInput,
-    sessionId: currentSession?.id,
-    userId,
-    processing,
-    lastUserQuery,
-    onStop: handleStopWithToast,
-    onHeightChange: handleHeightChange,
+    messages, isLoading, isDarkMode, mode, onRetry, onDeleteMessage, onReportError,
+    onFeedback, onSendFeedback, onToggleMessageSources, onDeepDive, onRegenerateSuggestions,
+    handleDeleteWithUndo, pendingDeleteId, hideSuggestionsForMessageId, setInput,
+    sessionId: currentSession?.id, userId, processing, lastUserQuery,
+    onStop: handleStopWithToast, onHeightChange: handleHeightChange,
   }), [
     messages, isLoading, isDarkMode, mode, onRetry, onDeleteMessage, onReportError,
     onFeedback, onSendFeedback, onToggleMessageSources, onDeepDive, onRegenerateSuggestions,
@@ -292,35 +248,22 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
   return (
     <div className={`flex h-[100dvh] w-full overflow-hidden ${isDarkMode ? 'bg-slate-950' : 'bg-white'}`}>
       <SessionsSidebar
-        sessions={sessions}
-        currentSessionId={currentSession?.id || null}
-        onSelectSession={onSelectSession}
-        onNewSession={onNewSession}
-        onDeleteSession={onDeleteSession}
-        onSaveToCRM={onSaveToCRM || (() => {})}
-        onOpenKanban={onOpenKanban || (() => {})}
-        isOpen={isSidebarOpen}
-        onCloseMobile={onToggleSidebar}
-        isDarkMode={isDarkMode}
+        sessions={sessions} currentSessionId={currentSession?.id || null}
+        onSelectSession={onSelectSession} onNewSession={onNewSession}
+        onDeleteSession={onDeleteSession} onSaveToCRM={onSaveToCRM || (() => {})}
+        onOpenKanban={onOpenKanban || (() => {})} isOpen={isSidebarOpen}
+        onCloseMobile={onToggleSidebar} isDarkMode={isDarkMode}
       />
 
       <main className="flex-1 flex flex-col h-full min-h-0 relative w-full transition-all duration-300">
-
         <header className={`h-14 flex-shrink-0 flex items-center justify-between px-3 py-2 border-b backdrop-blur-md z-10 ${
           isDarkMode ? 'bg-gray-900/80 border-gray-800' : 'bg-white/80 border-gray-200'
         }`}>
           <div className="flex items-center gap-3 min-w-0 overflow-hidden">
-            <button
-              onClick={onToggleSidebar}
-              className={`p-2 rounded-lg transition-colors flex-shrink-0 ${
-                isDarkMode ? 'text-gray-400 hover:text-white hover:bg-gray-800' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'
-              }`}
-            >
-              ☰
-            </button>
-            <h1 className={`text-sm font-bold truncate ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
-              {displayTitle}
-            </h1>
+            <button onClick={onToggleSidebar} className={`p-2 rounded-lg transition-colors flex-shrink-0 ${
+              isDarkMode ? 'text-gray-400 hover:text-white hover:bg-gray-800' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'
+            }`}>☰</button>
+            <h1 className={`text-sm font-bold truncate ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>{displayTitle}</h1>
           </div>
           <div className="flex items-center gap-1 flex-shrink-0">
             {hasReport && !isLoading && (
@@ -337,31 +280,19 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
                 <div className={`w-px h-4 mx-1 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-300'}`} />
               </>
             )}
-            <button
-              onClick={() => setShowWarRoom(true)}
-              className={`p-2 rounded-lg transition-all ${
-                isDarkMode ? 'text-gray-500 hover:text-red-400 hover:bg-gray-800' : 'text-gray-400 hover:text-red-500 hover:bg-gray-100'
-              }`}
-              title="War Room: Inteligência Competitiva"
-            >⚔️</button>
+            <button onClick={() => setShowWarRoom(true)} className={`p-2 rounded-lg transition-all ${
+              isDarkMode ? 'text-gray-500 hover:text-red-400 hover:bg-gray-800' : 'text-gray-400 hover:text-red-500 hover:bg-gray-100'
+            }`} title="War Room">⚔️</button>
             <ConfirmPopover message="Limpar conversa?" onConfirm={onClearChat} isDarkMode={isDarkMode}>
               {({ onClick }) => (
-                <button
-                  onClick={onClick}
-                  className={`p-2 rounded-lg transition-all ${
-                    isDarkMode ? 'text-gray-500 hover:text-red-400 hover:bg-gray-800' : 'text-gray-400 hover:text-red-500 hover:bg-gray-100'
-                  }`}
-                  title="Limpar conversa"
-                >🗑️</button>
+                <button onClick={onClick} className={`p-2 rounded-lg transition-all ${
+                  isDarkMode ? 'text-gray-500 hover:text-red-400 hover:bg-gray-800' : 'text-gray-400 hover:text-red-500 hover:bg-gray-100'
+                }`} title="Limpar conversa">🗑️</button>
               )}
             </ConfirmPopover>
-            <button
-              onClick={() => setShowSettings(true)}
-              className={`p-2 rounded-lg transition-all ${
-                isDarkMode ? 'text-gray-500 hover:text-emerald-400 hover:bg-gray-800' : 'text-gray-400 hover:text-emerald-500 hover:bg-gray-100'
-              }`}
-              title="Configurações"
-            >⚙️</button>
+            <button onClick={() => setShowSettings(true)} className={`p-2 rounded-lg transition-all ${
+              isDarkMode ? 'text-gray-500 hover:text-emerald-400 hover:bg-gray-800' : 'text-gray-400 hover:text-emerald-500 hover:bg-gray-100'
+            }`} title="Configurações">⚙️</button>
           </div>
         </header>
 
@@ -392,9 +323,9 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
               <EmptyStateHome mode={mode} onSendMessage={onSendMessage} onPreFill={(text) => setInput(text)} isDarkMode={isDarkMode} />
             </div>
           ) : (
-            <AutoSizer>
-              {({ height, width }) => (
-                <div style={{ height, width }} className="relative">
+            <div ref={listContainerRef} className="absolute inset-0">
+              {containerSize.width > 0 && containerSize.height > 0 && (
+                <div className="relative" style={{ height: containerSize.height, width: containerSize.width }}>
                   {hasMore && (
                     <div className="absolute top-2 left-0 right-0 flex justify-center z-10">
                       <button onClick={onLoadMore} className="text-xs text-slate-500 hover:text-emerald-500 bg-white/80 dark:bg-slate-900/80 backdrop-blur px-3 py-1 rounded-full shadow">
@@ -404,8 +335,8 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
                   )}
                   <VariableSizeList
                     ref={listRef}
-                    height={height}
-                    width={width}
+                    height={containerSize.height}
+                    width={containerSize.width}
                     itemCount={messages.length}
                     itemSize={(index) => rowHeights.current[index] || 140}
                     itemData={itemData}
@@ -416,7 +347,7 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
                   </VariableSizeList>
                 </div>
               )}
-            </AutoSizer>
+            </div>
           )}
         </div>
 
@@ -428,59 +359,31 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
               <div className="flex items-start gap-3">
                 <span className="text-xl mt-0.5">⚠️</span>
                 <div className="flex-1">
-                  <p className={`text-sm font-semibold mb-2 ${isDarkMode ? 'text-slate-200' : 'text-slate-900'}`}>
-                    Cancelado — Tentar novamente?
-                  </p>
+                  <p className={`text-sm font-semibold mb-2 ${isDarkMode ? 'text-slate-200' : 'text-slate-900'}`}>Cancelado — Tentar novamente?</p>
                   <div className="flex gap-2">
-                    <button
-                      onClick={handleRetryNormal}
-                      className={`flex-1 px-3 py-2 rounded-lg text-xs font-semibold transition-all ${
-                        isDarkMode
-                          ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
-                          : 'bg-emerald-500 hover:bg-emerald-600 text-white'
-                      }`}
-                    >
-                      🔄 Tentar novamente
-                    </button>
-                    <button
-                      onClick={handleRetryFlash}
-                      className={`flex-1 px-3 py-2 rounded-lg text-xs font-semibold transition-all border ${
-                        isDarkMode
-                          ? 'border-slate-600 hover:bg-slate-700 text-slate-300'
-                          : 'border-slate-300 hover:bg-slate-100 text-slate-700'
-                      }`}
-                      title="Tenta com o modelo mais rápido (Flash)"
-                    >
-                      ⚡ Mais rápido
-                    </button>
+                    <button onClick={handleRetryNormal} className={`flex-1 px-3 py-2 rounded-lg text-xs font-semibold transition-all ${
+                      isDarkMode ? 'bg-emerald-600 hover:bg-emerald-500 text-white' : 'bg-emerald-500 hover:bg-emerald-600 text-white'
+                    }`}>🔄 Tentar novamente</button>
+                    <button onClick={handleRetryFlash} className={`flex-1 px-3 py-2 rounded-lg text-xs font-semibold transition-all border ${
+                      isDarkMode ? 'border-slate-600 hover:bg-slate-700 text-slate-300' : 'border-slate-300 hover:bg-slate-100 text-slate-700'
+                    }`}>⚡ Mais rápido</button>
                   </div>
                 </div>
-                <button
-                  onClick={() => setShowRetryToast(false)}
-                  className={`text-xl opacity-50 hover:opacity-100 transition-opacity ${
-                    isDarkMode ? 'text-slate-400' : 'text-slate-500'
-                  }`}
-                >
-                  ×
-                </button>
+                <button onClick={() => setShowRetryToast(false)} className={`text-xl opacity-50 hover:opacity-100 ${
+                  isDarkMode ? 'text-slate-400' : 'text-slate-500'
+                }`}>×</button>
               </div>
             </div>
           </div>
         )}
 
-        {/* UNDO DELETE TOAST */}
         {pendingDeleteId && (
           <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 animate-fade-in">
             <div className={`flex items-center gap-3 rounded-xl shadow-xl border px-4 py-2.5 ${
               isDarkMode ? 'bg-slate-800 border-slate-700 text-slate-200' : 'bg-white border-slate-200 text-slate-800'
             }`}>
               <span className="text-sm">Mensagem excluída</span>
-              <button
-                onClick={handleUndoDelete}
-                className="text-sm font-bold text-emerald-500 hover:text-emerald-400 transition-colors"
-              >
-                Desfazer
-              </button>
+              <button onClick={handleUndoDelete} className="text-sm font-bold text-emerald-500 hover:text-emerald-400">Desfazer</button>
             </div>
           </div>
         )}
@@ -489,28 +392,18 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
           isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-white border-slate-200'
         } z-20`}>
           <div className="w-full max-w-5xl xl:max-w-6xl mx-auto px-1 md:px-6 lg:px-8 relative">
-
             {showActionsMenu && (
-              <div
-                ref={actionsMenuRef}
-                className={`absolute bottom-full left-2 md:left-8 mb-2 w-72 rounded-xl shadow-xl border overflow-hidden animate-fade-in z-50 ${
-                  isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'
-                }`}
-              >
+              <div ref={actionsMenuRef} className={`absolute bottom-full left-2 md:left-8 mb-2 w-72 rounded-xl shadow-xl border overflow-hidden animate-fade-in z-50 ${
+                isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'
+              }`}>
                 <div className={`px-4 py-3 border-b text-xs font-bold uppercase tracking-wider flex items-center gap-2 ${
                   isDarkMode ? 'border-slate-700 text-emerald-400' : 'border-slate-100 text-emerald-600'
-                }`}>
-                  <span>⚡</span> Ações Rápidas
-                </div>
+                }`}><span>⚡</span> Ações Rápidas</div>
                 <div className="flex flex-col py-1 max-h-[40vh] overflow-y-auto">
                   {QUICK_ACTIONS.map((qa) => (
-                    <button
-                      key={qa.label}
-                      onClick={() => handleActionClick(qa.prompt)}
-                      className={`flex items-center gap-3 px-4 py-3 text-sm text-left transition-colors ${
-                        isDarkMode ? 'hover:bg-slate-700 text-slate-200' : 'hover:bg-emerald-50 text-slate-700'
-                      }`}
-                    >
+                    <button key={qa.label} onClick={() => handleActionClick(qa.prompt)} className={`flex items-center gap-3 px-4 py-3 text-sm text-left transition-colors ${
+                      isDarkMode ? 'hover:bg-slate-700 text-slate-200' : 'hover:bg-emerald-50 text-slate-700'
+                    }`}>
                       <span className="text-lg">{qa.icon}</span>
                       <span className="font-medium">{qa.label}</span>
                     </button>
@@ -522,57 +415,29 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
             <div className={`relative flex items-end w-full rounded-2xl border pl-2 pr-12 py-2 shadow-sm ${
               isDarkMode ? 'border-gray-700/50 bg-gray-800/80' : 'border-gray-300 bg-white'
             }`}>
-
               {!isLoading && messages.length > 0 && (
-                <button
-                  onClick={() => setShowActionsMenu(!showActionsMenu)}
-                  className={`p-2 rounded-xl transition-colors flex-shrink-0 mr-1 mb-0.5 ${
-                    isDarkMode ? 'text-emerald-400 hover:bg-slate-700' : 'text-emerald-600 hover:bg-emerald-50'
-                  }`}
-                  title="Ações Rápidas"
-                >
-                  ⚡
-                </button>
+                <button onClick={() => setShowActionsMenu(!showActionsMenu)} className={`p-2 rounded-xl transition-colors flex-shrink-0 mr-1 mb-0.5 ${
+                  isDarkMode ? 'text-emerald-400 hover:bg-slate-700' : 'text-emerald-600 hover:bg-emerald-50'
+                }`} title="Ações Rápidas">⚡</button>
               )}
-
               <textarea
-                ref={textareaRef}
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder={isLoading ? 'Gerando resposta...' : 'Digite sua mensagem...'}
-                disabled={isLoading}
-                rows={1}
+                ref={textareaRef} value={input} onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKeyDown} placeholder={isLoading ? 'Gerando resposta...' : 'Digite sua mensagem...'}
+                disabled={isLoading} rows={1}
                 className={`flex-1 bg-transparent text-sm outline-none resize-none min-h-[36px] max-h-[100px] mb-1 px-2 custom-scrollbar ${
                   isDarkMode ? 'text-white placeholder-slate-500' : 'text-slate-900 placeholder-slate-400'
                 }`}
                 style={{ overflow: 'hidden' }}
               />
-
               {isLoading ? (
-                <button
-                  onClick={handleStopWithToast}
-                  className={`absolute right-2 bottom-2 w-10 h-10 flex items-center justify-center rounded-xl transition-all border ${
-                    isDarkMode
-                      ? 'bg-red-950/70 hover:bg-red-900/90 border-red-900/60 text-red-400 hover:text-red-300'
-                      : 'bg-red-50 hover:bg-red-100 border-red-200 text-red-500 hover:text-red-600'
-                  }`}
-                  title="Parar geração"
-                >
-                  <span className="text-base leading-none">⏹</span>
-                </button>
+                <button onClick={handleStopWithToast} className={`absolute right-2 bottom-2 w-10 h-10 flex items-center justify-center rounded-xl transition-all border ${
+                  isDarkMode ? 'bg-red-950/70 hover:bg-red-900/90 border-red-900/60 text-red-400' : 'bg-red-50 hover:bg-red-100 border-red-200 text-red-500'
+                }`} title="Parar"><span className="text-base">⏹</span></button>
               ) : (
-                <button
-                  onClick={handleSend}
-                  disabled={!input.trim()}
-                  className={`absolute right-2 bottom-2 w-10 h-10 flex items-center justify-center rounded-xl transition-all shadow-md ${
-                    !input.trim()
-                      ? (isDarkMode ? 'bg-slate-700 text-slate-500' : 'bg-slate-200 text-slate-400')
-                      : 'bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-white hover:scale-105 active:scale-95 shadow-emerald-500/30'
-                  }`}
-                >
-                  <span className="text-lg ml-0.5">➤</span>
-                </button>
+                <button onClick={handleSend} disabled={!input.trim()} className={`absolute right-2 bottom-2 w-10 h-10 flex items-center justify-center rounded-xl transition-all shadow-md ${
+                  !input.trim() ? (isDarkMode ? 'bg-slate-700 text-slate-500' : 'bg-slate-200 text-slate-400')
+                    : 'bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-white hover:scale-105'
+                }`}><span className="text-lg ml-0.5">➤</span></button>
               )}
             </div>
           </div>
@@ -580,16 +445,10 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
 
         {showWarRoom && (
           <React.Suspense fallback={null}>
-            <WarRoom
-              isOpen={showWarRoom}
-              onClose={() => setShowWarRoom(false)}
-              isDarkMode={isDarkMode}
+            <WarRoom isOpen={showWarRoom} onClose={() => setShowWarRoom(false)} isDarkMode={isDarkMode}
               onExecuteOSINT={async (prompt) => {
-                try {
-                  return await runWarRoomOSINT(prompt);
-                } catch (error: any) {
-                  return `**⚠️ Falha na Conexão OSINT.**\n\nDetalhe técnico: \`${error.message}\``;
-                }
+                try { return await runWarRoomOSINT(prompt); }
+                catch (error: any) { return `**⚠️ Falha na Conexão OSINT.**\n\nDetalhe: \`${error.message}\``; }
               }}
             />
           </React.Suspense>
