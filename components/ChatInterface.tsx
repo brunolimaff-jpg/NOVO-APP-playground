@@ -17,7 +17,7 @@ const WarRoom = React.lazy(() => import('./WarRoom'));
 import ScorePorta from './ScorePorta';
 import { cleanTitle, extractSources } from '../utils/textCleaners';
 import { isFakeUrl } from '../services/apiConfig';
-import { runWarRoomOSINT } from '../services/geminiService';
+// War Room agora gerencia suas próprias queries internamente
 import ConfirmPopover from './ConfirmPopover';
 
 const QUICK_ACTIONS = [
@@ -416,7 +416,7 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
           </div>
         </div>
 
-        {showWarRoom && <React.Suspense fallback={null}><WarRoom isOpen={showWarRoom} onClose={() => setShowWarRoom(false)} isDarkMode={isDarkMode} onExecuteOSINT={async (prompt) => { try { return await runWarRoomOSINT(prompt); } catch (error: any) { return `**⚠️ Erro OSINT**\n\`${error.message}\``; } }} /></React.Suspense>}
+        {showWarRoom && <React.Suspense fallback={null}><WarRoom isOpen={showWarRoom} onClose={() => setShowWarRoom(false)} isDarkMode={isDarkMode} /></React.Suspense>}
       </main>
     </div>
   );
