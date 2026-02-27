@@ -30,12 +30,20 @@ const NAMESPACE = 'senior-erp-docs';
 const BATCH_SIZE = 50;
 
 interface CsvRow {
-    Categoria: string;
-    Título: string;
-    Caminho: string;
-    'URL Completa': string;
-    Breadcrumb: string;
-    Source: string;
+    Categoria?: string;
+    Título?: string;
+    'TÃ­tulo'?: string;
+    Titulo?: string;
+    Caminho?: string;
+    'URL Completa'?: string;
+    URL?: string;
+    Breadcrumb?: string;
+    Source?: string;
+    Módulo?: string;
+    'MÃ³dulo'?: string;
+    Produto?: string;
+    Portal?: string;
+    [key: string]: string | undefined; // Allow any other string keys
 }
 
 async function generateEmbeddingsBatch(texts: string[]): Promise<number[][]> {
@@ -50,7 +58,8 @@ async function generateEmbeddingsBatch(texts: string[]): Promise<number[][]> {
 }
 
 async function ingest() {
-    const csvPath = path.join(__dirname, '../Links documentação/senior_erp_links.csv');
+    const fileName = process.argv[2] || 'senior_erp_links.csv';
+    const csvPath = path.join(__dirname, '../Links documentação', fileName);
     console.log(`Lendo arquivo: ${csvPath}`);
 
     const parser = fs.createReadStream(csvPath).pipe(
@@ -72,19 +81,22 @@ async function ingest() {
         // A coluna Source no CSV tem 'chunk_0', 'chunkstart' ou vazio
 
         // Ignorar urls vazias
-        if (!r['URL Completa'] || r['URL Completa'].trim() === '') continue;
+        const urlStr = r['URL Completa'] || r['URL'] || '';
+        if (!urlStr || urlStr.trim() === '') continue;
 
         // Enriquecer texto para a IA encontrar
-        const breadcrumbText = r.Breadcrumb ? ` | Caminho: ${r.Breadcrumb}` : '';
-        const textToEmbed = `Manual Senior ERP | Categoria: ${r.Categoria} | Título: ${r.Título}${breadcrumbText}`;
+        const originalTitle = r['Título'] || r['TÃ­tulo'] || r['Titulo'] || '';
+        const modulo = r.Módulo || r['MÃ³dulo'] || r.Categoria || r.Produto || '';
+        const breadcrumbText = r.Breadcrumb ? ` | Caminho/Portal: ${r.Breadcrumb}` : (r.Portal ? ` | Portal: ${r.Portal}` : '');
+        const textToEmbed = `Manual Senior | Área: ${modulo} | Título: ${originalTitle}${breadcrumbText}`;
 
         buffer.push({
-            id: `erp-doc-${count}`,
+            id: `senior-doc-${count}-${Date.now()}`,
             text: textToEmbed,
             metadata: {
-                categoria: r.Categoria,
-                titulo: r.Título,
-                url: r['URL Completa']
+                categoria: modulo,
+                titulo: originalTitle,
+                url: urlStr
             }
         });
 

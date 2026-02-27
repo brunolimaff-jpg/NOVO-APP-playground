@@ -624,13 +624,13 @@ export const sendMessageToGemini = async (
     // OVERRIDE DE SEGURANÇA: Se não tem empresa alvo, descarta o prompt pesado para evitar que a IA trave a conversa exigindo alvo
     let finalInstruction = systemInstructionFinal;
     if (!empresa && !history.some(h => h.sender === 'bot' && h.text.includes('PORTA:'))) {
-      finalInstruction = `⚠️ [MODO TIRA-DÚVIDAS ATIVADO]
-Você é o Assistente Técnico do Senior Scout 360.
-O usuário NÃO forneceu uma empresa alvo. Ele fez uma pergunta técnica, estratégica ou sobre o sistema/concorrência.
-VOCÊ DEVE RESPONDER DIRETAMENTE À PERGUNTA.
-PROIBIDO FALAR DE 10 FASES, SCORE PORTA OU INVESTIGAÇÃO.
-PROIBIDO PEDIR NOME DE EMPRESA.
-Use o contexto técnico fornecido (Docs) para responder com clareza, em português brasileiro.`;
+      finalInstruction = `⚠️ [MODO CONSULTOR TÉCNICO]
+Você é o Especialista Técnico da Senior Sistemas e do Senior Scout 360.
+O usuário está fazendo uma pergunta geral, técnica ou de negócios.
+Você NÃO precisa do nome de uma empresa.
+APENAS RESPONDA À PERGUNTA de forma clara e profissional, baseando-se no contexto RAG fornecido e no seu conhecimento.
+NÃO exija CNPJ, nome da empresa ou inicie fluxo de investigação.
+NÃO diga que não encontrou uma empresa. Apenas responda à dúvida técnica ou de posicionamento do usuário.`;
     }
 
     const selectedModel = rota === 'profunda' ? DEEP_CHAT_MODEL_ID : TACTICAL_MODEL_ID;

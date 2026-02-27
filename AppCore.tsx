@@ -1054,12 +1054,7 @@ const AppCore: React.FC = () => {
                 {MODE_LABELS[mode].icon} {MODE_LABELS[mode].label}
               </span>
             </div>
-            <div className="ml-2 flex rounded-full bg-slate-100 dark:bg-slate-800 p-0.5 text-[11px]">
-              <button onClick={() => setActiveView('chat')} className={`px-3 py-1 rounded-full flex items-center gap-1 ${activeView === 'chat' ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-semibold shadow-sm' : 'text-slate-500 dark:text-slate-400'
-                }`}>💬 Investigação</button>
-              <button onClick={() => setActiveView('crm')} className={`px-3 py-1 rounded-full flex items-center gap-1 ${activeView === 'crm' ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-semibold shadow-sm' : 'text-slate-500 dark:text-slate-400'
-                }`}>📋 CRM</button>
-            </div>
+
           </div>
           <div className="flex items-center gap-2">{renderUserHeader()}</div>
         </header>
