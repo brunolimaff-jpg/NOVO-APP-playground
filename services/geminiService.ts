@@ -497,7 +497,10 @@ const analyzeUserIntent = async (msg: string): Promise<{
     const prompt = `
       Analise a frase do usuário: "${msg}"
       Extraia 3 informações separadas por "|":
-      1. NOME DA EMPRESA (limpo, sem LTDA/SA. Se não houver, responda NONE)
+      1. NOME DA EMPRESA-ALVO DE PROSPECÇÃO (empresa que o vendedor quer investigar para vender para ela).
+         - Responda NONE se o usuário está fazendo uma PERGUNTA TÉCNICA sobre um sistema/ERP/módulo (ex: "como funciona compras no erp senior", "o que é o módulo contábil", "como calcular férias").
+         - Responda NONE se mencionar apenas nomes de ERPs ou produtos de software (Senior, TOTVS, SAP, Protheus, Sapiens, GAtec).
+         - Responda com o NOME DA EMPRESA apenas se for uma empresa real que o vendedor quer prospectar (ex: "investigar a JBS", "quero um dossiê da Bunge", "me fala sobre a Amaggi").
       2. BENCHMARK: O usuário quer comparar com concorrentes? (SIM/NAO)
       3. ROTA: Responda PROFUNDA se o usuário pediu um "dossiê completo", "investigação completa", "capivara", "varredura" ou quer saber TUDO sobre a empresa. Responda TATICA se for uma pergunta específica, pontual ou continuação de conversa.
     `;

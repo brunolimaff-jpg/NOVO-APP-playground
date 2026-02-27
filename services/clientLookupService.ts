@@ -5,21 +5,25 @@ import { LOOKUP_URL } from "./apiConfig";
 import { CONCORRENTES } from "./competitors";
 
 // Deriva termos-raiz a partir dos IDs dos concorrentes cadastrados (ex: 'totvs_protheus' → 'totvs')
-// + termos extras (própria empresa e produtos legados)
+// + termos extras (própria empresa, produtos e marcas próprias)
 const _concorrentesSet = new Set<string>([
   'senior',                                          // própria empresa
   ...CONCORRENTES.map(c => c.id.split('_')[0]),      // sap, totvs, sankhya, chb, siagri, benner, lg, viasoft, unisystem
   'protheus', 'microsiga', 'datasul',                // produtos TOTVS antigos
   'oracle', 'microsoft', 'linx',                     // outros players
+  // Produtos/marcas da própria Senior — evita que perguntas técnicas sejam tratadas como prospecção
+  'erp', 'sapiens', 'hcm', 'gatec', 'gestão', 'gestao',
+  'ronda', 'rubi', 'vetorh', 'erpx',
 ]);
 
 /**
- * Retorna true se a empresa for um concorrente cadastrado ou a própria Senior.
- * Evita chamadas desnecessárias ao App Script para nomes que jamais serão clientes.
+ * Retorna true se a empresa for um concorrente cadastrado, a própria Senior,
+ * ou um produto/marca reconhecido (ex: "ERP Senior", "GAtec").
+ * Verifica TODAS as palavras da string, não apenas a primeira.
  */
 export function isConcorrenteOuPropria(empresa: string): boolean {
-  const first = empresa.toLowerCase().trim().split(/[\s,]+/)[0];
-  return _concorrentesSet.has(first);
+  const words = empresa.toLowerCase().trim().split(/[\s,]+/);
+  return words.some(w => _concorrentesSet.has(w));
 }
 
 const LOOKUP_API_URL = LOOKUP_URL;
