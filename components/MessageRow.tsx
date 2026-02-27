@@ -30,7 +30,7 @@ export interface MessageRowData {
   setInput: (text: string) => void;
   sessionId?: string;
   userId?: string;
-  processing?: string[];
+  processing?: { stage?: string; completedStages?: string[] };
   lastUserQuery?: string;
   onStop?: () => void;
   onHeightChange?: (index: number, height: number) => void;
@@ -62,9 +62,8 @@ const MessageRow = memo(({ index, data }: MessageRowProps) => {
   if (msg.isThinking) {
     content = (
       <div className="flex justify-start animate-fade-in">
-        <div className={`rounded-2xl p-4 shadow-sm w-full ${
-          isDarkMode ? 'bg-slate-900 border border-gray-700/30' : 'bg-white border border-gray-200'
-        } px-3 md:px-5 py-3 md:py-4`}>
+        <div className={`rounded-2xl p-4 shadow-sm w-full ${isDarkMode ? 'bg-slate-900 border border-gray-700/30' : 'bg-white border border-gray-200'
+          } px-3 md:px-5 py-3 md:py-4`}>
           <div className="flex items-center justify-between mb-2 opacity-70 text-[10px] uppercase font-bold tracking-wider select-none">
             <span>{mode === 'operacao' ? '😺 Operação' : '✈️ Diretoria'}</span>
             <span>{msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
@@ -77,7 +76,7 @@ const MessageRow = memo(({ index, data }: MessageRowProps) => {
   } else if (msg.isError && msg.errorDetails) {
     content = (
       <ErrorMessageCard
-        error={msg.errorDetails} onRetry={onRetry || (() => {})} isLoadingRetry={isLoading}
+        error={msg.errorDetails} onRetry={onRetry || (() => { })} isLoadingRetry={isLoading}
         isDarkMode={isDarkMode} mode={mode}
         onReportError={onReportError ? () => onReportError(msg.id, msg.errorDetails!) : undefined}
       />
@@ -95,25 +94,21 @@ const MessageRow = memo(({ index, data }: MessageRowProps) => {
     const sourcesCount = displaySources.length;
 
     content = (
-      <div className={`flex ${
-        isBot ? 'justify-start' : 'justify-end'
-      } animate-fade-in group/msg items-start gap-1.5 transition-opacity duration-300 ${
-        pendingDeleteId === msg.id ? 'opacity-30 pointer-events-none' : ''
-      }`}>
+      <div className={`flex ${isBot ? 'justify-start' : 'justify-end'
+        } animate-fade-in group/msg items-start gap-1.5 transition-opacity duration-300 ${pendingDeleteId === msg.id ? 'opacity-30 pointer-events-none' : ''
+        }`}>
         {!isBot && onDeleteMessage && (
           <button
             onClick={() => handleDeleteWithUndo(msg.id)}
-            className={`self-start mt-[38px] flex-shrink-0 opacity-0 group-hover/msg:opacity-100 transition-opacity duration-150 p-1.5 rounded-lg text-sm ${
-              isDarkMode ? 'text-slate-600 hover:text-red-400 hover:bg-slate-800' : 'text-slate-300 hover:text-red-500 hover:bg-red-50'
-            }`}
+            className={`self-start mt-[38px] flex-shrink-0 opacity-0 group-hover/msg:opacity-100 transition-opacity duration-150 p-1.5 rounded-lg text-sm ${isDarkMode ? 'text-slate-600 hover:text-red-400 hover:bg-slate-800' : 'text-slate-300 hover:text-red-500 hover:bg-red-50'
+              }`}
             title="Excluir esta mensagem"
           >🗑️</button>
         )}
-        <div className={`rounded-2xl p-4 shadow-sm relative ${
-          isBot
-            ? `${isDarkMode ? 'bg-slate-900' : 'bg-white'} border ${isDarkMode ? 'border-gray-700/30' : 'border-gray-200'} px-3 md:px-5 py-3 md:py-4 w-full`
-            : `${isDarkMode ? 'bg-emerald-900/20 border border-emerald-900/30 text-emerald-100' : 'bg-emerald-50 border border-emerald-100 text-slate-800'} max-w-[90%] md:max-w-[75%] lg:max-w-[60%]`
-        }`}>
+        <div className={`rounded-2xl p-4 shadow-sm relative ${isBot
+          ? `${isDarkMode ? 'bg-slate-900' : 'bg-white'} border ${isDarkMode ? 'border-gray-700/30' : 'border-gray-200'} px-3 md:px-5 py-3 md:py-4 w-full`
+          : `${isDarkMode ? 'bg-emerald-900/20 border border-emerald-900/30 text-emerald-100' : 'bg-emerald-50 border border-emerald-100 text-slate-800'} max-w-[90%] md:max-w-[75%] lg:max-w-[60%]`
+          }`}>
           <div className="flex items-center justify-between mb-2 opacity-70 text-[10px] uppercase font-bold tracking-wider select-none">
             <span>{isBot ? (mode === 'operacao' ? '😺 Operação' : '✈️ Diretoria') : '👤 Você'}</span>
             <span>{msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
@@ -159,7 +154,7 @@ const MessageRow = memo(({ index, data }: MessageRowProps) => {
   }
 
   return (
-    <div ref={rowRef} className="pb-6 px-2 md:px-6 lg:px-8">
+    <div ref={rowRef} className="pb-3 px-2 md:px-6 lg:px-8">
       {content}
     </div>
   );

@@ -1,4 +1,4 @@
-const RAG_TIMEOUT_MS = 8000;
+const RAG_TIMEOUT_MS = 15000;
 
 export async function buscarContextoPinecone(query: string): Promise<string> {
   const controller = new AbortController();
