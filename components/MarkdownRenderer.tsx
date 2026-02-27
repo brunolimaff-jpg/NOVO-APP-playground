@@ -2,8 +2,13 @@ import React, { useEffect, useMemo, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
-import { Tooltip } from './Tooltip';
+import { useAuth } from '../contexts/AuthContext';
 import type { Feedback, ScorePortaData } from '../types';
+
+export interface GroundingSource {
+  title: string;
+  url: string;
+}
 import {
   fixFakeLinks,
   rewriteMarkdownLinksToGoogle,
