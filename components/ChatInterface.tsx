@@ -1,5 +1,4 @@
 import React, { useRef, useEffect, useLayoutEffect, useState, useMemo, useCallback } from 'react';
-import { VariableSizeList } from 'react-window';
 import MessageRow, { MessageRowData } from './MessageRow';
 import { ChatInterfaceProps, Sender } from '../types';
 import { useMode } from '../contexts/ModeContext';
@@ -12,23 +11,6 @@ const WarRoom = React.lazy(() => import('./WarRoom'));
 import { cleanTitle } from '../utils/textCleaners';
 import { runWarRoomOSINT } from '../services/geminiService';
 import ConfirmPopover from './ConfirmPopover';
-
-// Hook substituto para AutoSizer (sem dependência externa)
-function useContainerSize(ref: React.RefObject<HTMLDivElement | null>) {
-  const [size, setSize] = useState({ width: 0, height: 0 });
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const ro = new ResizeObserver(([entry]) => {
-      const { width, height } = entry.contentRect;
-      setSize({ width, height });
-    });
-    ro.observe(el);
-    setSize({ width: el.offsetWidth, height: el.offsetHeight });
-    return () => ro.disconnect();
-  }, [ref]);
-  return size;
-}
 
 const QUICK_ACTIONS = [
   { icon: "🎯", label: "Comparar", prompt: "Compare com o principal concorrente dessa empresa" },
@@ -50,9 +32,8 @@ function extractDisplayedSuggestions(content?: string): string[] {
       const lines = match[1].split('\n');
       lines.forEach(line => {
         const bulletMatch = line.match(/^[\*\-]\s*["']?([^"'\n]+)["']?/);
-        if (bulletMatch && bulletMatch[1].trim().length > 5) {
+        if (bulletMatch && bulletMatch[1].trim().length > 5)
           suggestions.push(bulletMatch[1].trim().replace(/["']$/, ''));
-        }
       });
       if (suggestions.length > 0) break;
     }
@@ -75,10 +56,7 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
   remoteSaveStatus, isDarkMode, onToggleTheme, onToggleMessageSources,
   exportStatus, exportError, pdfReportContent, onOpenEmailModal,
   onOpenFollowUpModal, userHeaderNode, onLogout, lastUserQuery, processing,
-  onDeepDive,
-  onDeleteMessage,
-  onSaveToCRM,
-  onOpenKanban,
+  onDeepDive, onDeleteMessage, onSaveToCRM, onOpenKanban,
 }) => {
   const { mode, setMode } = useMode();
   const { user, userId, updateName } = useAuth();
@@ -86,17 +64,13 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const actionsMenuRef = useRef<HTMLDivElement>(null);
-  const listRef = useRef<VariableSizeList>(null);
-  const rowHeights = useRef<Record<number, number>>({});
-  const listContainerRef = useRef<HTMLDivElement>(null);
-  const containerSize = useContainerSize(listContainerRef);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   const [input, setInput] = useState('');
   const [showDashboard, setShowDashboard] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showActionsMenu, setShowActionsMenu] = useState(false);
   const [showWarRoom, setShowWarRoom] = useState(false);
-  const [displayedSuggestions, setDisplayedSuggestions] = useState<string[]>([]);
   const [showRetryToast, setShowRetryToast] = useState(false);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
@@ -105,24 +79,14 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
   const handleDeleteWithUndo = (msgId: string) => {
     if (pendingDeleteTimer.current) clearTimeout(pendingDeleteTimer.current);
     setPendingDeleteId(msgId);
-    pendingDeleteTimer.current = setTimeout(() => {
-      onDeleteMessage?.(msgId);
-      setPendingDeleteId(null);
-    }, 5000);
+    pendingDeleteTimer.current = setTimeout(() => { onDeleteMessage?.(msgId); setPendingDeleteId(null); }, 5000);
   };
-
-  const handleUndoDelete = () => {
-    if (pendingDeleteTimer.current) clearTimeout(pendingDeleteTimer.current);
-    setPendingDeleteId(null);
-  };
+  const handleUndoDelete = () => { if (pendingDeleteTimer.current) clearTimeout(pendingDeleteTimer.current); setPendingDeleteId(null); };
 
   useEffect(() => {
     const handlePrefill = (e: Event) => {
       const detail = (e as CustomEvent<{ text: string }>).detail;
-      if (detail?.text) {
-        setInput(detail.text);
-        setTimeout(() => textareaRef.current?.focus(), 100);
-      }
+      if (detail?.text) { setInput(detail.text); setTimeout(() => textareaRef.current?.focus(), 100); }
     };
     window.addEventListener('scout:prefill', handlePrefill);
     return () => window.removeEventListener('scout:prefill', handlePrefill);
@@ -135,34 +99,17 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
     }
   }, [input]);
 
-  const scrollToBottom = () => {
-    if (messages.length > 0) {
-      listRef.current?.scrollToItem(messages.length - 1, 'end');
-    }
-  };
-
+  // Scroll to bottom quando novas mensagens chegam
   useEffect(() => {
-    if (messages.length > 0) scrollToBottom();
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
   }, [messages.length]);
 
   useEffect(() => {
-    if (messages.length > 0) {
-      const lastMessage = messages[messages.length - 1];
-      if (lastMessage.sender === Sender.Bot && !lastMessage.isThinking && !lastMessage.isError) {
-        setDisplayedSuggestions(extractDisplayedSuggestions(lastMessage.text));
-      }
-    }
-  }, [messages]);
-
-  useEffect(() => {
-    setDisplayedSuggestions([]);
-  }, [currentSession?.id]);
-
-  useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (actionsMenuRef.current && !actionsMenuRef.current.contains(event.target as Node)) {
+      if (actionsMenuRef.current && !actionsMenuRef.current.contains(event.target as Node))
         setShowActionsMenu(false);
-      }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
@@ -178,41 +125,24 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
 
   const lastBotWithSuggestionsIndex = useMemo(() =>
     [...messages].map((m, i) => ({ m, i })).filter(({ m }) => m.sender === Sender.Bot && m.suggestions && m.suggestions.length > 0).map(({ i }) => i).pop(),
-    [messages]
-  );
-
+    [messages]);
   const lastUserIndex = useMemo(() =>
     [...messages].map((m, i) => ({ m, i })).filter(({ m }) => m.sender === Sender.User).map(({ i }) => i).pop(),
-    [messages]
-  );
-
+    [messages]);
   const hideSuggestionsForMessageId =
     lastBotWithSuggestionsIndex !== undefined && lastUserIndex !== undefined && lastUserIndex > lastBotWithSuggestionsIndex
       ? messages[lastBotWithSuggestionsIndex].id : null;
 
   const handleSend = () => {
     if (!input.trim() || isLoading) return;
-    onSendMessage(input);
-    setInput('');
-    setShowActionsMenu(false);
+    onSendMessage(input); setInput(''); setShowActionsMenu(false);
     if (textareaRef.current) textareaRef.current.style.height = 'auto';
   };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
-  };
-
-  const handleActionClick = (prompt: string) => {
-    setInput(prompt);
-    setShowActionsMenu(false);
-    textareaRef.current?.focus();
-  };
-
+  const handleKeyDown = (e: React.KeyboardEvent) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } };
+  const handleActionClick = (prompt: string) => { setInput(prompt); setShowActionsMenu(false); textareaRef.current?.focus(); };
   const handleCopyMarkdown = useCallback(() => {
-    const text = messages
-      .filter(m => !m.isError && !m.isThinking)
-      .map(m => `**${m.sender === Sender.User ? 'Você' : 'Scout 360'}:**\n${m.text}`)
-      .join('\n\n---\n\n')
+    const text = messages.filter(m => !m.isError && !m.isThinking)
+      .map(m => `**${m.sender === Sender.User ? 'Você' : 'Scout 360'}:**\n${m.text}`).join('\n\n---\n\n')
       .replace(/\[\[PORTA:\d+:P\d+:O\d+:R\d+:T\d+:A\d+\]\]/g, '');
     navigator.clipboard.writeText(text).then(() => alert('Copiado!'));
   }, [messages]);
@@ -225,24 +155,17 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
   const displayTitle = headerTitle.length > 35 ? headerTitle.substring(0, 32) + '...' : headerTitle;
   const hasReport = messages.some(m => m.sender === Sender.Bot && !m.isThinking && !m.isError && (m.text?.length || 0) > 100);
 
-  const handleHeightChange = useCallback((index: number, height: number) => {
-    if (rowHeights.current[index] !== height) {
-      rowHeights.current[index] = height;
-      listRef.current?.resetAfterIndex(index, false);
-    }
-  }, []);
-
   const itemData = useMemo<MessageRowData>(() => ({
     messages, isLoading, isDarkMode, mode, onRetry, onDeleteMessage, onReportError,
     onFeedback, onSendFeedback, onToggleMessageSources, onDeepDive, onRegenerateSuggestions,
     handleDeleteWithUndo, pendingDeleteId, hideSuggestionsForMessageId, setInput,
     sessionId: currentSession?.id, userId, processing, lastUserQuery,
-    onStop: handleStopWithToast, onHeightChange: handleHeightChange,
+    onStop: handleStopWithToast,
   }), [
     messages, isLoading, isDarkMode, mode, onRetry, onDeleteMessage, onReportError,
     onFeedback, onSendFeedback, onToggleMessageSources, onDeepDive, onRegenerateSuggestions,
     handleDeleteWithUndo, pendingDeleteId, hideSuggestionsForMessageId,
-    currentSession?.id, userId, processing, lastUserQuery, handleStopWithToast, handleHeightChange,
+    currentSession?.id, userId, processing, lastUserQuery, handleStopWithToast,
   ]);
 
   return (
@@ -256,6 +179,8 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
       />
 
       <main className="flex-1 flex flex-col h-full min-h-0 relative w-full transition-all duration-300">
+
+        {/* HEADER */}
         <header className={`h-14 flex-shrink-0 flex items-center justify-between px-3 py-2 border-b backdrop-blur-md z-10 ${
           isDarkMode ? 'bg-gray-900/80 border-gray-800' : 'bg-white/80 border-gray-200'
         }`}>
@@ -268,191 +193,107 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
           <div className="flex items-center gap-1 flex-shrink-0">
             {hasReport && !isLoading && (
               <>
-                <button onClick={onExportPDF} className={`p-1.5 text-sm transition-colors ${
-                  isDarkMode ? 'text-gray-400 hover:text-emerald-400' : 'text-gray-500 hover:text-emerald-500'
-                }`} title="Exportar PDF">📄</button>
-                <button onClick={onOpenEmailModal} className={`p-1.5 text-sm transition-colors ${
-                  isDarkMode ? 'text-gray-400 hover:text-emerald-400' : 'text-gray-500 hover:text-emerald-500'
-                }`} title="Enviar por email">📧</button>
-                <button onClick={onOpenFollowUpModal} className={`p-1.5 text-sm transition-colors ${
-                  isDarkMode ? 'text-gray-400 hover:text-emerald-400' : 'text-gray-500 hover:text-emerald-500'
-                }`} title="Agendar follow-up">📅</button>
+                <button onClick={onExportPDF} className={`p-1.5 text-sm ${isDarkMode ? 'text-gray-400 hover:text-emerald-400' : 'text-gray-500 hover:text-emerald-500'}`} title="PDF">📄</button>
+                <button onClick={onOpenEmailModal} className={`p-1.5 text-sm ${isDarkMode ? 'text-gray-400 hover:text-emerald-400' : 'text-gray-500 hover:text-emerald-500'}`} title="Email">📧</button>
+                <button onClick={onOpenFollowUpModal} className={`p-1.5 text-sm ${isDarkMode ? 'text-gray-400 hover:text-emerald-400' : 'text-gray-500 hover:text-emerald-500'}`} title="Follow-up">📅</button>
                 <div className={`w-px h-4 mx-1 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-300'}`} />
               </>
             )}
-            <button onClick={() => setShowWarRoom(true)} className={`p-2 rounded-lg transition-all ${
-              isDarkMode ? 'text-gray-500 hover:text-red-400 hover:bg-gray-800' : 'text-gray-400 hover:text-red-500 hover:bg-gray-100'
-            }`} title="War Room">⚔️</button>
+            <button onClick={() => setShowWarRoom(true)} className={`p-2 rounded-lg ${isDarkMode ? 'text-gray-500 hover:text-red-400 hover:bg-gray-800' : 'text-gray-400 hover:text-red-500 hover:bg-gray-100'}`} title="War Room">⚔️</button>
             <ConfirmPopover message="Limpar conversa?" onConfirm={onClearChat} isDarkMode={isDarkMode}>
-              {({ onClick }) => (
-                <button onClick={onClick} className={`p-2 rounded-lg transition-all ${
-                  isDarkMode ? 'text-gray-500 hover:text-red-400 hover:bg-gray-800' : 'text-gray-400 hover:text-red-500 hover:bg-gray-100'
-                }`} title="Limpar conversa">🗑️</button>
-              )}
+              {({ onClick }) => <button onClick={onClick} className={`p-2 rounded-lg ${isDarkMode ? 'text-gray-500 hover:text-red-400 hover:bg-gray-800' : 'text-gray-400 hover:text-red-500 hover:bg-gray-100'}`}>🗑️</button>}
             </ConfirmPopover>
-            <button onClick={() => setShowSettings(true)} className={`p-2 rounded-lg transition-all ${
-              isDarkMode ? 'text-gray-500 hover:text-emerald-400 hover:bg-gray-800' : 'text-gray-400 hover:text-emerald-500 hover:bg-gray-100'
-            }`} title="Configurações">⚙️</button>
+            <button onClick={() => setShowSettings(true)} className={`p-2 rounded-lg ${isDarkMode ? 'text-gray-500 hover:text-emerald-400 hover:bg-gray-800' : 'text-gray-400 hover:text-emerald-500 hover:bg-gray-100'}`}>⚙️</button>
           </div>
         </header>
 
-        {showSettings && (
-          <React.Suspense fallback={null}>
-            <SettingsDrawer
-              isOpen={showSettings} onClose={() => setShowSettings(false)} userName={user?.displayName || ''}
-              onUpdateName={updateName} mode={mode} onSetMode={setMode} isDarkMode={isDarkMode}
-              onToggleTheme={onToggleTheme} onOpenDashboard={() => setShowDashboard(true)}
-              onExportPDF={onExportPDF} onCopyMarkdown={handleCopyMarkdown}
-              onSendEmail={onOpenEmailModal} onScheduleFollowUp={onOpenFollowUpModal} exportStatus={exportStatus}
-            />
-          </React.Suspense>
-        )}
+        {showSettings && <React.Suspense fallback={null}><SettingsDrawer isOpen={showSettings} onClose={() => setShowSettings(false)} userName={user?.displayName || ''} onUpdateName={updateName} mode={mode} onSetMode={setMode} isDarkMode={isDarkMode} onToggleTheme={onToggleTheme} onOpenDashboard={() => setShowDashboard(true)} onExportPDF={onExportPDF} onCopyMarkdown={handleCopyMarkdown} onSendEmail={onOpenEmailModal} onScheduleFollowUp={onOpenFollowUpModal} exportStatus={exportStatus} /></React.Suspense>}
+        {showDashboard && <React.Suspense fallback={null}><InvestigationDashboard onClose={() => setShowDashboard(false)} onSelectEmpresa={(empresa) => { onSendMessage(`Investigar ${empresa}`); setShowDashboard(false); }} /></React.Suspense>}
 
-        {showDashboard && (
-          <React.Suspense fallback={null}>
-            <InvestigationDashboard
-              onClose={() => setShowDashboard(false)}
-              onSelectEmpresa={(empresa) => { onSendMessage(`Investigar ${empresa}`); setShowDashboard(false); }}
-            />
-          </React.Suspense>
-        )}
-
-        <div className="flex-1 min-h-0 relative">
+        {/* MESSAGES */}
+        <div ref={scrollContainerRef} className="flex-1 min-h-0 overflow-y-auto custom-scrollbar">
           {messages.length === 0 ? (
-            <div className="h-full overflow-y-auto p-4 md:p-6 scroll-smooth custom-scrollbar">
+            <div className="h-full p-4 md:p-6">
               <EmptyStateHome mode={mode} onSendMessage={onSendMessage} onPreFill={(text) => setInput(text)} isDarkMode={isDarkMode} />
             </div>
           ) : (
-            <div ref={listContainerRef} className="absolute inset-0">
-              {containerSize.width > 0 && containerSize.height > 0 && (
-                <div className="relative" style={{ height: containerSize.height, width: containerSize.width }}>
-                  {hasMore && (
-                    <div className="absolute top-2 left-0 right-0 flex justify-center z-10">
-                      <button onClick={onLoadMore} className="text-xs text-slate-500 hover:text-emerald-500 bg-white/80 dark:bg-slate-900/80 backdrop-blur px-3 py-1 rounded-full shadow">
-                        Carregar anteriores
-                      </button>
-                    </div>
-                  )}
-                  <VariableSizeList
-                    ref={listRef}
-                    height={containerSize.height}
-                    width={containerSize.width}
-                    itemCount={messages.length}
-                    itemSize={(index) => rowHeights.current[index] || 140}
-                    itemData={itemData}
-                    overscanCount={4}
-                    className="custom-scrollbar"
-                  >
-                    {MessageRow}
-                  </VariableSizeList>
+            <div className="py-4">
+              {hasMore && (
+                <div className="flex justify-center mb-2">
+                  <button onClick={onLoadMore} className="text-xs text-slate-500 hover:text-emerald-500 bg-white/80 dark:bg-slate-900/80 backdrop-blur px-3 py-1 rounded-full shadow">Carregar anteriores</button>
                 </div>
               )}
+              {messages.map((_, index) => (
+                <MessageRow key={messages[index].id} index={index} data={itemData} />
+              ))}
+              <div ref={messagesEndRef} />
             </div>
           )}
         </div>
 
+        {/* TOASTS */}
         {showRetryToast && (
           <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 animate-fade-in">
-            <div className={`rounded-xl shadow-2xl border px-4 py-3 min-w-[320px] max-w-md ${
-              isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'
-            }`}>
+            <div className={`rounded-xl shadow-2xl border px-4 py-3 min-w-[320px] max-w-md ${isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}>
               <div className="flex items-start gap-3">
                 <span className="text-xl mt-0.5">⚠️</span>
                 <div className="flex-1">
                   <p className={`text-sm font-semibold mb-2 ${isDarkMode ? 'text-slate-200' : 'text-slate-900'}`}>Cancelado — Tentar novamente?</p>
                   <div className="flex gap-2">
-                    <button onClick={handleRetryNormal} className={`flex-1 px-3 py-2 rounded-lg text-xs font-semibold transition-all ${
-                      isDarkMode ? 'bg-emerald-600 hover:bg-emerald-500 text-white' : 'bg-emerald-500 hover:bg-emerald-600 text-white'
-                    }`}>🔄 Tentar novamente</button>
-                    <button onClick={handleRetryFlash} className={`flex-1 px-3 py-2 rounded-lg text-xs font-semibold transition-all border ${
-                      isDarkMode ? 'border-slate-600 hover:bg-slate-700 text-slate-300' : 'border-slate-300 hover:bg-slate-100 text-slate-700'
-                    }`}>⚡ Mais rápido</button>
+                    <button onClick={handleRetryNormal} className={`flex-1 px-3 py-2 rounded-lg text-xs font-semibold ${isDarkMode ? 'bg-emerald-600 hover:bg-emerald-500 text-white' : 'bg-emerald-500 text-white'}`}>🔄 Tentar novamente</button>
+                    <button onClick={handleRetryFlash} className={`flex-1 px-3 py-2 rounded-lg text-xs font-semibold border ${isDarkMode ? 'border-slate-600 text-slate-300' : 'border-slate-300 text-slate-700'}`}>⚡ Mais rápido</button>
                   </div>
                 </div>
-                <button onClick={() => setShowRetryToast(false)} className={`text-xl opacity-50 hover:opacity-100 ${
-                  isDarkMode ? 'text-slate-400' : 'text-slate-500'
-                }`}>×</button>
+                <button onClick={() => setShowRetryToast(false)} className="text-xl opacity-50 hover:opacity-100">×</button>
               </div>
             </div>
           </div>
         )}
-
         {pendingDeleteId && (
           <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 animate-fade-in">
-            <div className={`flex items-center gap-3 rounded-xl shadow-xl border px-4 py-2.5 ${
-              isDarkMode ? 'bg-slate-800 border-slate-700 text-slate-200' : 'bg-white border-slate-200 text-slate-800'
-            }`}>
+            <div className={`flex items-center gap-3 rounded-xl shadow-xl border px-4 py-2.5 ${isDarkMode ? 'bg-slate-800 border-slate-700 text-slate-200' : 'bg-white border-slate-200 text-slate-800'}`}>
               <span className="text-sm">Mensagem excluída</span>
-              <button onClick={handleUndoDelete} className="text-sm font-bold text-emerald-500 hover:text-emerald-400">Desfazer</button>
+              <button onClick={handleUndoDelete} className="text-sm font-bold text-emerald-500">Desfazer</button>
             </div>
           </div>
         )}
 
-        <div className={`flex-shrink-0 p-3 pb-4 md:p-6 border-t ${
-          isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-white border-slate-200'
-        } z-20`}>
+        {/* INPUT */}
+        <div className={`flex-shrink-0 p-3 pb-4 md:p-6 border-t ${isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-white border-slate-200'} z-20`}>
           <div className="w-full max-w-5xl xl:max-w-6xl mx-auto px-1 md:px-6 lg:px-8 relative">
             {showActionsMenu && (
-              <div ref={actionsMenuRef} className={`absolute bottom-full left-2 md:left-8 mb-2 w-72 rounded-xl shadow-xl border overflow-hidden animate-fade-in z-50 ${
-                isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'
-              }`}>
-                <div className={`px-4 py-3 border-b text-xs font-bold uppercase tracking-wider flex items-center gap-2 ${
-                  isDarkMode ? 'border-slate-700 text-emerald-400' : 'border-slate-100 text-emerald-600'
-                }`}><span>⚡</span> Ações Rápidas</div>
+              <div ref={actionsMenuRef} className={`absolute bottom-full left-2 md:left-8 mb-2 w-72 rounded-xl shadow-xl border overflow-hidden animate-fade-in z-50 ${isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}>
+                <div className={`px-4 py-3 border-b text-xs font-bold uppercase tracking-wider flex items-center gap-2 ${isDarkMode ? 'border-slate-700 text-emerald-400' : 'border-slate-100 text-emerald-600'}`}><span>⚡</span> Ações Rápidas</div>
                 <div className="flex flex-col py-1 max-h-[40vh] overflow-y-auto">
                   {QUICK_ACTIONS.map((qa) => (
-                    <button key={qa.label} onClick={() => handleActionClick(qa.prompt)} className={`flex items-center gap-3 px-4 py-3 text-sm text-left transition-colors ${
-                      isDarkMode ? 'hover:bg-slate-700 text-slate-200' : 'hover:bg-emerald-50 text-slate-700'
-                    }`}>
-                      <span className="text-lg">{qa.icon}</span>
-                      <span className="font-medium">{qa.label}</span>
+                    <button key={qa.label} onClick={() => handleActionClick(qa.prompt)} className={`flex items-center gap-3 px-4 py-3 text-sm text-left ${isDarkMode ? 'hover:bg-slate-700 text-slate-200' : 'hover:bg-emerald-50 text-slate-700'}`}>
+                      <span className="text-lg">{qa.icon}</span><span className="font-medium">{qa.label}</span>
                     </button>
                   ))}
                 </div>
               </div>
             )}
-
-            <div className={`relative flex items-end w-full rounded-2xl border pl-2 pr-12 py-2 shadow-sm ${
-              isDarkMode ? 'border-gray-700/50 bg-gray-800/80' : 'border-gray-300 bg-white'
-            }`}>
+            <div className={`relative flex items-end w-full rounded-2xl border pl-2 pr-12 py-2 shadow-sm ${isDarkMode ? 'border-gray-700/50 bg-gray-800/80' : 'border-gray-300 bg-white'}`}>
               {!isLoading && messages.length > 0 && (
-                <button onClick={() => setShowActionsMenu(!showActionsMenu)} className={`p-2 rounded-xl transition-colors flex-shrink-0 mr-1 mb-0.5 ${
-                  isDarkMode ? 'text-emerald-400 hover:bg-slate-700' : 'text-emerald-600 hover:bg-emerald-50'
-                }`} title="Ações Rápidas">⚡</button>
+                <button onClick={() => setShowActionsMenu(!showActionsMenu)} className={`p-2 rounded-xl transition-colors flex-shrink-0 mr-1 mb-0.5 ${isDarkMode ? 'text-emerald-400 hover:bg-slate-700' : 'text-emerald-600 hover:bg-emerald-50'}`} title="Ações Rápidas">⚡</button>
               )}
-              <textarea
-                ref={textareaRef} value={input} onChange={(e) => setInput(e.target.value)}
-                onKeyDown={handleKeyDown} placeholder={isLoading ? 'Gerando resposta...' : 'Digite sua mensagem...'}
-                disabled={isLoading} rows={1}
-                className={`flex-1 bg-transparent text-sm outline-none resize-none min-h-[36px] max-h-[100px] mb-1 px-2 custom-scrollbar ${
-                  isDarkMode ? 'text-white placeholder-slate-500' : 'text-slate-900 placeholder-slate-400'
-                }`}
+              <textarea ref={textareaRef} value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={handleKeyDown}
+                placeholder={isLoading ? 'Gerando resposta...' : 'Digite sua mensagem...'} disabled={isLoading} rows={1}
+                className={`flex-1 bg-transparent text-sm outline-none resize-none min-h-[36px] max-h-[100px] mb-1 px-2 custom-scrollbar ${isDarkMode ? 'text-white placeholder-slate-500' : 'text-slate-900 placeholder-slate-400'}`}
                 style={{ overflow: 'hidden' }}
               />
               {isLoading ? (
-                <button onClick={handleStopWithToast} className={`absolute right-2 bottom-2 w-10 h-10 flex items-center justify-center rounded-xl transition-all border ${
-                  isDarkMode ? 'bg-red-950/70 hover:bg-red-900/90 border-red-900/60 text-red-400' : 'bg-red-50 hover:bg-red-100 border-red-200 text-red-500'
-                }`} title="Parar"><span className="text-base">⏹</span></button>
+                <button onClick={handleStopWithToast} className={`absolute right-2 bottom-2 w-10 h-10 flex items-center justify-center rounded-xl border ${isDarkMode ? 'bg-red-950/70 border-red-900/60 text-red-400' : 'bg-red-50 border-red-200 text-red-500'}`}>⏹</button>
               ) : (
-                <button onClick={handleSend} disabled={!input.trim()} className={`absolute right-2 bottom-2 w-10 h-10 flex items-center justify-center rounded-xl transition-all shadow-md ${
-                  !input.trim() ? (isDarkMode ? 'bg-slate-700 text-slate-500' : 'bg-slate-200 text-slate-400')
-                    : 'bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-white hover:scale-105'
+                <button onClick={handleSend} disabled={!input.trim()} className={`absolute right-2 bottom-2 w-10 h-10 flex items-center justify-center rounded-xl shadow-md ${
+                  !input.trim() ? (isDarkMode ? 'bg-slate-700 text-slate-500' : 'bg-slate-200 text-slate-400') : 'bg-gradient-to-r from-emerald-500 to-emerald-600 text-white hover:scale-105'
                 }`}><span className="text-lg ml-0.5">➤</span></button>
               )}
             </div>
           </div>
         </div>
 
-        {showWarRoom && (
-          <React.Suspense fallback={null}>
-            <WarRoom isOpen={showWarRoom} onClose={() => setShowWarRoom(false)} isDarkMode={isDarkMode}
-              onExecuteOSINT={async (prompt) => {
-                try { return await runWarRoomOSINT(prompt); }
-                catch (error: any) { return `**⚠️ Falha na Conexão OSINT.**\n\nDetalhe: \`${error.message}\``; }
-              }}
-            />
-          </React.Suspense>
-        )}
+        {showWarRoom && <React.Suspense fallback={null}><WarRoom isOpen={showWarRoom} onClose={() => setShowWarRoom(false)} isDarkMode={isDarkMode} onExecuteOSINT={async (prompt) => { try { return await runWarRoomOSINT(prompt); } catch (error: any) { return `**⚠️ Erro OSINT**\n\`${error.message}\``; } }} /></React.Suspense>}
       </main>
     </div>
   );
