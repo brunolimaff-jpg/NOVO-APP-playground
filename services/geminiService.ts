@@ -579,7 +579,7 @@ export const sendMessageToGemini = async (
   history: Message[],
   systemInstruction: string, 
   options: GeminiRequestOptions = {}
-): Promise<{ text: string; sources: Array<{title: string, url: string}>, suggestions: string[], scorePorta: ScorePortaData | null, statuses: string[] }> => {
+): Promise<{ text: string; sources: Array<{title: string, url: string}>, suggestions: string[], scorePorta: ScorePortaData | null, statuses: string[], ghostReason?: string }> => {
   const { useGrounding = true, thinkingMode = false, signal, onText, onStatus, onScorePorta, onCompetitor, nomeVendedor } = options;
 
   // ================================================================
@@ -775,6 +775,13 @@ ${safeRagContext}
 
     if (inactivityTimer) clearTimeout(inactivityTimer);
 
+    const ghostReason: string | undefined =
+      (streamTimedOut && !rawAccumulator.trim())
+        ? `Timeout de stream: ${STREAM_INACTIVITY_MS / 1000}s sem dados. ` +
+          `Chunks recebidos: ${chunkCount}. ` +
+          `Resposta parcial: ${rawAccumulator.length} chars.`
+        : undefined;
+
     const finalParsed = parseMarkers(rawAccumulator);
     let finalText = enforceOpeningWithSeller(finalParsed.text, nomeParaInjetar);
 
@@ -832,6 +839,7 @@ ${safeRagContext}
       scorePorta: isConcorrenteQuery ? undefined : finalParsed.scorePorta,
       statuses: finalParsed.statuses,
       empresa,
+      ghostReason,
     };
   };
 
