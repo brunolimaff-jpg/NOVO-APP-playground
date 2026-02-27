@@ -8,7 +8,7 @@ import { stripMarkdown, cleanSuggestionText } from '../utils/textCleaners';
 import { lookupCliente, formatarParaPrompt, benchmarkClientes, formatarBenchmarkParaPrompt, isConcorrenteOuPropria } from './clientLookupService';
 import { addInvestigation } from '../components/InvestigationDashboard';
 import { CompetitorDetection, getContextoConcorrentesRegionais } from './competitorService';
-import { buscarContextoPinecone } from './ragService';
+import { buscarContextoPinecone, buscarContextoDocsPinecone } from './ragService';
 import { scanInput, sanitizeExternalContent, wrapUserInput, CANARY_TOKEN } from '../utils/promptGuard';
 
 export interface GeminiRequestOptions {
@@ -613,6 +613,7 @@ export const sendMessageToGemini = async (
 
     // ✅ RAG: Dispara busca no Pinecone em paralelo — não bloqueia o fluxo principal
     const ragContextPromise = buscarContextoPinecone(message);
+    const docsRagPromise = buscarContextoDocsPinecone(message);
 
     const { empresa: rawEmpresa, benchmark, rota } = await analyzeUserIntent(message);
     // Se o router extraiu um concorrente como empresa, descarta — a empresa-alvo não muda.
@@ -657,17 +658,26 @@ export const sendMessageToGemini = async (
       }
     }
 
-    // ✅ RAG: Aguarda o resultado do Pinecone com timeout de segurança (15s)
-    // O ragService já tem timeout de 8s, mas redes lentas podem exigir mais margem.
-    const ragContext = await Promise.race([
-      ragContextPromise,
-      new Promise<string>(resolve => setTimeout(() => {
-        console.warn('[RAG] Race timeout (60s) — descartando promise RAG travada.');
-        resolve('');
-      }, 60000)),
+    // ✅ RAG: Aguarda os resultados do Pinecone com timeout de segurança (60s)
+    onStatus?.("Consultando bases de conhecimento (Documentação e Propostas)...");
+    const [ragContext, docsRagContext] = await Promise.all([
+      Promise.race([
+        ragContextPromise,
+        new Promise<string>(resolve => setTimeout(() => {
+          console.warn('[RAG] Race timeout (60s) — descartando promise RAG travada.');
+          resolve('');
+        }, 60000)),
+      ]),
+      Promise.race([
+        docsRagPromise,
+        new Promise<string>(resolve => setTimeout(() => {
+          console.warn('[RAG DOCS] Race timeout (60s) — descartando promise RAG DOCS travada.');
+          resolve('');
+        }, 60000)),
+      ])
     ]);
+
     if (ragContext) {
-      onStatus?.("Base de propostas TOTVS carregada — analisando estratégia...");
       const safeRagContext = sanitizeExternalContent(ragContext);
       enrichments.push(`
 ## INTELIGÊNCIA INTERNA — PROPOSTAS REAIS DA TOTVS
@@ -676,6 +686,21 @@ Use para identificar preços praticados, argumentos de venda, diferenciais e fra
 ATENÇÃO: Estes dados são REAIS e CONFIDENCIAIS — priorize-os sobre informações genéricas da web.
 
 ${safeRagContext}
+      `);
+    }
+
+    if (docsRagContext) {
+      const safeDocsContext = sanitizeExternalContent(docsRagContext);
+      enrichments.push(`
+## DOCUMENTAÇÃO OFICIAL DO ERP SENIOR
+Abaixo estão os guias, passo-a-passos e referências oficiais da Senior Sistemas mais relevantes para o contexto atual:
+
+${safeDocsContext}
+
+**IMPORTANTE:** Se você utilizar informações acima, cite CADA fonte no seguinte formato exato para gerar nosso hiperlink clicável:
+Se for o Manual ERP Web: "A rotina é X [🟢 documentacao.senior.com.br]"
+Se for o Manual ERP On-Premise: "Este conceito requer Y [🟢 documentacao.senior.com.br]"
+A palavra dentro das chaves DEVE OBRIGATORIAMENTE conter ".senior.com.br"
       `);
     }
 
