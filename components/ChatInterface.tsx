@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useLayoutEffect, useState } from 'react';
+import React, { useRef, useEffect, useLayoutEffect, useState, useMemo, useCallback } from 'react';
 import { ChatInterfaceProps, Sender } from '../types';
 import { useMode } from '../contexts/ModeContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -174,17 +174,23 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
   // ==========================================
   // LÓGICA PARA ESCONDER/EXIBIR SUGESTÕES
   // ==========================================
-  const lastBotWithSuggestionsIndex = [...messages]
-    .map((m, i) => ({ m, i }))
-    .filter(({ m }) => m.sender === Sender.Bot && m.suggestions && m.suggestions.length > 0)
-    .map(({ i }) => i)
-    .pop();
+  const lastBotWithSuggestionsIndex = useMemo(() =>
+    [...messages]
+      .map((m, i) => ({ m, i }))
+      .filter(({ m }) => m.sender === Sender.Bot && m.suggestions && m.suggestions.length > 0)
+      .map(({ i }) => i)
+      .pop(),
+    [messages]
+  );
 
-  const lastUserIndex = [...messages]
-    .map((m, i) => ({ m, i }))
-    .filter(({ m }) => m.sender === Sender.User)
-    .map(({ i }) => i)
-    .pop();
+  const lastUserIndex = useMemo(() =>
+    [...messages]
+      .map((m, i) => ({ m, i }))
+      .filter(({ m }) => m.sender === Sender.User)
+      .map(({ i }) => i)
+      .pop(),
+    [messages]
+  );
 
   const hideSuggestionsForMessageId =
     lastBotWithSuggestionsIndex !== undefined &&
@@ -214,14 +220,14 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
     textareaRef.current?.focus();
   };
 
-  const handleCopyMarkdown = () => {
+  const handleCopyMarkdown = useCallback(() => {
     const text = messages
       .filter(m => !m.isError && !m.isThinking)
       .map(m => `**${m.sender === Sender.User ? 'Você' : 'Scout 360'}:**\n${m.text}`)
       .join('\n\n---\n\n')
       .replace(/\[\[PORTA:\d+:P\d+:O\d+:R\d+:T\d+:A\d+\]\]/g, '');
     navigator.clipboard.writeText(text).then(() => alert('Copiado!'));
-  };
+  }, [messages]);
 
   // ✅ STOP com toast
   const handleStopWithToast = () => {
@@ -323,15 +329,17 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
           </div>
         </header>
 
-        <React.Suspense fallback={null}>
-          <SettingsDrawer
-            isOpen={showSettings} onClose={() => setShowSettings(false)} userName={user?.displayName || ''}
-            onUpdateName={updateName} mode={mode} onSetMode={setMode} isDarkMode={isDarkMode}
-            onToggleTheme={onToggleTheme} onOpenDashboard={() => setShowDashboard(true)}
-            onExportPDF={onExportPDF} onCopyMarkdown={handleCopyMarkdown}
-            onSendEmail={onOpenEmailModal} onScheduleFollowUp={onOpenFollowUpModal} exportStatus={exportStatus}
-          />
-        </React.Suspense>
+        {showSettings && (
+          <React.Suspense fallback={null}>
+            <SettingsDrawer
+              isOpen={showSettings} onClose={() => setShowSettings(false)} userName={user?.displayName || ''}
+              onUpdateName={updateName} mode={mode} onSetMode={setMode} isDarkMode={isDarkMode}
+              onToggleTheme={onToggleTheme} onOpenDashboard={() => setShowDashboard(true)}
+              onExportPDF={onExportPDF} onCopyMarkdown={handleCopyMarkdown}
+              onSendEmail={onOpenEmailModal} onScheduleFollowUp={onOpenFollowUpModal} exportStatus={exportStatus}
+            />
+          </React.Suspense>
+        )}
 
         {showDashboard && (
           <React.Suspense fallback={null}>
@@ -720,20 +728,22 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
           </div>
         </div>
 
-        <React.Suspense fallback={null}>
-          <WarRoom
-            isOpen={showWarRoom}
-            onClose={() => setShowWarRoom(false)}
-            isDarkMode={isDarkMode}
-            onExecuteOSINT={async (prompt) => {
-              try {
-                return await runWarRoomOSINT(prompt);
-              } catch (error: any) {
-                return `**⚠️ Falha na Conexão OSINT.**\n\nDetalhe técnico: \`${error.message}\``;
-              }
-            }}
-          />
-        </React.Suspense>
+        {showWarRoom && (
+          <React.Suspense fallback={null}>
+            <WarRoom
+              isOpen={showWarRoom}
+              onClose={() => setShowWarRoom(false)}
+              isDarkMode={isDarkMode}
+              onExecuteOSINT={async (prompt) => {
+                try {
+                  return await runWarRoomOSINT(prompt);
+                } catch (error: any) {
+                  return `**⚠️ Falha na Conexão OSINT.**\n\nDetalhe técnico: \`${error.message}\``;
+                }
+              }}
+            />
+          </React.Suspense>
+        )}
       </main>
     </div>
   );

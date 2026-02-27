@@ -149,4 +149,4 @@ const ErrorMessageCard: React.FC<ErrorMessageCardProps> = ({
   );
 };
 
-export default ErrorMessageCard;
+export default React.memo(ErrorMessageCard);

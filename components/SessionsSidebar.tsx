@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { ChatSession } from '../types';
 import { cleanTitle } from '../utils/textCleaners';
 import ConfirmPopover from './ConfirmPopover';
@@ -45,22 +45,25 @@ const SessionsSidebar: React.FC<SessionsSidebarProps> = ({
     return cleanTitle(clean || "Sessão sem nome");
   };
 
-  const filteredSessions = sessions
-    .filter((session) => {
-        const term = searchTerm.toLowerCase();
-        const empresa = (session.empresaAlvo || '').toLowerCase();
-        const cnpj = (session.cnpj || '').toLowerCase();
-        const titulo = (session.title || '').toLowerCase();
-        const display = getDisplayName(session).toLowerCase();
-        
-        return empresa.includes(term) || 
-               cnpj.includes(term) || 
-               titulo.includes(term) ||
-               display.includes(term);
-    })
-    .sort((a, b) => 
-        new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-    );
+  const filteredSessions = useMemo(() =>
+    sessions
+      .filter((session) => {
+          const term = searchTerm.toLowerCase();
+          const empresa = (session.empresaAlvo || '').toLowerCase();
+          const cnpj = (session.cnpj || '').toLowerCase();
+          const titulo = (session.title || '').toLowerCase();
+          const display = getDisplayName(session).toLowerCase();
+
+          return empresa.includes(term) ||
+                 cnpj.includes(term) ||
+                 titulo.includes(term) ||
+                 display.includes(term);
+      })
+      .sort((a, b) =>
+          new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+      ),
+    [sessions, searchTerm]
+  );
 
   const theme = {
     bg: isDarkMode ? 'bg-slate-900 border-r border-slate-800' : 'bg-slate-50 border-r border-slate-200',

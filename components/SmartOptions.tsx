@@ -94,4 +94,4 @@ const SmartOptions: React.FC<SmartOptionsProps> = ({
   );
 };
 
-export default SmartOptions;
+export default React.memo(SmartOptions);
