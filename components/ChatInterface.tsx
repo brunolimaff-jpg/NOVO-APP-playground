@@ -10,10 +10,10 @@ import ErrorMessageCard from './ErrorMessageCard';
 import EmptyStateHome from './EmptyStateHome';
 import MessageActionsBar from './MessageActionsBar';
 import { DeepDiveTopics } from './DeepDiveTopics';
-import InvestigationDashboard from './InvestigationDashboard';
-import SettingsDrawer from './SettingsDrawer';
+const InvestigationDashboard = React.lazy(() => import('./InvestigationDashboard'));
+const SettingsDrawer = React.lazy(() => import('./SettingsDrawer'));
+const WarRoom = React.lazy(() => import('./WarRoom'));
 import ScorePorta from './ScorePorta';
-import WarRoom from './WarRoom';
 import { cleanTitle, extractSources } from '../utils/textCleaners';
 import { isFakeUrl } from '../services/apiConfig';
 import { runWarRoomOSINT } from '../services/geminiService';
@@ -323,19 +323,23 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
           </div>
         </header>
 
-        <SettingsDrawer
-          isOpen={showSettings} onClose={() => setShowSettings(false)} userName={user?.displayName || ''}
-          onUpdateName={updateName} mode={mode} onSetMode={setMode} isDarkMode={isDarkMode}
-          onToggleTheme={onToggleTheme} onOpenDashboard={() => setShowDashboard(true)}
-          onExportPDF={onExportPDF} onCopyMarkdown={handleCopyMarkdown}
-          onSendEmail={onOpenEmailModal} onScheduleFollowUp={onOpenFollowUpModal} exportStatus={exportStatus}
-        />
+        <React.Suspense fallback={null}>
+          <SettingsDrawer
+            isOpen={showSettings} onClose={() => setShowSettings(false)} userName={user?.displayName || ''}
+            onUpdateName={updateName} mode={mode} onSetMode={setMode} isDarkMode={isDarkMode}
+            onToggleTheme={onToggleTheme} onOpenDashboard={() => setShowDashboard(true)}
+            onExportPDF={onExportPDF} onCopyMarkdown={handleCopyMarkdown}
+            onSendEmail={onOpenEmailModal} onScheduleFollowUp={onOpenFollowUpModal} exportStatus={exportStatus}
+          />
+        </React.Suspense>
 
         {showDashboard && (
-          <InvestigationDashboard
-            onClose={() => setShowDashboard(false)}
-            onSelectEmpresa={(empresa) => { onSendMessage(`Investigar ${empresa}`); setShowDashboard(false); }}
-          />
+          <React.Suspense fallback={null}>
+            <InvestigationDashboard
+              onClose={() => setShowDashboard(false)}
+              onSelectEmpresa={(empresa) => { onSendMessage(`Investigar ${empresa}`); setShowDashboard(false); }}
+            />
+          </React.Suspense>
         )}
 
         <div className="flex-1 min-h-0 overflow-y-auto p-4 md:p-6 scroll-smooth custom-scrollbar relative">
@@ -716,18 +720,20 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
           </div>
         </div>
 
-        <WarRoom
-          isOpen={showWarRoom}
-          onClose={() => setShowWarRoom(false)}
-          isDarkMode={isDarkMode}
-          onExecuteOSINT={async (prompt) => {
-            try {
-              return await runWarRoomOSINT(prompt);
-            } catch (error: any) {
-              return `**⚠️ Falha na Conexão OSINT.**\n\nDetalhe técnico: \`${error.message}\``;
-            }
-          }}
-        />
+        <React.Suspense fallback={null}>
+          <WarRoom
+            isOpen={showWarRoom}
+            onClose={() => setShowWarRoom(false)}
+            isDarkMode={isDarkMode}
+            onExecuteOSINT={async (prompt) => {
+              try {
+                return await runWarRoomOSINT(prompt);
+              } catch (error: any) {
+                return `**⚠️ Falha na Conexão OSINT.**\n\nDetalhe técnico: \`${error.message}\``;
+              }
+            }}
+          />
+        </React.Suspense>
       </main>
     </div>
   );

@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
-import mermaid from 'mermaid';
 import { GroundingSource } from '../types';
 import {
   fixFakeLinks,
@@ -40,6 +39,7 @@ const MermaidChart: React.FC<MermaidProps> = ({ chart, isDarkMode }) => {
         const clean = sanitizeMermaidCode(chart);
         if (!clean) return;
 
+        const mermaid = (await import('mermaid')).default;
         mermaid.initialize({
           startOnLoad: false,
           theme: isDarkMode ? 'dark' : 'default',
