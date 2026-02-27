@@ -4,11 +4,19 @@ import { ChatInterfaceProps, Sender } from '../types';
 import { useMode } from '../contexts/ModeContext';
 import { useAuth } from '../contexts/AuthContext';
 import SessionsSidebar from './SessionsSidebar';
+import SectionalBotMessage from './SectionalBotMessage';
+import MarkdownRenderer from './MarkdownRenderer';
+import LoadingSmart from './LoadingSmart';
+import ErrorMessageCard from './ErrorMessageCard';
 import EmptyStateHome from './EmptyStateHome';
+import MessageActionsBar from './MessageActionsBar';
+import { DeepDiveTopics } from './DeepDiveTopics';
 const InvestigationDashboard = React.lazy(() => import('./InvestigationDashboard'));
 const SettingsDrawer = React.lazy(() => import('./SettingsDrawer'));
 const WarRoom = React.lazy(() => import('./WarRoom'));
-import { cleanTitle } from '../utils/textCleaners';
+import ScorePorta from './ScorePorta';
+import { cleanTitle, extractSources } from '../utils/textCleaners';
+import { isFakeUrl } from '../services/apiConfig';
 import { runWarRoomOSINT } from '../services/geminiService';
 import ConfirmPopover from './ConfirmPopover';
 
@@ -346,8 +354,8 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
                               onClick={() => onRetry && onRetry()}
                               disabled={isLoading}
                               className={`text-[10px] font-black uppercase tracking-widest px-4 py-2 rounded-lg shadow-lg transition-all flex items-center gap-2 ${isLoading
-                                  ? 'bg-slate-700 text-slate-500 cursor-not-allowed shadow-none'
-                                  : 'bg-red-600 hover:bg-red-500 text-white shadow-red-600/20'
+                                ? 'bg-slate-700 text-slate-500 cursor-not-allowed shadow-none'
+                                : 'bg-red-600 hover:bg-red-500 text-white shadow-red-600/20'
                                 }`}
                             >
                               <span>↻</span> {isLoading ? 'Processando...' : 'Tentar Novamente'}
@@ -377,8 +385,8 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
                       <button
                         onClick={() => handleDeleteWithUndo(msg.id)}
                         className={`self-start mt-[38px] flex-shrink-0 opacity-0 group-hover/msg:opacity-100 transition-opacity duration-150 p-1.5 rounded-lg text-sm ${isDarkMode
-                            ? 'text-slate-600 hover:text-red-400 hover:bg-slate-800'
-                            : 'text-slate-300 hover:text-red-500 hover:bg-red-50'
+                          ? 'text-slate-600 hover:text-red-400 hover:bg-slate-800'
+                          : 'text-slate-300 hover:text-red-500 hover:bg-red-50'
                           }`}
                         title="Excluir esta mensagem"
                       >
@@ -387,13 +395,13 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
                     )}
 
                     <div className={`rounded-2xl p-4 shadow-sm relative ${isBot
-                        ? `${isDarkMode ? 'bg-slate-900' : 'bg-white'
-                        } border ${isDarkMode ? 'border-gray-700/30' : 'border-gray-200'
-                        } px-3 md:px-5 py-3 md:py-4 w-full`
-                        : `${isDarkMode
-                          ? 'bg-emerald-900/20 border border-emerald-900/30 text-emerald-100'
-                          : 'bg-emerald-50 border border-emerald-100 text-slate-800'
-                        } max-w-[90%] md:max-w-[75%] lg:max-w-[60%]`
+                      ? `${isDarkMode ? 'bg-slate-900' : 'bg-white'
+                      } border ${isDarkMode ? 'border-gray-700/30' : 'border-gray-200'
+                      } px-3 md:px-5 py-3 md:py-4 w-full`
+                      : `${isDarkMode
+                        ? 'bg-emerald-900/20 border border-emerald-900/30 text-emerald-100'
+                        : 'bg-emerald-50 border border-emerald-100 text-slate-800'
+                      } max-w-[90%] md:max-w-[75%] lg:max-w-[60%]`
                       }`}>
                       <div className="flex items-center justify-between mb-2 opacity-70 text-[10px] uppercase font-bold tracking-wider select-none">
                         <span>{isBot ? (mode === 'operacao' ? '🛻 Operação' : '✈️ Diretoria') : '👤 Você'}</span>
@@ -490,8 +498,8 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
                   <button
                     onClick={handleRetryNormal}
                     className={`w-full px-3 py-2 rounded-lg text-xs font-semibold transition-all ${isDarkMode
-                        ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
-                        : 'bg-emerald-500 hover:bg-emerald-600 text-white'
+                      ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                      : 'bg-emerald-500 hover:bg-emerald-600 text-white'
                       }`}
                   >
                     🔄 Tentar novamente
@@ -577,8 +585,8 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
                 <button
                   onClick={handleStopWithToast}
                   className={`absolute right-2 bottom-2 w-10 h-10 flex items-center justify-center rounded-xl transition-all border ${isDarkMode
-                      ? 'bg-red-950/70 hover:bg-red-900/90 border-red-900/60 text-red-400 hover:text-red-300'
-                      : 'bg-red-50 hover:bg-red-100 border-red-200 text-red-500 hover:text-red-600'
+                    ? 'bg-red-950/70 hover:bg-red-900/90 border-red-900/60 text-red-400 hover:text-red-300'
+                    : 'bg-red-50 hover:bg-red-100 border-red-200 text-red-500 hover:text-red-600'
                     }`}
                   title="Parar geração"
                 >
@@ -589,8 +597,8 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
                   onClick={handleSend}
                   disabled={!input.trim()}
                   className={`absolute right-2 bottom-2 w-10 h-10 flex items-center justify-center rounded-xl transition-all shadow-md ${!input.trim()
-                      ? (isDarkMode ? 'bg-slate-700 text-slate-500' : 'bg-slate-200 text-slate-400')
-                      : 'bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-white hover:scale-105 active:scale-95 shadow-emerald-500/30'
+                    ? (isDarkMode ? 'bg-slate-700 text-slate-500' : 'bg-slate-200 text-slate-400')
+                    : 'bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-white hover:scale-105 active:scale-95 shadow-emerald-500/30'
                     }`}
                 >
                   <span className="text-lg ml-0.5">➤</span>
