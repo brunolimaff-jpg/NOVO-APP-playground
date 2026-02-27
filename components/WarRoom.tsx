@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import MarkdownRenderer from './MarkdownRenderer';
-import { WarRoomMode, runWarRoomQuery } from '../services/geminiService';
+import { WarRoomMode, queryWarRoom } from '../services/warRoomService';
 
 interface WarRoomProps {
   isOpen: boolean;
@@ -84,7 +84,7 @@ export default function WarRoom({ isOpen, onClose, isDarkMode }: WarRoomProps) {
         .filter(m => !m.isLoading && !m.isError)
         .map(m => ({ role: m.role, text: m.text }));
 
-      const result = await runWarRoomQuery(mode, text, history, target, setStatus);
+      const result = await queryWarRoom(mode, text, history, target, setStatus);
       setQueryCount(prev => prev + 1);
 
       setMessages(prev => prev.map(m =>
@@ -231,10 +231,10 @@ export default function WarRoom({ isOpen, onClose, isDarkMode }: WarRoomProps) {
                 disabled={isLocked}
                 title={isLocked ? 'Limpe a conversa atual antes de trocar de modo' : c.label}
                 className={`w-full text-left p-3 rounded-xl border transition-all duration-200 group ${isActive
-                    ? `${accentBg[c.accent]} ${accentBorder[c.accent]} shadow-sm`
-                    : isLocked
-                      ? `${t.cardLocked} cursor-not-allowed opacity-50`
-                      : t.cardInactive
+                  ? `${accentBg[c.accent]} ${accentBorder[c.accent]} shadow-sm`
+                  : isLocked
+                    ? `${t.cardLocked} cursor-not-allowed opacity-50`
+                    : t.cardInactive
                   }`}
               >
                 <div className="flex items-center gap-2.5">
@@ -318,10 +318,10 @@ export default function WarRoom({ isOpen, onClose, isDarkMode }: WarRoomProps) {
           {messages.map(msg => (
             <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
               <div className={`max-w-[85%] rounded-2xl px-4 py-3 ${msg.role === 'user'
-                  ? `bg-gradient-to-br ${accentGrad[cfg.accent]} text-white shadow-lg`
-                  : msg.isError
-                    ? t.msgBotErr
-                    : t.msgBotBg
+                ? `bg-gradient-to-br ${accentGrad[cfg.accent]} text-white shadow-lg`
+                : msg.isError
+                  ? t.msgBotErr
+                  : t.msgBotBg
                 }`}>
                 {msg.isLoading ? (
                   <div className="flex items-center gap-2 py-1">
