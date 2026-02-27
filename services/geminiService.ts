@@ -657,14 +657,14 @@ export const sendMessageToGemini = async (
       }
     }
 
-    // ✅ RAG: Aguarda o resultado do Pinecone com timeout de segurança (9s)
-    // O ragService já tem timeout de 8s, mas este race é a última barreira caso algo escape.
+    // ✅ RAG: Aguarda o resultado do Pinecone com timeout de segurança (15s)
+    // O ragService já tem timeout de 8s, mas redes lentas podem exigir mais margem.
     const ragContext = await Promise.race([
       ragContextPromise,
       new Promise<string>(resolve => setTimeout(() => {
-        console.warn('[RAG] Race timeout (9s) — descartando promise RAG travada.');
+        console.warn('[RAG] Race timeout (15s) — descartando promise RAG travada.');
         resolve('');
-      }, 9000)),
+      }, 15000)),
     ]);
     if (ragContext) {
       onStatus?.("Base de propostas TOTVS carregada — analisando estratégia...");
@@ -700,15 +700,17 @@ ${safeRagContext}
     let sourcesReported = 0;
     let textMilestone = 0;
 
-    // Timeout de inatividade: se nenhum chunk chegar por 45s, interrompe silenciosamente
-    const STREAM_INACTIVITY_MS = 45000;
+    // Timeout de inatividade adaptativo:
+    // Deep Research faz varredura web pesada — primeiro chunk pode levar 60s+
+    // Tático é mais rápido, mas LOOKUP/RAG podem demorar na pré-fase
+    const STREAM_INACTIVITY_MS = isDeepResearch ? 120000 : 90000;
     let streamTimedOut = false;
     let inactivityTimer: ReturnType<typeof setTimeout> | null = null;
     const resetInactivity = () => {
       if (inactivityTimer) clearTimeout(inactivityTimer);
       inactivityTimer = setTimeout(() => {
         streamTimedOut = true;
-        console.warn('[GEMINI] Stream inativo por 45s — interrompendo e usando resposta parcial.');
+        console.warn(`[GEMINI] Stream inativo por ${STREAM_INACTIVITY_MS / 1000}s — interrompendo e usando resposta parcial.`);
       }, STREAM_INACTIVITY_MS);
     };
     resetInactivity();
@@ -778,8 +780,8 @@ ${safeRagContext}
     const ghostReason: string | undefined =
       (streamTimedOut && !rawAccumulator.trim())
         ? `Timeout de stream: ${STREAM_INACTIVITY_MS / 1000}s sem dados. ` +
-          `Chunks recebidos: ${chunkCount}. ` +
-          `Resposta parcial: ${rawAccumulator.length} chars.`
+        `Chunks recebidos: ${chunkCount}. ` +
+        `Resposta parcial: ${rawAccumulator.length} chars.`
         : undefined;
 
     const finalParsed = parseMarkers(rawAccumulator);
