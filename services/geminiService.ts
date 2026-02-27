@@ -552,7 +552,7 @@ const generateFallbackSuggestions = async (lastUserText: string, botResponseText
     const ai = getGenAI();
     const response = await ai.models.generateContent({
       model: ROUTER_MODEL_ID,
-      contents: `Gere 3 sugestões JSON baseadas nesta resposta: "${botResponseText.substring(0, 1000)}"`,
+      contents: `O usuário perguntou: "${lastUserText.substring(0, 500)}".\nA resposta gerada foi: "${botResponseText.substring(0, 1000)}".\n\nGere 3 sugestões EXTREMAMENTE focadas de próximas perguntas (follow-up) que o usuário poderia fazer agora para se aprofundar no contexto ou sistema discutido. Formato JSON Array de strings. Exemplo: ["Como parametrizo X?", "Quais os requisitos para Y?", "E como isso se integra com o Módulo Z?"].`,
       config: {
         systemInstruction: CONTINUITY_SYSTEM,
         responseMimeType: 'application/json',
@@ -709,27 +709,19 @@ Abaixo estão os guias, passo-a-passos e referências oficiais da Senior Sistema
 
 ${safeDocsContext}
 
-**IMPORTANTE:** Se você utilizar informações acima, cite CADA fonte no seguinte formato exato para gerar nosso hiperlink clicável:
-Se for o Manual ERP Web: "A rotina é X [🟢 documentacao.senior.com.br]"
-Se for o Manual ERP On-Premise: "Este conceito requer Y [🟢 documentacao.senior.com.br]"
-A palavra dentro das chaves DEVE OBRIGATORIAMENTE conter ".senior.com.br"
+**IMPORTANTE:** Você DEVE utilizar as informações acima para embasar sua resposta.
+Sempre que citar uma informação da documentação gerada acima, inclua um hiperlink clicável em formato Markdown para a fonte original no final do parágrafo ou inline no texto.
+Exemplo: "O processo de compras fica no módulo de Suprimentos ([Portal de Compras](https://documentacao.senior.com.br/...))."
+NUNCA invente links, use estritamente as URLs (entre parênteses) fornecidas no RAG acima.
       `);
     }
 
     // Monta mensagem final com contexto + input seguro
     let fallbackInstruction = '';
     if (!empresa && !history.some(h => h.sender === 'bot' && h.text.includes('PORTA:'))) {
-      // Se não tem empresa no alvo e não estamos no meio de um dossiê, força a liberação das regras estritas
-      fallbackInstruction = `
-      
-[INSTRUÇÃO CRÍTICA DO SISTEMA PARA ESTA MENSAGEM]
-O usuário NÃO forneceu uma empresa-alvo, CNPJ ou alvo de investigação.
-Isto significa que ele quer uma resposta a uma DÚVIDA GERAL, TÉCNICA OU CONCEITUAL.
-VOCÊ ESTÁ EXPRESSAMENTE AUTORIZADO E OBRIGADO A RESPONDER DIRETAMENTE A PERGUNTA DELE, usando os conhecimentos de RAG/Documentação acima.
-PROIBIDO pedir nome de empresa. PROIBIDO falar sobre "10 fases", "varredura completa" ou iniciar protocolos investigativos.
-COMPORTE-SE COMO UM ASSISTENTE PRESTATIVO, DIRETO E TÉCNICO nesta interação.`;
+      // Se não tem empresa no alvo e não estamos no meio de um dossiê, reforça a instrução técnica sem confundir a IA
+      fallbackInstruction = `\n\n[INSTRUÇÃO TÉCNICA]: Analise a dúvida acima e responda de forma direta como um Especialista Técnico da Senior, utilizando a base de conhecimento.`;
     }
-
     const messageToSend = enrichments.length > 0
       ? enrichments.join('\n') + `\n\n${safeMessage}${fallbackInstruction}`
       : safeMessage + fallbackInstruction;
@@ -885,11 +877,6 @@ COMPORTE-SE COMO UM ASSISTENTE PRESTATIVO, DIRETO E TÉCNICO nesta interação.`
       ...inlineLinks.filter(il => !groundingSources.some(s => s.url === il.url)),
     ];
     const sources = allSources; // mantém compatibilidade com o return abaixo
-
-    if (allSources.length > 0) {
-      finalText += `\n\n---\n\n## 📚 Fontes consultadas para contexto\n\n`;
-      finalText += allSources.map((s, i) => `${i + 1}. [${s.title}](${s.url})`).join('\n');
-    }
 
     return {
       text: finalText,
