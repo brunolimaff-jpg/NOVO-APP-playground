@@ -775,6 +775,13 @@ ${safeRagContext}
 
     if (inactivityTimer) clearTimeout(inactivityTimer);
 
+    const ghostReason: string | undefined =
+      (streamTimedOut && !rawAccumulator.trim())
+        ? `Timeout de stream: ${STREAM_INACTIVITY_MS / 1000}s sem dados. ` +
+          `Chunks recebidos: ${chunkCount}. ` +
+          `Resposta parcial: ${rawAccumulator.length} chars.`
+        : undefined;
+
     const finalParsed = parseMarkers(rawAccumulator);
     let finalText = enforceOpeningWithSeller(finalParsed.text, nomeParaInjetar);
 
@@ -832,6 +839,7 @@ ${safeRagContext}
       scorePorta: isConcorrenteQuery ? undefined : finalParsed.scorePorta,
       statuses: finalParsed.statuses,
       empresa,
+      ghostReason,
     };
   };
 
