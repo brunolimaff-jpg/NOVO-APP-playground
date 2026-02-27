@@ -599,8 +599,8 @@ export const sendMessageToGemini = async (
     console.warn('[PromptGuard] Input suspeito (passando com aviso):', guardResult.reason, '| riskScore:', guardResult.riskScore);
   }
 
-  // Usa o input sanitizado a partir daqui
-  const safeMessage = wrapUserInput(guardResult.sanitized);
+  // Usa o input sanitizado a partir daqui — SEM tags XML para evitar confusão do LLM
+  const safeMessage = guardResult.sanitized;
 
   const nomeParaInjetar = nomeVendedor?.trim() || 'Vendedor';
   const systemInstructionFinal = systemInstruction.replace(
@@ -717,14 +717,31 @@ NUNCA invente links, use estritamente as URLs (entre parênteses) fornecidas no 
     }
 
     // Monta mensagem final com contexto + input seguro
-    let fallbackInstruction = '';
-    if (!empresa && !history.some(h => h.sender === 'bot' && h.text.includes('PORTA:'))) {
-      // Se não tem empresa no alvo e não estamos no meio de um dossiê, reforça a instrução técnica sem confundir a IA
-      fallbackInstruction = `\n\n[INSTRUÇÃO TÉCNICA]: Analise a dúvida ACIMA (dentro da tag <user_input>) e responda de forma direta como um Especialista Técnico da Senior, utilizando a base de conhecimento. É EXPRESSAMENTE PROIBIDO dizer que nenhuma dúvida foi informada.`;
+    // ARQUITETURA: A pergunta do usuário aparece NO TOPO e NO FINAL da mensagem
+    // para evitar o "lost in the middle" — o LLM ignora conteúdo central em mensagens longas.
+    const isTechnicalMode = !empresa && !history.some(h => h.sender === 'bot' && h.text.includes('PORTA:'));
+
+    let messageToSend: string;
+    if (enrichments.length > 0) {
+      const contextBlock = enrichments.join('\n');
+      messageToSend = [
+        `## PERGUNTA DO USUÁRIO`,
+        `"${safeMessage}"`,
+        ``,
+        `---`,
+        `## CONTEXTO DE APOIO (use para embasar sua resposta)`,
+        contextBlock,
+        `---`,
+        ``,
+        `## LEMBRETE: RESPONDA A ESTA PERGUNTA`,
+        `O usuário perguntou: "${safeMessage}"`,
+        isTechnicalMode ? `Responda de forma DIRETA como Especialista Técnico da Senior. NÃO peça empresa, NÃO diga que a mensagem está vazia.` : '',
+      ].filter(Boolean).join('\n');
+    } else {
+      messageToSend = isTechnicalMode
+        ? `${safeMessage}\n\nResponda de forma DIRETA como Especialista Técnico da Senior. NÃO peça empresa, NÃO diga que a mensagem está vazia.`
+        : safeMessage;
     }
-    const messageToSend = enrichments.length > 0
-      ? enrichments.join('\n') + `\n\n${safeMessage}${fallbackInstruction}`
-      : safeMessage + fallbackInstruction;
 
     if (isDeepResearch) {
       onStatus?.("IA varrendo a web — pode levar alguns minutos...");
