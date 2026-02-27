@@ -539,7 +539,7 @@ Exemplo: "A empresa faturou R$ 2 bi em 2023 [🟠 valor.globo.com]"
 - Use tom **direto, consultivo e profissional**. Sem enrolação.
 - Escreva em **português brasileiro**.
 - Quando não encontrar dados concretos, diga claramente: "Dado não confirmado — estimativa baseada em [fonte/heurística]".
-- **NUNCA inclua URLs inline.** Os links são compilados automaticamente no rodapé. No corpo da resposta, cite apenas o nome da fonte: "[🟠 Valor Econômico]", nunca "[Valor Econômico](https://...)" ou "[Fonte: Valor Econômico(https://...)]".
+- **LINKS DE DOCUMENTAÇÃO:** Quando citar informações da documentação Senior (fornecida via RAG), inclua hiperlinks Markdown clicáveis inline no texto: "[Módulo de Compras](https://documentacao.senior.com.br/...)". Para fontes da web (Google, notícias), cite apenas o domínio da fonte: "[🟠 valor.globo.com]" — as URLs de grounding são exibidas automaticamente no rodapé.
 
 -----
 

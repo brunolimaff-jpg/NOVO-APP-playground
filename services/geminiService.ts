@@ -624,13 +624,24 @@ export const sendMessageToGemini = async (
     // OVERRIDE DE SEGURANÇA: Se não tem empresa alvo, descarta o prompt pesado para evitar que a IA trave a conversa exigindo alvo
     let finalInstruction = systemInstructionFinal;
     if (!empresa && !history.some(h => h.sender === 'bot' && h.text.includes('PORTA:'))) {
-      finalInstruction = `⚠️ [MODO CONSULTOR TÉCNICO]
-Você é o Especialista Técnico da Senior Sistemas e do Senior Scout 360.
-O usuário está fazendo uma pergunta geral, técnica ou de negócios. A DÚVIDA DELE ESTARÁ DENTRO DA TAG <user_input>.
-Você NÃO precisa do nome de uma empresa.
-APENAS RESPONDA À PERGUNTA (que está na tag <user_input>) de forma clara e profissional, baseando-se no contexto RAG fornecido e no seu conhecimento.
-NÃO exija CNPJ, nome da empresa ou inicie fluxo de investigação.
-NÃO diga que não encontrou uma empresa ou que a mensagem está em branco. Apenas responda à dúvida técnica ou de posicionamento do usuário.`;
+      finalInstruction = `Você é o Especialista Técnico da Senior Sistemas.
+
+SUA ÚNICA MISSÃO NESTA MENSAGEM: Responder a pergunta técnica do usuário de forma DIRETA e ÚTIL.
+
+REGRAS ABSOLUTAS:
+1. RESPONDA A PERGUNTA DIRETAMENTE. O usuário fez uma dúvida técnica — responda sobre o tema.
+2. Use a documentação RAG fornecida no corpo da mensagem para embasar sua resposta.
+3. Sempre que referenciar documentação, inclua hiperlinks Markdown clicáveis: [Texto](URL).
+4. NÃO peça CNPJ, nome de empresa ou alvo de prospecção.
+5. NÃO inicie fluxo de investigação corporativa, dossiê ou Score PORTA.
+6. NÃO diga que a mensagem está vazia, em branco, ou que nenhum tópico foi informado.
+7. Escreva em português brasileiro, tom técnico e consultivo.
+
+EXEMPLO DE RESPOSTA CORRETA:
+Pergunta: "Como funciona o módulo de compras no ERP Senior?"
+Resposta: "No ERP Senior (Gestão Empresarial), o processo de compras inicia na identificação da demanda... O módulo permite gestão multidepósitos e multifiliais ([Portal de Compras](https://documentacao.senior.com.br/gestaoempresarialerp/...))."
+
+Agora responda a pergunta do usuário.`;
     }
 
     const selectedModel = rota === 'profunda' ? DEEP_CHAT_MODEL_ID : TACTICAL_MODEL_ID;
@@ -704,16 +715,16 @@ ${safeRagContext}
     if (docsRagContext) {
       const safeDocsContext = sanitizeExternalContent(docsRagContext);
       enrichments.push(`
-## DOCUMENTAÇÃO OFICIAL DO ERP SENIOR
-Abaixo estão os guias, passo-a-passos e referências oficiais da Senior Sistemas mais relevantes para o contexto atual:
+## DOCUMENTAÇÃO OFICIAL DO ERP SENIOR (FONTE PRIMÁRIA — USE OBRIGATORIAMENTE)
+Abaixo estão os guias e referências oficiais mais relevantes. Cada trecho possui uma URL entre parênteses.
 
 ${safeDocsContext}
 
-**IMPORTANTE:** Você DEVE utilizar as informações acima para embasar sua resposta.
-Sempre que citar uma informação da documentação gerada acima, inclua um hiperlink clicável em formato Markdown para a fonte original no final do parágrafo ou inline no texto.
-Exemplo: "O processo de compras fica no módulo de Suprimentos ([Portal de Compras](https://documentacao.senior.com.br/...))."
-NUNCA invente links, use estritamente as URLs (entre parênteses) fornecidas no RAG acima.
-      `);
+INSTRUÇÕES DE CITAÇÃO:
+- Você DEVE basear sua resposta nesta documentação.
+- Para CADA informação que usar, inclua o link Markdown clicável inline: [nome legível](URL exata do RAG).
+- NUNCA invente links. Use APENAS as URLs que aparecem acima.
+- Se a documentação não cobrir a pergunta por completo, use seu conhecimento e sinalize: "[Informação complementar, não documentada oficialmente]".`);
     }
 
     // Monta mensagem final com contexto + input seguro
@@ -870,18 +881,18 @@ NUNCA invente links, use estritamente as URLs (entre parênteses) fornecidas no 
       }
     }
 
-    // ✅ STRIP DE LINKS INLINE: remove URLs do corpo da resposta e coleta para o rodapé
+    // ✅ COLETA DE LINKS INLINE: extrai links para o rodapé MAS mantém os hiperlinks no corpo do texto
     const inlineLinks: Array<{ title: string; url: string }> = [];
-    finalText = finalText.replace(
-      /\[([^\]\n]{1,120})\]\((https?:\/\/[^)\s]{4,})\)/g,
-      (_, title, url) => {
-        const clean = title.trim();
-        if (!inlineLinks.some(l => l.url === url)) {
-          inlineLinks.push({ title: clean, url });
-        }
-        return clean; // mantém o texto, remove o (url)
+    // Apenas coleta os links para o array de sources, SEM removê-los do texto
+    const linkCollectorRegex = /\[([^\]\n]{1,120})\]\((https?:\/\/[^)\s]{4,})\)/g;
+    let linkMatch;
+    while ((linkMatch = linkCollectorRegex.exec(finalText)) !== null) {
+      const clean = linkMatch[1].trim();
+      const url = linkMatch[2];
+      if (!inlineLinks.some(l => l.url === url)) {
+        inlineLinks.push({ title: clean, url });
       }
-    );
+    }
 
     // ✅ AUDITORIA: Adiciona seção "Fontes consultadas" com grounding + links inline coletados
     const groundingSources = groundingChunks
