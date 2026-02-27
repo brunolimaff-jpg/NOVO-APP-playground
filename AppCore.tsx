@@ -616,9 +616,18 @@ const AppCore: React.FC = () => {
 
   const handleDeleteMessage = (id: string) => {
     if (!currentSessionId) return;
-    updateSessionById(currentSessionId, session => ({
-      ...session, messages: session.messages.filter(m => m.id !== id),
-    }));
+    updateSessionById(currentSessionId, session => {
+      const msgIndex = session.messages.findIndex(m => m.id === id);
+      if (msgIndex === -1) return session;
+
+      // Corta a conversa a partir deste índice (remove a msg do usuário e TODAS as repostas a frente)
+      const truncatedMessages = session.messages.slice(0, msgIndex);
+
+      return {
+        ...session,
+        messages: truncatedMessages,
+      };
+    });
   };
 
   const handleStopGeneration = useCallback(() => {

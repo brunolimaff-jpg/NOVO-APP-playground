@@ -10,6 +10,7 @@ import MessageActionsBar from './MessageActionsBar';
 import { DeepDiveTopics } from './DeepDiveTopics';
 import { extractSources } from '../utils/textCleaners';
 import { isFakeUrl } from '../services/apiConfig';
+import ConfirmPopover from './ConfirmPopover';
 
 export interface MessageRowData {
   messages: Message[];
@@ -24,8 +25,6 @@ export interface MessageRowData {
   onToggleMessageSources: (messageId: string) => void;
   onDeepDive?: (display: string, hidden: string) => Promise<void>;
   onRegenerateSuggestions: (messageId: string) => void;
-  handleDeleteWithUndo: (msgId: string) => void;
-  pendingDeleteId: string | null;
   hideSuggestionsForMessageId: string | null;
   setInput: (text: string) => void;
   sessionId?: string;
@@ -47,7 +46,7 @@ const MessageRow = memo(({ index, data }: MessageRowProps) => {
   const {
     messages, isLoading, isDarkMode, mode, onRetry, onDeleteMessage, onReportError,
     onFeedback, onSendFeedback, onToggleMessageSources, onDeepDive, onRegenerateSuggestions,
-    handleDeleteWithUndo, pendingDeleteId, hideSuggestionsForMessageId,
+    hideSuggestionsForMessageId,
     setInput, sessionId, userId, processing, lastUserQuery, onStop,
   } = data;
 
@@ -95,15 +94,20 @@ const MessageRow = memo(({ index, data }: MessageRowProps) => {
 
     content = (
       <div className={`flex ${isBot ? 'justify-start' : 'justify-end'
-        } animate-fade-in group/msg items-start gap-1.5 transition-opacity duration-300 ${pendingDeleteId === msg.id ? 'opacity-30 pointer-events-none' : ''
-        }`}>
+        } animate-fade-in group/msg items-start gap-1.5 transition-opacity duration-300`}>
         {!isBot && onDeleteMessage && (
-          <button
-            onClick={() => handleDeleteWithUndo(msg.id)}
-            className={`self-start mt-[38px] flex-shrink-0 opacity-0 group-hover/msg:opacity-100 transition-opacity duration-150 p-1.5 rounded-lg text-sm ${isDarkMode ? 'text-slate-600 hover:text-red-400 hover:bg-slate-800' : 'text-slate-300 hover:text-red-500 hover:bg-red-50'
-              }`}
-            title="Excluir esta mensagem"
-          >🗑️</button>
+          <div className="self-start mt-[38px] flex-shrink-0 opacity-0 group-hover/msg:opacity-100 transition-opacity duration-150">
+            <ConfirmPopover message="Excluir instrução e repostas seguintes?" onConfirm={() => onDeleteMessage(msg.id)} isDarkMode={isDarkMode}>
+              {({ onClick }) => (
+                <button
+                  onClick={onClick}
+                  className={`p-1.5 rounded-lg text-sm ${isDarkMode ? 'text-slate-600 hover:text-red-400 hover:bg-slate-800' : 'text-slate-300 hover:text-red-500 hover:bg-red-50'
+                    }`}
+                  title="Excluir esta mensagem"
+                >🗑️</button>
+              )}
+            </ConfirmPopover>
+          </div>
         )}
         <div className={`rounded-2xl p-4 shadow-sm relative ${isBot
           ? `${isDarkMode ? 'bg-slate-900' : 'bg-white'} border ${isDarkMode ? 'border-gray-700/30' : 'border-gray-200'} px-3 md:px-5 py-3 md:py-4 w-full`

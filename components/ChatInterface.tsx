@@ -81,15 +81,6 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
   const [showWarRoom, setShowWarRoom] = useState(false);
   const [showRetryToast, setShowRetryToast] = useState(false);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
-  const pendingDeleteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const handleDeleteWithUndo = (msgId: string) => {
-    if (pendingDeleteTimer.current) clearTimeout(pendingDeleteTimer.current);
-    setPendingDeleteId(msgId);
-    pendingDeleteTimer.current = setTimeout(() => { onDeleteMessage?.(msgId); setPendingDeleteId(null); }, 5000);
-  };
-  const handleUndoDelete = () => { if (pendingDeleteTimer.current) clearTimeout(pendingDeleteTimer.current); setPendingDeleteId(null); };
 
   useEffect(() => {
     const handlePrefill = (e: Event) => {
@@ -195,13 +186,13 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
   const itemData = useMemo<MessageRowData>(() => ({
     messages, isLoading, isDarkMode, mode, onRetry, onDeleteMessage, onReportError,
     onFeedback, onSendFeedback, onToggleMessageSources, onDeepDive, onRegenerateSuggestions,
-    handleDeleteWithUndo, pendingDeleteId, hideSuggestionsForMessageId, setInput,
+    hideSuggestionsForMessageId, setInput,
     sessionId: currentSession?.id, userId, processing, lastUserQuery,
     onStop: handleStopWithToast,
   }), [
     messages, isLoading, isDarkMode, mode, onRetry, onDeleteMessage, onReportError,
     onFeedback, onSendFeedback, onToggleMessageSources, onDeepDive, onRegenerateSuggestions,
-    handleDeleteWithUndo, pendingDeleteId, hideSuggestionsForMessageId,
+    hideSuggestionsForMessageId,
     currentSession?.id, userId, processing, lastUserQuery, handleStopWithToast,
   ]);
 
@@ -327,15 +318,6 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
                   ×
                 </button>
               </div>
-            </div>
-          </div>
-        )}
-        {pendingDeleteId && (
-          <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 animate-fade-in">
-            <div className={`flex items-center gap-3 rounded-xl shadow-xl border px-4 py-2.5 ${isDarkMode ? 'bg-slate-800 border-slate-700 text-slate-200' : 'bg-white border-slate-200 text-slate-800'
-              }`}>
-              <span className="text-sm">Mensagem excluída</span>
-              <button onClick={handleUndoDelete} className="text-sm font-bold text-emerald-500">Desfazer</button>
             </div>
           </div>
         )}

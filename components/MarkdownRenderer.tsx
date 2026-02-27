@@ -214,15 +214,15 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
     // Badge de confirmação — renderizado como pill colorido
     verified: (props: any) => {
       const level = String(props['data-level'] || '');
-      const kind  = String(props['data-kind']  || '').toUpperCase();
+      const kind = String(props['data-kind'] || '').toUpperCase();
       const label = String(props['data-label'] || '');
 
       // Texto descritivo do tipo de confirmação
       const kindText =
         /EVIDÊNCIA|EVIDENCIA/i.test(kind) ? 'Evidência forte' :
-        /NÃO\s*CONFIRMADO|NAO\s*CONFIRMADO/i.test(kind) ? 'Não confirmado' :
-        /SUSPEITO/i.test(kind) ? 'Suspeito' :
-        'Fonte oficial';
+          /NÃO\s*CONFIRMADO|NAO\s*CONFIRMADO/i.test(kind) ? 'Não confirmado' :
+            /SUSPEITO/i.test(kind) ? 'Suspeito' :
+              'Fonte oficial';
 
       const displayText = label ? `${kindText}: ${label}` : kindText;
 
@@ -231,17 +231,35 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
         level === '🟢'
           ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-300 dark:border-emerald-700'
           : level === '🟡'
-          ? 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/40 dark:text-amber-300 dark:border-amber-700'
-          : level === '🟠'
-          ? 'bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-900/40 dark:text-orange-300 dark:border-orange-700'
-          : 'bg-red-50 text-red-700 border-red-200 dark:bg-red-900/40 dark:text-red-300 dark:border-red-700';
+            ? 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/40 dark:text-amber-300 dark:border-amber-700'
+            : level === '🟠'
+              ? 'bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-900/40 dark:text-orange-300 dark:border-orange-700'
+              : 'bg-red-50 text-red-700 border-red-200 dark:bg-red-900/40 dark:text-red-300 dark:border-red-700';
 
-      return (
-        <span className={'inline-flex items-center gap-1 px-2 py-0.5 ml-1 rounded-full text-[10px] font-semibold border align-middle ' + colorClasses}>
+      const badgeContent = (
+        <span className={'inline-flex items-center gap-1 px-2 py-0.5 ml-1 rounded-full text-[10px] font-semibold border align-middle transition-colors ' + colorClasses + (label ? ' hover:brightness-95 dark:hover:brightness-110 cursor-pointer' : '')}>
           <span>{level}</span>
           <span>{displayText}</span>
         </span>
       );
+
+      // Se houver label (nome da fonte), procura nos groundingSources
+      if (label && groundingSources.length > 0) {
+        // Tenta achar a fonte pelo titulo exato ou contendo o texto, insensivel à caixa
+        const sourceMatch = groundingSources.find(s =>
+          s.title && s.url && s.title.toLowerCase().includes(label.toLowerCase())
+        );
+
+        if (sourceMatch && sourceMatch.url) {
+          return (
+            <a href={sourceMatch.url} target="_blank" rel="noopener noreferrer" title={`Fonte: ${sourceMatch.title || sourceMatch.url}`} className="inline-block no-underline">
+              {badgeContent}
+            </a>
+          );
+        }
+      }
+
+      return badgeContent;
     },
 
     a: ({ href, children, ...props }: any) => (
