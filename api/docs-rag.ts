@@ -51,7 +51,13 @@ export default async function handler(req: any, res: any) {
         // Filtra e mapeia resultados (cortando score 0.35 para evitar alucinações de temas não relacionados)
         const context = results.matches
             .filter(m => (m.score ?? 0) > 0.35)
-            .map(m => `[Documentação Oficial ERP - ${m.metadata?.categoria}: ${m.metadata?.titulo}](${m.metadata?.url})\nFonte oficial para guiar o usuário.`)
+            .map(m => {
+                const titulo = m.metadata?.titulo || 'Documento';
+                const categoria = m.metadata?.categoria || 'Geral';
+                const url = m.metadata?.url || '';
+                const texto = m.metadata?.text || m.metadata?.content || '';
+                return `### ${categoria}: ${titulo}\n${texto}\n(Fonte: ${url})`;
+            })
             .join('\n\n---\n\n');
 
         return res.status(200).json({ context, matches: results.matches.map(m => m.metadata) });
