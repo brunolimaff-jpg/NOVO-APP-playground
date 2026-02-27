@@ -626,11 +626,11 @@ export const sendMessageToGemini = async (
     if (!empresa && !history.some(h => h.sender === 'bot' && h.text.includes('PORTA:'))) {
       finalInstruction = `⚠️ [MODO CONSULTOR TÉCNICO]
 Você é o Especialista Técnico da Senior Sistemas e do Senior Scout 360.
-O usuário está fazendo uma pergunta geral, técnica ou de negócios.
+O usuário está fazendo uma pergunta geral, técnica ou de negócios. A DÚVIDA DELE ESTARÁ DENTRO DA TAG <user_input>.
 Você NÃO precisa do nome de uma empresa.
-APENAS RESPONDA À PERGUNTA de forma clara e profissional, baseando-se no contexto RAG fornecido e no seu conhecimento.
+APENAS RESPONDA À PERGUNTA (que está na tag <user_input>) de forma clara e profissional, baseando-se no contexto RAG fornecido e no seu conhecimento.
 NÃO exija CNPJ, nome da empresa ou inicie fluxo de investigação.
-NÃO diga que não encontrou uma empresa. Apenas responda à dúvida técnica ou de posicionamento do usuário.`;
+NÃO diga que não encontrou uma empresa ou que a mensagem está em branco. Apenas responda à dúvida técnica ou de posicionamento do usuário.`;
     }
 
     const selectedModel = rota === 'profunda' ? DEEP_CHAT_MODEL_ID : TACTICAL_MODEL_ID;
@@ -720,7 +720,7 @@ NUNCA invente links, use estritamente as URLs (entre parênteses) fornecidas no 
     let fallbackInstruction = '';
     if (!empresa && !history.some(h => h.sender === 'bot' && h.text.includes('PORTA:'))) {
       // Se não tem empresa no alvo e não estamos no meio de um dossiê, reforça a instrução técnica sem confundir a IA
-      fallbackInstruction = `\n\n[INSTRUÇÃO TÉCNICA]: Analise a dúvida acima e responda de forma direta como um Especialista Técnico da Senior, utilizando a base de conhecimento.`;
+      fallbackInstruction = `\n\n[INSTRUÇÃO TÉCNICA]: Analise a dúvida ACIMA (dentro da tag <user_input>) e responda de forma direta como um Especialista Técnico da Senior, utilizando a base de conhecimento. É EXPRESSAMENTE PROIBIDO dizer que nenhuma dúvida foi informada.`;
     }
     const messageToSend = enrichments.length > 0
       ? enrichments.join('\n') + `\n\n${safeMessage}${fallbackInstruction}`
