@@ -11,7 +11,6 @@
   "dependencies": {
     "@google/genai": "^1.41.0",
     "@pinecone-database/pinecone": "^2.2.2",
-    "@types/react-virtualized-auto-sizer": "^1.0.4",
     "@types/react-window": "^1.8.8",
     "csv-parse": "^6.1.0",
     "dotenv": "^17.3.1",
@@ -22,7 +21,6 @@
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-markdown": "9",
-    "react-virtualized-auto-sizer": "^2.0.3",
     "react-window": "^2.2.7",
     "rehype-raw": "7",
     "remark-breaks": "4",
