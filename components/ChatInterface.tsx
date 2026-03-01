@@ -1,6 +1,5 @@
 import React, { useRef, useEffect, useLayoutEffect, useState, useMemo, useCallback } from 'react';
 import { VariableSizeList } from 'react-window';
-import AutoSizer from 'react-virtualized-auto-sizer';
 import MessageRow, { MessageRowData } from './MessageRow';
 import { ChatInterfaceProps, Sender } from '../types';
 import { useMode } from '../contexts/ModeContext';
@@ -72,6 +71,8 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
   const actionsMenuRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<VariableSizeList>(null);
   const rowHeights = useRef<Record<number, number>>({});
+  const listContainerRef = useRef<HTMLDivElement>(null);
+  const [listHeight, setListHeight] = useState(0);
 
   const [input, setInput] = useState('');
   const [showDashboard, setShowDashboard] = useState(false);
@@ -155,6 +156,15 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    const el = listContainerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => setListHeight(el.clientHeight));
+    ro.observe(el);
+    setListHeight(el.clientHeight);
+    return () => ro.disconnect();
   }, []);
 
   // ✅ Auto-fechar toast após 8 segundos
@@ -386,38 +396,34 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
           </React.Suspense>
         )}
 
-        <div className="flex-1 min-h-0 relative">
+        <div ref={listContainerRef} className="flex-1 min-h-0 relative">
           {messages.length === 0 ? (
             <div className="h-full overflow-y-auto p-4 md:p-6 scroll-smooth custom-scrollbar">
               <EmptyStateHome mode={mode} onSendMessage={onSendMessage} onPreFill={(text) => setInput(text)} isDarkMode={isDarkMode} />
             </div>
-          ) : (
-            <AutoSizer>
-              {({ height, width }) => (
-                <div style={{ height, width }} className="relative">
-                  {hasMore && (
-                    <div className="absolute top-2 left-0 right-0 flex justify-center z-10">
-                      <button onClick={onLoadMore} className="text-xs text-slate-500 hover:text-emerald-500 bg-white/80 dark:bg-slate-900/80 backdrop-blur px-3 py-1 rounded-full shadow">
-                        Carregar anteriores
-                      </button>
-                    </div>
-                  )}
-                  <VariableSizeList
-                    ref={listRef}
-                    height={height}
-                    width={width}
-                    itemCount={messages.length}
-                    itemSize={(index) => rowHeights.current[index] || 140}
-                    itemData={itemData}
-                    overscanCount={4}
-                    className="custom-scrollbar"
-                  >
-                    {MessageRow}
-                  </VariableSizeList>
+          ) : listHeight > 0 ? (
+            <div className="relative h-full">
+              {hasMore && (
+                <div className="absolute top-2 left-0 right-0 flex justify-center z-10">
+                  <button onClick={onLoadMore} className="text-xs text-slate-500 hover:text-emerald-500 bg-white/80 dark:bg-slate-900/80 backdrop-blur px-3 py-1 rounded-full shadow">
+                    Carregar anteriores
+                  </button>
                 </div>
               )}
-            </AutoSizer>
-          )}
+              <VariableSizeList
+                ref={listRef}
+                height={listHeight}
+                width="100%"
+                itemCount={messages.length}
+                itemSize={(index) => rowHeights.current[index] || 140}
+                itemData={itemData}
+                overscanCount={4}
+                className="custom-scrollbar"
+              >
+                {MessageRow}
+              </VariableSizeList>
+            </div>
+          ) : null}
         </div>
 
         {showRetryToast && (
