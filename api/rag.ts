@@ -4,6 +4,7 @@ import { Pinecone } from '@pinecone-database/pinecone';
 export const config = {
   runtime: 'nodejs', // ← trocado de 'edge' para 'nodejs'
 };
+export const maxDuration = 60; // 60 segundos para Vercel Serverless Function
 
 export default async function handler(req: any, res: any) {
   if (req.method !== 'POST') {
