@@ -41,7 +41,7 @@ export interface SpotterExtractedData {
 // ===================================================================
 
 // O "Maestro" - Rápido, barato, decide para onde a pergunta vai
-const ROUTER_MODEL_ID = 'gemini-2.5-flash-lite';
+const ROUTER_MODEL_ID = 'gemini-2.5-flash';
 
 // Rota 1: Tática (Mais rápido, focado em ferramentas e respostas pontuais)
 const TACTICAL_MODEL_ID = 'gemini-3.1-pro-preview-customtools';

@@ -1,5 +1,4 @@
 import React, { useRef, useEffect, useLayoutEffect, useState, useMemo, useCallback } from 'react';
-import { VariableSizeList } from 'react-window';
 import MessageRow, { MessageRowData } from './MessageRow';
 import { ChatInterfaceProps, Sender } from '../types';
 import { useMode } from '../contexts/ModeContext';
@@ -61,12 +60,10 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
   const { mode, setMode } = useMode();
   const { user, userId, updateName } = useAuth();
 
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const actionsMenuRef = useRef<HTMLDivElement>(null);
-  const listRef = useRef<VariableSizeList>(null);
-  const rowHeights = useRef<Record<number, number>>({});
-  const listContainerRef = useRef<HTMLDivElement>(null);
-  const [listHeight, setListHeight] = useState(0);
 
   const [input, setInput] = useState('');
   const [showDashboard, setShowDashboard] = useState(false);
@@ -110,7 +107,9 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
   }, [input]);
 
   useEffect(() => {
-    if (messages.length > 0) listRef.current?.scrollToItem(messages.length - 1, 'end');
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
   }, [messages.length]);
 
   useEffect(() => {
@@ -120,15 +119,6 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  useEffect(() => {
-    const el = listContainerRef.current;
-    if (!el) return;
-    const ro = new ResizeObserver(() => setListHeight(el.clientHeight));
-    ro.observe(el);
-    setListHeight(el.clientHeight);
-    return () => ro.disconnect();
   }, []);
 
   useEffect(() => {
@@ -190,13 +180,6 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
   const displayTitle = headerTitle.length > 35 ? headerTitle.substring(0, 32) + '...' : headerTitle;
   const hasReport = messages.some(m => m.sender === Sender.Bot && !m.isThinking && !m.isError && (m.text?.length || 0) > 100);
 
-  const handleHeightChange = useCallback((index: number, height: number) => {
-    if (rowHeights.current[index] !== height) {
-      rowHeights.current[index] = height;
-      listRef.current?.resetAfterIndex(index, false);
-    }
-  }, []);
-
   const itemData = useMemo<MessageRowData>(() => ({
     messages, isLoading, isDarkMode, mode, onRetry, onDeleteMessage, onReportError,
     onFeedback, onSendFeedback, onToggleMessageSources, onDeepDive, onRegenerateSuggestions,
@@ -205,12 +188,11 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
     hideSuggestionsForMessageId, setInput,
     sessionId: currentSession?.id, userId, processing, lastUserQuery,
     onStop: handleStopWithToast,
-    onHeightChange: handleHeightChange,
   }), [
     messages, isLoading, isDarkMode, mode, onRetry, onDeleteMessage, onReportError,
     onFeedback, onSendFeedback, onToggleMessageSources, onDeepDive, onRegenerateSuggestions,
     pendingDeleteId, hideSuggestionsForMessageId,
-    currentSession?.id, userId, processing, lastUserQuery, handleStopWithToast, handleHeightChange,
+    currentSession?.id, userId, processing, lastUserQuery, handleStopWithToast,
   ]);
 
   return (
@@ -308,34 +290,26 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
           </React.Suspense>
         )}
 
-        <div ref={listContainerRef} className="flex-1 min-h-0 relative">
+        <div ref={scrollContainerRef} className="flex-1 min-h-0 overflow-y-auto custom-scrollbar">
           {messages.length === 0 ? (
             <div className="h-full p-4 md:p-6">
               <EmptyStateHome mode={mode} onSendMessage={onSendMessage} onPreFill={(text) => setInput(text)} isDarkMode={isDarkMode} />
             </div>
-          ) : listHeight > 0 ? (
-            <div className="relative h-full">
+          ) : (
+            <div className="py-4">
               {hasMore && (
-                <div className="absolute top-2 left-0 right-0 flex justify-center z-10">
+                <div className="flex justify-center mb-2">
                   <button onClick={onLoadMore} className="text-xs text-slate-500 hover:text-emerald-500 bg-white/80 dark:bg-slate-900/80 backdrop-blur px-3 py-1 rounded-full shadow">
                     Carregar anteriores
                   </button>
                 </div>
               )}
-              <VariableSizeList
-                ref={listRef}
-                height={listHeight}
-                width="100%"
-                itemCount={messages.length}
-                itemSize={(index) => rowHeights.current[index] || 140}
-                itemData={itemData}
-                overscanCount={4}
-                className="custom-scrollbar"
-              >
-                {MessageRow}
-              </VariableSizeList>
+              {messages.map((msg, idx) => (
+                <MessageRow key={msg.id} index={idx} data={itemData} />
+              ))}
+              <div ref={messagesEndRef} />
             </div>
-          ) : null}
+          )}
         </div>
 
         {showRetryToast && (
