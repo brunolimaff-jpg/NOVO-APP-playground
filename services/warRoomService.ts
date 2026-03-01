@@ -20,7 +20,7 @@ export interface WarRoomResult {
 }
 
 // ─── CONFIG ─────────────────────────────────────────────────
-const MODEL_ID = 'gemini-2.5-flash-preview-05-20';
+const MODEL_ID = 'gemini-2.5-flash';
 
 let _ai: GoogleGenAI | null = null;
 const getAI = (): GoogleGenAI => {
