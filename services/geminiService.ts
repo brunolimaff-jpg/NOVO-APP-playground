@@ -44,13 +44,13 @@ export interface SpotterExtractedData {
 const ROUTER_MODEL_ID = 'gemini-2.5-flash';
 
 // Rota 1: Tática (Mais rápido, focado em ferramentas e respostas pontuais)
-const TACTICAL_MODEL_ID = 'gemini-3.1-pro-preview-customtools';
+const TACTICAL_MODEL_ID = 'gemini-2.5-flash';
 
 // Rota 2: Dossiê Profundo via Chat (streaming, compatível com UI de status/marcadores)
-const DEEP_CHAT_MODEL_ID = 'gemini-3.1-pro-preview';
+const DEEP_CHAT_MODEL_ID = 'gemini-2.5-pro';
 
 // Rota 3: Deep Research Agent (Interactions API — usado no War Room OSINT)
-const DEEP_RESEARCH_MODEL_ID = 'deep-research-pro-preview-12-2025';
+const DEEP_RESEARCH_MODEL_ID = 'gemini-2.5-pro';
 
 const CONTINUITY_SYSTEM = `
 Você é o estrategista de continuidade do Senior Scout 360.
@@ -406,6 +406,7 @@ IMPORTANTE:
     config: {
       responseMimeType: 'application/json',
       temperature: 0.2,
+      maxOutputTokens: 65536,
     },
   });
 
@@ -475,6 +476,7 @@ export const createChatSession = (
       - Formato: [texto descritivo](URL)
     `,
     temperature: 0.15,
+    maxOutputTokens: 65536,
     tools: tools.length > 0 ? tools : undefined,
   };
 
@@ -508,7 +510,7 @@ const analyzeUserIntent = async (msg: string): Promise<{
     const response = await ai.models.generateContent({
       model: ROUTER_MODEL_ID,
       contents: prompt,
-      config: { temperature: 0, maxOutputTokens: 200 }
+      config: { temperature: 0, maxOutputTokens: 1024 }
     });
 
     const text = (response.text || 'NONE|NAO|TATICA').trim().replace(/["'`]+/g, '');
@@ -532,7 +534,7 @@ const generateBenchmarkKeywords = async (empresaNome: string, contexto: string):
     const response = await ai.models.generateContent({
       model: ROUTER_MODEL_ID,
       contents: `Gere 5-8 palavras-chave do SETOR para pesquisar similares de "${empresaNome}". Contexto: "${contexto}". Separadas por vírgula.`,
-      config: { temperature: 0.1, maxOutputTokens: 200 }
+      config: { temperature: 0.1, maxOutputTokens: 1024 }
     });
     return (response.text || "").split(',').map(k => k.trim()).filter(k => k.length > 1);
   } catch { return []; }
@@ -544,7 +546,7 @@ export const generateLoadingCuriosities = async (context: string): Promise<strin
     const response = await ai.models.generateContent({
       model: ROUTER_MODEL_ID,
       contents: `Gere 6 curiosidades REAIS e VARIADAS sobre "${context}" (máx 120 chars cada).\n\nREGRAS:\n- VARIE o formato: NÃO comece todas com o mesmo nome. Alterne entre fatos da empresa, do setor e da região\n- Inclua dados específicos: números, anos, locais\n- Exemplo BOM: "Sapezal (MT) é um dos maiores municípios produtores de soja do Brasil"\n- Exemplo BOM: "O setor de grãos movimenta R$ 400 bi por ano no Brasil"\n- Exemplo RUIM: "Forte presença em mercados internacionais" (quem? onde? quanto?)\n- No máximo 2 das 6 podem citar o nome da empresa diretamente\n\nRetorne um JSON Array de strings.`,
-      config: { responseMimeType: 'application/json', temperature: 0.8 }
+      config: { responseMimeType: 'application/json', temperature: 0.8, maxOutputTokens: 1024 }
     });
     return JSON.parse(response.text || "[]");
   } catch { return []; }
@@ -559,7 +561,8 @@ const generateFallbackSuggestions = async (lastUserText: string, botResponseText
       config: {
         systemInstruction: CONTINUITY_SYSTEM,
         responseMimeType: 'application/json',
-        temperature: 0.3
+        temperature: 0.3,
+        maxOutputTokens: 1024
       }
     });
 
@@ -958,7 +961,8 @@ export const generateNewSuggestions = async (contextText: string, previousSugges
         systemInstruction: CONTINUITY_SYSTEM,
         responseMimeType: "application/json",
         responseSchema: { type: Type.ARRAY, items: { type: Type.STRING } },
-        temperature: 0.4
+        temperature: 0.4,
+        maxOutputTokens: 1024
       },
     });
 
@@ -984,194 +988,12 @@ export const generateConsolidatedDossier = async (history: Message[], systemInst
     const response = await ai.models.generateContent({
       model: TACTICAL_MODEL_ID,
       contents: prompt,
-      config: { systemInstruction, temperature: 0.2 }
+      config: { 
+        systemInstruction, 
+        temperature: 0.2,
+        maxOutputTokens: 65536
+      }
     });
     return response.text || "Erro na consolidação.";
   } catch (error) { throw normalizeAppError(error, 'GEMINI'); }
 };
-
-// ===================================================================
-// WAR ROOM / OSINT - Execução de prompts de inteligência competitiva
-// ===================================================================
-
-// ============================================================
-// WAR ROOM — Motor de Inteligência Tático
-// ============================================================
-
-export type WarRoomMode = 'tech' | 'killscript' | 'benchmark' | 'objections';
-
-interface WarRoomMessage {
-  role: 'user' | 'model';
-  text: string;
-}
-
-const WAR_ROOM_PROMPTS: Record<WarRoomMode, (target: string) => string> = {
-  tech: (_target) => `Você é o Especialista Técnico Sênior da Senior Sistemas.
-
-SUA MISSÃO: Responder dúvidas técnicas sobre o ERP Senior, módulos, processos, integrações e arquitetura.
-
-REGRAS:
-1. Responda DIRETAMENTE à pergunta técnica. NUNCA peça CNPJ, empresa ou alvo.
-2. Use a documentação RAG fornecida no corpo da mensagem para embasar.
-3. Inclua hiperlinks Markdown clicáveis: [Texto](URL) quando houver fonte.
-4. NÃO inicie investigação corporativa ou dossiê.
-5. Tom: técnico, consultivo, português brasileiro.
-6. Se não encontrar na documentação, use seu conhecimento e sinalize.`,
-
-  killscript: (target) => `Você é um Arquiteto de Soluções e Estrategista Comercial da Senior Sistemas.
-
-SUA MISSÃO: Gerar scripts de venda agressivos e táticos contra ${target}.
-
-ESTRUTURA OBRIGATÓRIA da resposta:
-### ⚔️ O Cenário
-(Resuma a dúvida/objeção do vendedor)
-### 🛡️ A Visão da ${target}
-(O que a ${target} diz/faz sobre o tema — pontos fortes e fracos)
-### 🚀 O Contra-Ataque Senior
-(Argumentos técnicos e comerciais da Senior — features, diferenciais, ROI)
-### 🔪 Script de Vendas
-(Frases prontas para o vendedor usar na reunião, direto ao ponto)
-
-REGRAS:
-- Tom agressivo mas profissional. Dados concretos.
-- Cite features reais da Senior vs ${target}.
-- Responda em português brasileiro.`,
-
-  benchmark: (target) => `Você é um Analista Comparativo de ERPs.
-
-SUA MISSÃO: Criar um comparativo técnico detalhado entre Senior Sistemas vs ${target}.
-
-FORMATO da resposta:
-### 📊 Comparativo: Senior vs ${target}
-| Critério | Senior | ${target} | Vantagem |
-|----------|--------|-----------|----------|
-(Preencha com 8-12 critérios reais: módulos, tecnologia, cloud, UX, preço, suporte, etc.)
-
-### 💡 Resumo Executivo
-(3-4 frases de conclusão para o vendedor)
-
-REGRAS:
-- Use dados reais e atualizados. NÃO invente features.
-- Seja honesto quando ${target} tiver vantagem.
-- Responda em português brasileiro.`,
-
-  objections: (target) => `Você é um Consultor de Vendas Especialista em Objeções.
-
-SUA MISSÃO: Rebater objeções que clientes fazem a favor da ${target} contra a Senior.
-
-ESTRUTURA:
-### 🛡️ A Objeção
-(Resuma o que o cliente disse)
-### ⚡ Por que isso é um MITO (ou meia-verdade)
-(Desmonte a objeção com dados e lógica)
-### 💬 O que responder na hora
-(2-3 frases prontas para o vendedor usar)
-### 🎯 Pergunta de Contra-Ataque
-(Uma pergunta inteligente para virar o jogo)
-
-REGRAS:
-- Tom confiante mas não arrogante.
-- Se a objeção for válida, reconheça e redirecione.
-- Responda em português brasileiro.`,
-};
-
-export const runWarRoomQuery = async (
-  mode: WarRoomMode,
-  message: string,
-  history: WarRoomMessage[],
-  target: string,
-  onStatus?: (status: string) => void
-): Promise<{ text: string; sources: Array<{ title: string; url: string }> }> => {
-  const ai = getGenAI();
-
-  // 🛡️ Guard
-  const guardResult = scanInput(message);
-  if (guardResult.level === 'blocked') {
-    throw new Error(`Prompt bloqueado por segurança (${guardResult.reason}).`);
-  }
-
-  const safeMessage = guardResult.sanitized;
-  const systemPrompt = WAR_ROOM_PROMPTS[mode](target);
-
-  try {
-    // Para modo tech, busca RAG docs em paralelo
-    let docsContext = '';
-    if (mode === 'tech') {
-      onStatus?.('Consultando base de documentação...');
-      try {
-        docsContext = await buscarContextoDocsPinecone(safeMessage);
-      } catch { /* falha silenciosa */ }
-    }
-
-    // Monta histórico do SDK
-    const sdkHistory: Content[] = history.map(msg => ({
-      role: msg.role === 'user' ? 'user' as const : 'model' as const,
-      parts: [{ text: msg.text }]
-    }));
-
-    // Usa grounding para modos competitivos, não para tech
-    const useGrounding = mode !== 'tech';
-    const modelId = mode === 'tech' ? TACTICAL_MODEL_ID : DEEP_CHAT_MODEL_ID;
-
-    const chatSession = ai.chats.create({
-      model: modelId,
-      config: {
-        systemInstruction: systemPrompt,
-        temperature: mode === 'tech' ? 0.15 : 0.3,
-        tools: useGrounding ? [{ googleSearch: {} }] : undefined,
-      },
-      history: sdkHistory,
-    });
-
-    // Monta mensagem com contexto RAG se disponível
-    let messageToSend = safeMessage;
-    if (docsContext) {
-      messageToSend = [
-        `## PERGUNTA`,
-        `"${safeMessage}"`,
-        ``,
-        `## DOCUMENTAÇÃO OFICIAL (use para embasar)`,
-        docsContext,
-        `---`,
-        `## RESPONDA À PERGUNTA: "${safeMessage}"`,
-      ].join('\n');
-    }
-
-    onStatus?.(mode === 'tech' ? 'Analisando documentação...' : `Forjando argumentos contra ${target}...`);
-
-    const result = await chatSession.sendMessageStream({ message: messageToSend });
-    let rawAccumulator = '';
-    let groundingChunks: any[] = [];
-
-    for await (const chunk of result) {
-      rawAccumulator += chunk.text || '';
-      const newChunks = chunk.candidates?.[0]?.groundingMetadata?.groundingChunks;
-      if (newChunks?.length) groundingChunks = [...groundingChunks, ...newChunks];
-    }
-
-    const finalParsed = parseMarkers(rawAccumulator);
-    let report = (finalParsed.text || '').trim();
-
-    // Coleta sources
-    const sources = groundingChunks
-      .filter(c => c.web?.uri)
-      .map(c => ({ title: getReadableTitle(c.web), url: c.web.uri }));
-
-    return { text: report || 'Análise concluída, mas sem conteúdo.', sources };
-  } catch (error: any) {
-    console.error('[WarRoom] Erro:', error);
-    throw new Error(error.message || 'Falha na conexão do War Room');
-  }
-};
-
-// Legacy alias — mantém compatibilidade enquanto o componente antigo existir
-export const runWarRoomOSINT = async (prompt: string): Promise<string> => {
-  const result = await runWarRoomQuery('tech', prompt, [], 'TOTVS');
-  let report = result.text;
-  if (result.sources.length) {
-    report += `\n\n---\n\n## 📚 Fontes\n\n`;
-    report += result.sources.map((s, i) => `${i + 1}. [${s.title}](${s.url})`).join('\n');
-  }
-  return report;
-};
-
