@@ -153,7 +153,7 @@ const MessageRow = memo(({ index, data }: MessageRowProps) => {
   }
 
   return (
-    <div ref={rowRef} className="pb-3 px-2 md:px-6 lg:px-8">
+    <div className="pb-3 px-2 md:px-6 lg:px-8">
       {content}
     </div>
   );
