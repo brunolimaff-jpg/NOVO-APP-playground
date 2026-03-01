@@ -555,9 +555,22 @@ export const generateLoadingCuriosities = async (context: string): Promise<strin
 const generateFallbackSuggestions = async (lastUserText: string, botResponseText: string, isOperacao: boolean): Promise<string[]> => {
   try {
     const ai = getGenAI();
+
+    // Se o "texto do usuário" é na verdade um mega-prompt de sistema (DeepDive/Raio-X),
+    // usar contexto neutro para não gerar sugestões baseadas em instruções internas.
+    const isMegaPrompt = lastUserText.length > 300 && (
+      lastUserText.includes('Protocolo de investigação forense') ||
+      lastUserText.includes('execute o seguinte protocolo') ||
+      lastUserText.includes('Sistema de Inteligência Forense') ||
+      lastUserText.includes('DIRETRIZ INEGOCIÁVEL')
+    );
+    const effectiveUserContext = isMegaPrompt
+      ? `O usuário solicitou uma análise investigativa forense completa da empresa.`
+      : `O usuário perguntou: "${lastUserText.substring(0, 500)}".`;
+
     const response = await ai.models.generateContent({
       model: ROUTER_MODEL_ID,
-      contents: `O usuário perguntou: "${lastUserText.substring(0, 500)}".\nA resposta gerada foi: "${botResponseText.substring(0, 1000)}".\n\nGere 3 sugestões EXTREMAMENTE focadas de próximas perguntas (follow-up) que o usuário poderia fazer agora para se aprofundar no contexto ou sistema discutido. Formato JSON Array de strings. Exemplo: ["Como parametrizo X?", "Quais os requisitos para Y?", "E como isso se integra com o Módulo Z?"].`,
+      contents: `${effectiveUserContext}\nA resposta gerada foi: "${botResponseText.substring(0, 1000)}".\n\nGere 3 sugestões EXTREMAMENTE focadas de próximas perguntas (follow-up) que o usuário poderia fazer agora para se aprofundar no contexto ou sistema discutido. Formato JSON Array de strings. Exemplo: ["Como parametrizo X?", "Quais os requisitos para Y?", "E como isso se integra com o Módulo Z?"].`,
       config: {
         systemInstruction: CONTINUITY_SYSTEM,
         responseMimeType: 'application/json',
@@ -617,9 +630,16 @@ export const sendMessageToGemini = async (
   const apiCall = async () => {
     onStatus?.("Analisando complexidade do pedido...");
 
+    // Pré-processa a query para RAG: mega-prompts de DeepDive têm centenas de linhas de instruções
+    // que geram embeddings inúteis no Pinecone. Extrai só a empresa-alvo quando detectado.
+    const isMegaPromptMessage = message.startsWith('Dossiê completo de [') || message.startsWith('Com base em [');
+    const ragQuery = isMegaPromptMessage
+      ? message.replace(/^.*?\[([^\]]+)\].*$/, '$1') // extrai o nome entre colchetes
+      : message;
+
     // ✅ RAG: Dispara busca no Pinecone em paralelo — não bloqueia o fluxo principal
-    const ragContextPromise = buscarContextoPinecone(message);
-    const docsRagPromise = buscarContextoDocsPinecone(message);
+    const ragContextPromise = buscarContextoPinecone(ragQuery);
+    const docsRagPromise = buscarContextoDocsPinecone(ragQuery);
 
     const { empresa: rawEmpresa, benchmark, rota } = await analyzeUserIntent(message);
     // Se o router extraiu um concorrente como empresa, descarta — a empresa-alvo não muda.

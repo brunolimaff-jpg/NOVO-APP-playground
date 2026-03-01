@@ -608,8 +608,10 @@ const AppCore: React.FC = () => {
 
   const handleDeepDive = async (displayMessage: string, hiddenPrompt: string) => {
     const empresaContext = currentSession?.empresaAlvo || currentSession?.title || 'a empresa desta conversa';
+    // "Dossiê completo" é o gatilho reconhecido pelo router para escalar ao modelo PROFUNDA (gemini-2.5-pro).
+    // Sem ele, o router classifica como 'tatica' e usa gemini-2.5-flash, que alucina com o mega-prompt de 100+ linhas.
     await handleSendMessage(
-      `Com base em [${empresaContext}], execute o seguinte protocolo de ataque e investigação forense:\n\n${hiddenPrompt}`,
+      `Dossiê completo de [${empresaContext}]. Protocolo de investigação forense especializada:\n\n${hiddenPrompt}`,
       displayMessage
     );
   };
