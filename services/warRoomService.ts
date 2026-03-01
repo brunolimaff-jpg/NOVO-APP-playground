@@ -180,7 +180,7 @@ export async function queryWarRoom(
             config: {
                 systemInstruction: systemPrompt,
                 temperature: mode === 'tech' ? 0.15 : 0.3,
-                maxOutputTokens: 4096,
+                maxOutputTokens: 65536, // AUMENTADO: limite máximo de tokens do Gemini 2.5 Flash
                 tools: useGrounding ? [{ googleSearch: {} }] : undefined,
             }
         });
