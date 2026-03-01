@@ -574,6 +574,7 @@ const generateFallbackSuggestions = async (lastUserText: string, botResponseText
       config: {
         systemInstruction: CONTINUITY_SYSTEM,
         responseMimeType: 'application/json',
+        responseSchema: { type: Type.ARRAY, items: { type: Type.STRING } },
         temperature: 0.3,
         maxOutputTokens: 1024
       }
@@ -633,15 +634,20 @@ export const sendMessageToGemini = async (
     // Pré-processa a query para RAG: mega-prompts de DeepDive têm centenas de linhas de instruções
     // que geram embeddings inúteis no Pinecone. Extrai só a empresa-alvo quando detectado.
     const isMegaPromptMessage = message.startsWith('Dossiê completo de [') || message.startsWith('Com base em [');
+    // Extrai empresa da 1ª linha (antes do \n\n) — regex sem flag 's' não cruza newlines
     const ragQuery = isMegaPromptMessage
-      ? message.replace(/^.*?\[([^\]]+)\].*$/, '$1') // extrai o nome entre colchetes
+      ? message.split('\n\n')[0].replace(/^.*?\[([^\]]+)\].*$/, '$1')
       : message;
 
     // ✅ RAG: Dispara busca no Pinecone em paralelo — não bloqueia o fluxo principal
     const ragContextPromise = buscarContextoPinecone(ragQuery);
     const docsRagPromise = buscarContextoDocsPinecone(ragQuery);
 
-    const { empresa: rawEmpresa, benchmark, rota } = await analyzeUserIntent(message);
+    // Para mega-prompts, passar só o cabeçalho (antes do \n\n) ao router.
+    // O corpo do mega-prompt contém placeholders como [NOME DA EMPRESA] que confundem
+    // o router, levando a empresa: null → override do system prompt → alucinação.
+    const intentQuery = isMegaPromptMessage ? message.split('\n\n')[0] : message;
+    const { empresa: rawEmpresa, benchmark, rota } = await analyzeUserIntent(intentQuery);
     // Se o router extraiu um concorrente como empresa, descarta — a empresa-alvo não muda.
     // Isso evita que perguntas sobre "Protheus no Contas a Pagar" troquem o foco para Protheus.
     const isConcorrenteQuery = rawEmpresa !== null && isConcorrenteOuPropria(rawEmpresa);
