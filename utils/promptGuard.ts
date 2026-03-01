@@ -11,6 +11,7 @@
  *  6. Canary token (detecta extração do system prompt)
  *  7. Sanitização de conteúdo externo (RAG / dossiês / páginas)
  *  8. Audit logger (localStorage, mantém últimas 200 entradas)
+ *  9. Bypass controlado para comandos internos (DeepDive, Dossiês)
  */
 
 // ─────────────────────────────────────────────
@@ -41,7 +42,7 @@ export interface AuditEntry {
 // CONFIGURAÇÃO
 // ─────────────────────────────────────────────
 
-const MAX_INPUT_CHARS = 8_000;        // ~2k tokens — acima disso é suspeito
+const MAX_INPUT_CHARS = 25_000;       // ~6k tokens — aumentado para suportar DeepDive
 const RATE_LIMIT_WINDOW_MS = 60_000;  // janela de 1 minuto
 const RATE_LIMIT_MAX_MSGS = 30;       // mensagens permitidas por janela
 const AUDIT_KEY = 'scout360_guard_audit_v1';
@@ -60,6 +61,19 @@ export const CANARY_TOKEN = '[[SCOUT_CANARY_7f3a9b]]';
  */
 export function hasCanaryLeak(input: string): boolean {
   return input.includes(CANARY_TOKEN);
+}
+
+// ─────────────────────────────────────────────
+// BYPASS CONTROLADO — Comandos Internos
+// ─────────────────────────────────────────────
+
+/**
+ * Detecta se a mensagem é um comando interno do sistema (DeepDive).
+ * Esses comandos são gerados pela própria UI e não devem ser bloqueados.
+ */
+function isInternalDeepDiveCommand(text: string): boolean {
+  // Padrão exato usado em handleDeepDive() no AppCore.tsx
+  return /Com base em \[[^\]]{2,120}\],\s*execute o seguinte protocolo de ataque e investigação forense:/i.test(text);
 }
 
 // ─────────────────────────────────────────────
@@ -276,6 +290,11 @@ export function scanInput(rawInput: string): GuardResult {
     };
     auditLog(entry);
     return { level: 'blocked', sanitized, reason: rate.reason, riskScore: 100 };
+  }
+
+  // ✅ BYPASS CONTROLADO: DeepDive interno (evita truncar/bloquear prompts longos do sistema)
+  if (isInternalDeepDiveCommand(sanitized)) {
+    return { level: 'safe', sanitized, riskScore: 0 };
   }
 
   // 4. Budget
