@@ -251,12 +251,13 @@ export const sendMessageToGemini = async (message: string, history: Message[], s
   const apiCall = async () => {
     onStatus?.("Analisando complexidade do pedido...");
 
-    const isMegaPromptMessage = message.startsWith('Dossiê completo de [');
+        // INTERCEPTA MEGA-PROMPTS PARA EVITAR ALUCINAÇÃO DE CONTEXTO
+    const isMegaPromptMessage = message.startsWith('Dossiê completo de [') || message.startsWith('Dossiê completo: ');
     let embeddedCompany = null;
-    if (isMegaPromptMessage) {
-      const match = message.match(/^Dossiê completo de \[([^\]]+)\]/);
-      if (match) embeddedCompany = match[1];
-      if (embeddedCompany === 'a empresa desta conversa') embeddedCompany = currentCompanyContext?.empresa || null;
+    
+    // Se não encontrou o nome entre colchetes, mas é Mega Prompt, usa a empresa da sessão ativa
+    if (isMegaPromptMessage && !embeddedCompany && currentCompanyContext?.empresa) {
+        embeddedCompany = currentCompanyContext.empresa;
     }
 
     const ragQuery = isMegaPromptMessage ? (embeddedCompany || 'Empresa Alvo') : message;
