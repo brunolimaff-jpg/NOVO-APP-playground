@@ -676,6 +676,18 @@ Resposta: "No ERP Senior (Gestão Empresarial), o processo de compras inicia na 
 Agora responda a pergunta do usuário.`;
     }
 
+    // Para requisições DeepDive/Raio-X, o mega-prompt deve ser a INSTRUÇÃO DO SISTEMA,
+    // não a mensagem do usuário. Quando enviado como mensagem, o modelo o trata como
+    // um "texto ilegível" em vez de executá-lo como protocolo de investigação.
+    let effectiveUserMessage = safeMessage;
+    if (isMegaPromptMessage && empresa) {
+      const megaPromptBody = message.split('\n\n').slice(1).join('\n\n');
+      // Prepend: mega-prompt instructions + separador + system instruction base
+      finalInstruction = `${megaPromptBody}\n\n---\n\n${finalInstruction}`;
+      // Simplifica a mensagem do usuário para apenas o comando de execução
+      effectiveUserMessage = `Execute o protocolo de investigação forense completo para a empresa: ${empresa}. Substitua todos os placeholders [NOME DA EMPRESA], [Item] e similares pelo nome real "${empresa}".`;
+    }
+
     const selectedModel = rota === 'profunda' ? DEEP_CHAT_MODEL_ID : TACTICAL_MODEL_ID;
     const isDeepResearch = rota === 'profunda';
 
@@ -769,7 +781,7 @@ INSTRUÇÕES DE CITAÇÃO:
       const contextBlock = enrichments.join('\n');
       messageToSend = [
         `## PERGUNTA DO USUÁRIO`,
-        `"${safeMessage}"`,
+        `"${effectiveUserMessage}"`,
         ``,
         `---`,
         `## CONTEXTO DE APOIO (use para embasar sua resposta)`,
@@ -777,13 +789,13 @@ INSTRUÇÕES DE CITAÇÃO:
         `---`,
         ``,
         `## LEMBRETE: RESPONDA A ESTA PERGUNTA`,
-        `O usuário perguntou: "${safeMessage}"`,
+        `O usuário perguntou: "${effectiveUserMessage}"`,
         isTechnicalMode ? `Responda de forma DIRETA como Especialista Técnico da Senior. NÃO peça empresa, NÃO diga que a mensagem está vazia.` : '',
       ].filter(Boolean).join('\n');
     } else {
       messageToSend = isTechnicalMode
-        ? `${safeMessage}\n\nResponda de forma DIRETA como Especialista Técnico da Senior. NÃO peça empresa, NÃO diga que a mensagem está vazia.`
-        : safeMessage;
+        ? `${effectiveUserMessage}\n\nResponda de forma DIRETA como Especialista Técnico da Senior. NÃO peça empresa, NÃO diga que a mensagem está vazia.`
+        : effectiveUserMessage;
     }
 
     if (isDeepResearch) {
