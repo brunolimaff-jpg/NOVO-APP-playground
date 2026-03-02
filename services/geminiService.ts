@@ -30,8 +30,8 @@ export interface SpotterExtractedData {
 
 const ROUTER_MODEL_ID = 'gemini-2.5-flash';
 const TACTICAL_MODEL_ID = 'gemini-2.5-flash';
-const DEEP_CHAT_MODEL_ID = 'gemini-2.5-pro';
-const DEEP_RESEARCH_MODEL_ID = 'gemini-2.5-pro';
+const DEEP_CHAT_MODEL_ID = 'gemini-3.1-pro-preview';
+const DEEP_RESEARCH_MODEL_ID = 'gemini-3.1-pro-preview';
 
 const CONTINUITY_SYSTEM = `
 Você é o estrategista de continuidade do Senior Scout 360.
