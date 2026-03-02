@@ -196,11 +196,12 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
     sessionId: currentSession?.id, userId, processing, lastUserQuery,
     onStop: handleStopWithToast,
     onSendMessage, // <-- CORREÇÃO AQUI (Para as sugestões clicáveis enviarem sozinhas)
+    empresaAlvo: currentSession?.empresaAlvo || null, // <-- NOVO: passar o nome da empresa
   }), [
     messages, isLoading, isDarkMode, mode, onRetry, onDeleteMessage, onReportError,
     onFeedback, onSendFeedback, onToggleMessageSources, onDeepDive, onRegenerateSuggestions,
     pendingDeleteId, hideSuggestionsForMessageId,
-    currentSession?.id, userId, processing, lastUserQuery, handleStopWithToast,
+    currentSession?.id, currentSession?.empresaAlvo, userId, processing, lastUserQuery, handleStopWithToast,
     onSendMessage, // <-- CORREÇÃO AQUI NAS DEPENDÊNCIAS
   ]);
 
