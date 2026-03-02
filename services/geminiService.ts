@@ -106,7 +106,6 @@ export function parseMarkers(content: string): ParsedContent {
   const statuses: string[] = [];
   let scorePorta: ScorePortaData | null = null;
 
-  // CORREÇÃO DO LOOP INFINITO: A expressão regular precisa ser criada FORA do loop!
   const statusRegex = /\[\[STATUS:([^\]]+)\]\]/g;
   let statusMatch;
   while ((statusMatch = statusRegex.exec(content)) !== null) {
@@ -247,7 +246,10 @@ export const sendMessageToGemini = async (message: string, history: Message[], s
   if (guardResult.level === 'blocked') throw normalizeAppError(new Error(`Mensagem bloqueada: ${guardResult.reason}.`), 'GUARD');
 
   const safeMessage = guardResult.sanitized;
-  const systemInstructionFinal = systemInstruction.replace(new RegExp(NOME_VENDEDOR_PLACEHOLDER.replace(/[{}]/g, '\\$&'), 'g'), nomeVendedor?.trim() || 'Vendedor');
+  
+  // AQUI FOI CORRIGIDO: Recoloquei a variável que tinha sumido
+  const nomeParaInjetar = nomeVendedor?.trim() || 'Vendedor';
+  const systemInstructionFinal = systemInstruction.replace(new RegExp(NOME_VENDEDOR_PLACEHOLDER.replace(/[{}]/g, '\\$&'), 'g'), nomeParaInjetar);
 
   const apiCall = async () => {
     onStatus?.("Analisando complexidade do pedido...");
@@ -371,9 +373,10 @@ Use os links do RAG [Texto](URL). NÃO inicie fluxos de investigação, NÃO pe�
     if (inactivityTimer) clearTimeout(inactivityTimer);
 
     const finalParsed = parseMarkers(rawAccumulator);
+    
+    // Agora o nomeParaInjetar existe e não dará mais erro!
     let finalText = enforceOpeningWithSeller(finalParsed.text, nomeParaInjetar);
 
-    // CORREÇÃO DO LOOP INFINITO NOS LINKS:
     const inlineLinks: Array<{ title: string; url: string }> = [];
     const linkRegex = /\[([^\]\n]{1,120})\]\((https?:\/\/[^)\s]{4,})\)/g;
     let linkMatch;
