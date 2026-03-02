@@ -40,16 +40,9 @@ export interface SpotterExtractedData {
 // CONFIGURAÇÃO DOS MODELOS (ROTEAMENTO INTELIGENTE)
 // ===================================================================
 
-// O "Maestro" - Rápido, barato, decide para onde a pergunta vai
 const ROUTER_MODEL_ID = 'gemini-2.5-flash';
-
-// Rota 1: Tática (Mais rápido, focado em ferramentas e respostas pontuais)
 const TACTICAL_MODEL_ID = 'gemini-2.5-flash';
-
-// Rota 2: Dossiê Profundo via Chat (streaming, compatível com UI de status/marcadores)
 const DEEP_CHAT_MODEL_ID = 'gemini-2.5-pro';
-
-// Rota 3: Deep Research Agent (Interactions API — usado no War Room OSINT)
 const DEEP_RESEARCH_MODEL_ID = 'gemini-2.5-pro';
 
 const CONTINUITY_SYSTEM = `
@@ -185,7 +178,6 @@ export function parseMarkers(content: string): ParsedContent {
 
   text = text.replace(/\[\[COMPETITOR:[^\]]*\]\]/g, '');
   text = text.replace(/\[\[[A-Z_]+:[^\n]*?\]\]/g, '');
-  // Remove texto redundante "Score PORTA: X/100 — ..." que o LLM às vezes escreve antes do marcador
   text = text.replace(/\*{0,2}Score PORTA:\*{0,2}\s*\d+\/100\s*[—–-]\s*(?:Alta|Média|Baixa)\s*Compatibilidade\.?\s*/gi, '');
   text = text.replace(/^(\s*\]\s*\n)+/, '');
   text = text.replace(/^\s*\]/, '');
@@ -198,33 +190,25 @@ export function parseMarkers(content: string): ParsedContent {
 // DETECÇÃO DE INCONSISTÊNCIA DE DADOS
 // ─────────────────────────────────────────────
 
-/** Métricas conhecidas por empresa (persiste durante a sessão do browser) */
 const companyMetrics: Record<string, Record<string, number>> = {};
 
 function extractMetrics(text: string): Record<string, number> {
   const m: Record<string, number> = {};
-
-  // Hectares: "1,3 mil ha", "50.000 ha", "1.300 hectares"
   const haMatch = text.match(/(\d[\d.,]*)\s*(mil\s+)?hect(?:ares?)?\b/i);
   if (haMatch) {
     const raw = parseFloat(haMatch[1].replace(/\./g, '').replace(',', '.'));
     m.ha = haMatch[2] ? raw * 1000 : raw;
   }
-
-  // Colaboradores/funcionários: "+45.000 colaboradores", "8 mil funcionários"
   const empMatch = text.match(/\+?(\d[\d.,]*)\s*(mil\s+)?(?:colaboradores?|funcionários?|empregados?)\b/i);
   if (empMatch) {
     const raw = parseFloat(empMatch[1].replace(/\./g, '').replace(',', '.'));
     m.employees = empMatch[2] ? raw * 1000 : raw;
   }
-
-  // Faturamento: "R$ 2,5 bilhões", "R$ 500 milhões", "R$ 1,2 bi"
   const revMatch = text.match(/R\$\s*(\d[\d.,]*)\s*(bilh[õo]es?|bi|milh[õo]es?|mi)\b/i);
   if (revMatch) {
     const raw = parseFloat(revMatch[1].replace(/\./g, '').replace(',', '.'));
     m.revenue = /bi/i.test(revMatch[2]) ? raw * 1e9 : raw * 1e6;
   }
-
   return m;
 }
 
@@ -278,19 +262,29 @@ export function resetCompanyContext(): void {
   console.log('[CONTEXTO] Resetado');
 }
 
+// Resgata sugestões injetadas via Prompt
 export function extractSuggestionsFromResponse(content: string): string[] {
-  const suggestions: string[] = [];
-  const suggestionsMatch = content.match(/\*\*Sugestões\*\*\n([\s\S]*?)(?=\n---|\n\*\*|$)/i);
-  if (suggestionsMatch) {
-    const lines = suggestionsMatch[1].split('\n');
-    lines.forEach(line => {
-      const match = line.match(/^-\s*"([^"]+)"/);
-      if (match) {
-        suggestions.push(match[1]);
-      }
-    });
+  if (!content) return [];
+  const regexes = [
+    /(?:---|___|\*\*\*)\s*[\r\n]+(?:\*\*|##|###)?\s*(?:🔎|⚡|🤠)?\s*(?:O que você quer descobrir agora|E aí, onde a gente joga o adubo agora|E aí, qual desses você quer cavucar|Próximos passos|Sugestões?(?:\s+de\s+perguntas)?)(?:.*?)[\r\n]+/i,
+    /\n+(?:\*\*|##|###)\s*(?:🔎|⚡|🤠)?\s*(?:Sugestões?(?:\s+de\s+perguntas)?|Próximos\s+passos|O que você quer descobrir agora)\s*\*?\*?\s*[\r\n]+/i,
+  ];
+
+  for (const regex of regexes) {
+    const parts = content.split(regex);
+    if (parts.length >= 2) {
+      const suggestionsBlock = parts[parts.length - 1];
+      const lines = suggestionsBlock.split('\n');
+      const options = lines
+        .map(line => line.trim())
+        .filter(line => /^[\*\-•\+]\s/.test(line) || /^\d+\./.test(line))
+        .map(line => line.replace(/^[\*\-•\+\d\.]+\s*/, '').replace(/^"|"$/g, '').replace(/^'|'$/g, '').replace(/\*+$/, '').trim())
+        .filter(line => line.length > 0)
+        .slice(0, 4);
+      if (options.length > 0) return options;
+    }
   }
-  return suggestions;
+  return [];
 }
 
 let genAI: GoogleGenAI | null = null;
@@ -353,68 +347,22 @@ export const extractSpotterData = async (raw: string): Promise<SpotterExtractedD
   if (!raw.trim()) {
     return {};
   }
-
   const ai = getGenAI();
-
   const systemInstruction = `
 Você é um analista SDR lendo uma ficha pública colada do ExactSpotter.
 
-TAREFA:
-- Extrair APENAS os campos pedidos abaixo, sem "viajar" no que não estiver claro.
-- Se um campo não aparecer claramente no texto, deixe como null ou lista vazia.
-
-FORMATO DA RESPOSTA (OBRIGATÓRIO):
-Retorne EXCLUSIVAMENTE um JSON com a estrutura:
-
-{
-  "companyName": string | null,
-  "contactName": string | null,
-  "contactRole": string | null,
-  "contactEmail": string | null,
-  "contactPhone": string | null,
-  "segment": string | null,
-  "size": string | null,
-  "pains": string[],
-  "currentSystems": string[],
-  "summary": string | null
-}
-
-REGRAS:
-- "segment" = ramo / setor (ex.: "agropecuária", "transportes", "indústria de alimentos").
-- "size" = porte (ex.: "pequena", "média", "grande", ou algo equivalente que esteja no texto).
-- "pains" = 3 a 8 dores ou problemas citados ou claramente implícitos. Use frases curtas.
-- "currentSystems" = ERPs, CRMs ou outros sistemas de gestão mencionados (TOTVS, Senior, SAP, etc.).
-- "summary" = resumo em 2~3 frases do contexto comercial para prospecção.
-
-IMPORTANTE:
-- Não invente email, telefone ou sistemas se não estiverem na ficha.
-- NÃO inclua comentários fora do JSON. Apenas o objeto JSON puro.
+TAREFA: Extrair APENAS os campos pedidos abaixo. Se um campo não aparecer, deixe como null ou lista vazia.
+FORMATO: Retorne EXCLUSIVAMENTE um JSON com as chaves: companyName, contactName, contactRole, contactEmail, contactPhone, segment, size, pains (array), currentSystems (array), summary.
 `;
-
   const response = await ai.models.generateContent({
     model: ROUTER_MODEL_ID,
-    contents: [
-      {
-        role: 'user',
-        parts: [
-          {
-            text: `${systemInstruction}\n\nFICHA COPIADA DO SPOTTER:\n\n${sanitizeExternalContent(raw)}`,
-          },
-        ],
-      },
-    ],
-    config: {
-      responseMimeType: 'application/json',
-      temperature: 0.2,
-      maxOutputTokens: 65536,
-    },
+    contents: [{ role: 'user', parts: [{ text: `${systemInstruction}\n\nFICHA COPIADA DO SPOTTER:\n\n${sanitizeExternalContent(raw)}` }] }],
+    config: { responseMimeType: 'application/json', temperature: 0.2, maxOutputTokens: 65536 },
   });
-
   try {
     const text = response.text || '{}';
     const parsed = JSON.parse(text);
-
-    const data: SpotterExtractedData = {
+    return {
       companyName: parsed.companyName || undefined,
       contactName: parsed.contactName || undefined,
       contactRole: parsed.contactRole || undefined,
@@ -426,8 +374,6 @@ IMPORTANTE:
       currentSystems: Array.isArray(parsed.currentSystems) ? parsed.currentSystems : [],
       summary: parsed.summary || undefined,
     };
-
-    return data;
   } catch (err) {
     console.error('Erro ao parsear JSON do Spotter:', err);
     return {};
@@ -443,13 +389,9 @@ export const createChatSession = (
 ): Chat => {
   const ai = getGenAI();
   const tools: any[] = useGrounding ? [{ googleSearch: {} }] : [];
-
   const sdkHistory: Content[] = history
     .filter(msg => !msg.isError)
-    .map(msg => ({
-      role: msg.sender === Sender.User ? 'user' : 'model',
-      parts: [{ text: msg.text }]
-    }));
+    .map(msg => ({ role: msg.sender === Sender.User ? 'user' : 'model', parts: [{ text: msg.text }] }));
 
   let config: any = {
     systemInstruction: `
@@ -493,33 +435,29 @@ const analyzeUserIntent = async (msg: string): Promise<{
   rota: 'tatica' | 'profunda'
 }> => {
   if (!msg || msg.trim().length < 5) return { empresa: null, benchmark: false, rota: 'tatica' };
-
   try {
     const ai = getGenAI();
     const prompt = `
       Analise a frase do usuário: "${msg}"
-      Extraia 3 informações separadas por "|":
-      1. NOME DA EMPRESA-ALVO DE PROSPECÇÃO (empresa que o vendedor quer investigar para vender para ela).
-         - Responda NONE se o usuário está fazendo uma PERGUNTA TÉCNICA sobre um sistema/ERP/módulo (ex: "como funciona compras no erp senior", "o que é o módulo contábil", "como calcular férias").
-         - Responda NONE se mencionar apenas nomes de ERPs ou produtos de software (Senior, TOTVS, SAP, Protheus, Sapiens, GAtec).
-         - Responda com o NOME DA EMPRESA apenas se for uma empresa real que o vendedor quer prospectar (ex: "investigar a JBS", "quero um dossiê da Bunge", "me fala sobre a Amaggi").
-      2. BENCHMARK: O usuário quer comparar com concorrentes? (SIM/NAO)
-      3. ROTA: Responda PROFUNDA se o usuário pediu um "dossiê completo", "investigação completa", "capivara", "varredura" ou quer saber TUDO sobre a empresa. Responda TATICA se for uma pergunta específica, pontual ou continuação de conversa.
+      Extraia os seguintes campos no formato JSON:
+      1. "empresa": NOME DA EMPRESA-ALVO DE PROSPECÇÃO. (Retorne a string "NONE" se for pergunta técnica genérica ou citar só ERP).
+      2. "benchmark": booleano (true/false) se o usuário quer comparar com concorrentes.
+      3. "rota": "profunda" se pediu dossiê completo/capivara/varredura, ou "tatica" para o resto.
     `;
-
     const response = await ai.models.generateContent({
       model: ROUTER_MODEL_ID,
       contents: prompt,
-      config: { temperature: 0, maxOutputTokens: 1024 }
+      config: { temperature: 0, responseMimeType: 'application/json' }
     });
+    
+    // Fallback de parse JSON seguro
+    const cleanJsonText = (response.text || '{}').replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim();
+    const parsed = JSON.parse(cleanJsonText);
 
-    const text = (response.text || 'NONE|NAO|TATICA').trim().replace(/["'`]+/g, '');
-    const parts = text.split('|');
-
-    const empresaRaw = (parts[0] || '').trim();
-    const empresa = (empresaRaw === 'NONE' || empresaRaw.length < 2) ? null : empresaRaw;
-    const benchmark = parts[1]?.trim() === 'SIM';
-    const rota = parts[2]?.trim() === 'PROFUNDA' ? 'profunda' : 'tatica';
+    const empresaRaw = parsed.empresa;
+    const empresa = (empresaRaw === 'NONE' || !empresaRaw || empresaRaw.length < 2) ? null : empresaRaw;
+    const benchmark = !!parsed.benchmark;
+    const rota = parsed.rota === 'profunda' ? 'profunda' : 'tatica';
 
     return { empresa, benchmark, rota };
   } catch (err) {
@@ -555,9 +493,6 @@ export const generateLoadingCuriosities = async (context: string): Promise<strin
 const generateFallbackSuggestions = async (lastUserText: string, botResponseText: string, isOperacao: boolean): Promise<string[]> => {
   try {
     const ai = getGenAI();
-
-    // Se o "texto do usuário" é na verdade um mega-prompt de sistema (DeepDive/Raio-X),
-    // usar contexto neutro para não gerar sugestões baseadas em instruções internas.
     const isMegaPrompt = lastUserText.length > 300 && (
       lastUserText.includes('Protocolo de investigação forense') ||
       lastUserText.includes('execute o seguinte protocolo') ||
@@ -574,13 +509,13 @@ const generateFallbackSuggestions = async (lastUserText: string, botResponseText
       config: {
         systemInstruction: CONTINUITY_SYSTEM,
         responseMimeType: 'application/json',
-        responseSchema: { type: Type.ARRAY, items: { type: Type.STRING } },
         temperature: 0.3,
         maxOutputTokens: 1024
       }
     });
 
-    const json = JSON.parse(response.text || "[]");
+    const cleanJsonText = (response.text || "[]").replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim();
+    const json = JSON.parse(cleanJsonText);
     if (!Array.isArray(json)) return ["Mapear decisores", "Verificar gaps"];
 
     return json.map((item: any) => {
@@ -602,26 +537,14 @@ export const sendMessageToGemini = async (
 ): Promise<{ text: string; sources: Array<{ title: string, url: string }>, suggestions: string[], scorePorta: ScorePortaData | null, statuses: string[] }> => {
   const { useGrounding = true, thinkingMode = false, signal, onText, onStatus, onScorePorta, onCompetitor, nomeVendedor } = options;
 
-  // ================================================================
-  // 🛡️ PROMPT GUARD — Verificação antes de qualquer chamada ao LLM
-  // ================================================================
+  // 🛡️ PROMPT GUARD
   const guardResult = scanInput(message);
-
   if (guardResult.level === 'blocked') {
     console.warn('[PromptGuard] Input bloqueado:', guardResult.reason, '| riskScore:', guardResult.riskScore);
-    throw normalizeAppError(
-      new Error(`Sua mensagem foi bloqueada por segurança (${guardResult.reason}). Por favor, reformule e tente novamente.`),
-      'GUARD'
-    );
+    throw normalizeAppError(new Error(`Sua mensagem foi bloqueada por segurança (${guardResult.reason}). Por favor, reformule e tente novamente.`), 'GUARD');
   }
 
-  if (guardResult.level === 'suspicious') {
-    console.warn('[PromptGuard] Input suspeito (passando com aviso):', guardResult.reason, '| riskScore:', guardResult.riskScore);
-  }
-
-  // Usa o input sanitizado a partir daqui — SEM tags XML para evitar confusão do LLM
   const safeMessage = guardResult.sanitized;
-
   const nomeParaInjetar = nomeVendedor?.trim() || 'Vendedor';
   const systemInstructionFinal = systemInstruction.replace(
     new RegExp(NOME_VENDEDOR_PLACEHOLDER.replace(/[{}]/g, '\\$&'), 'g'),
@@ -631,75 +554,62 @@ export const sendMessageToGemini = async (
   const apiCall = async () => {
     onStatus?.("Analisando complexidade do pedido...");
 
-    // Pré-processa a query para RAG: mega-prompts de DeepDive têm centenas de linhas de instruções
-    // que geram embeddings inúteis no Pinecone. Extrai só a empresa-alvo quando detectado.
-    const isMegaPromptMessage = message.startsWith('Dossiê completo de [') || message.startsWith('Com base em [');
-    // Extrai empresa da 1ª linha (antes do \n\n) — regex sem flag 's' não cruza newlines
-    const ragQuery = isMegaPromptMessage
-      ? message.split('\n\n')[0].replace(/^.*?\[([^\]]+)\].*$/, '$1')
-      : message;
+    // INTERCEPTA MEGA-PROMPTS PARA EVITAR ALUCINAÇÃO DE CONTEXTO
+    const isMegaPromptMessage = message.startsWith('Dossiê completo de [');
+    let embeddedCompany = null;
+    if (isMegaPromptMessage) {
+      const match = message.match(/^Dossiê completo de \[([^\]]+)\]/);
+      if (match) embeddedCompany = match[1];
+      if (embeddedCompany === 'a empresa desta conversa') {
+         embeddedCompany = currentCompanyContext?.empresa || null;
+      }
+    }
 
-    // ✅ RAG: Dispara busca no Pinecone em paralelo — não bloqueia o fluxo principal
+    const ragQuery = isMegaPromptMessage ? (embeddedCompany || 'Empresa Alvo') : message;
     const ragContextPromise = buscarContextoPinecone(ragQuery);
     const docsRagPromise = buscarContextoDocsPinecone(ragQuery);
 
-    // Para mega-prompts, passar só o cabeçalho (antes do \n\n) ao router.
-    // O corpo do mega-prompt contém placeholders como [NOME DA EMPRESA] que confundem
-    // o router, levando a empresa: null → override do system prompt → alucinação.
-    const intentQuery = isMegaPromptMessage ? message.split('\n\n')[0] : message;
+    const intentQuery = isMegaPromptMessage ? `Investigar a empresa ${embeddedCompany || 'desconhecida'}` : message;
     const { empresa: rawEmpresa, benchmark, rota } = await analyzeUserIntent(intentQuery);
-    // Se o router extraiu um concorrente como empresa, descarta — a empresa-alvo não muda.
-    // Isso evita que perguntas sobre "Protheus no Contas a Pagar" troquem o foco para Protheus.
-    const isConcorrenteQuery = rawEmpresa !== null && isConcorrenteOuPropria(rawEmpresa);
-    const empresa = isConcorrenteQuery ? null : rawEmpresa;
+    
+    // Define a empresa oficial. Se for um mega prompt, ele CRIA o contexto fixo
+    let empresa = isConcorrenteOuPropria(rawEmpresa || '') ? null : rawEmpresa;
+    if (isMegaPromptMessage && embeddedCompany && !isConcorrenteOuPropria(embeddedCompany)) {
+      empresa = embeddedCompany;
+    }
 
-    // OVERRIDE DE SEGURANÇA: Se não tem empresa alvo, descarta o prompt pesado para evitar que a IA trave a conversa exigindo alvo
     let finalInstruction = systemInstructionFinal;
     if (!empresa && !history.some(h => h.sender === 'bot' && h.text.includes('PORTA:'))) {
       finalInstruction = `Você é o Especialista Técnico da Senior Sistemas.
-
 SUA ÚNICA MISSÃO NESTA MENSAGEM: Responder a pergunta técnica do usuário de forma DIRETA e ÚTIL.
-
 REGRAS ABSOLUTAS:
 1. RESPONDA A PERGUNTA DIRETAMENTE. O usuário fez uma dúvida técnica — responda sobre o tema.
 2. Use a documentação RAG fornecida no corpo da mensagem para embasar sua resposta.
 3. Sempre que referenciar documentação, inclua hiperlinks Markdown clicáveis: [Texto](URL).
 4. NÃO peça CNPJ, nome de empresa ou alvo de prospecção.
 5. NÃO inicie fluxo de investigação corporativa, dossiê ou Score PORTA.
-6. NÃO diga que a mensagem está vazia, em branco, ou que nenhum tópico foi informado.
-7. Escreva em português brasileiro, tom técnico e consultivo.
-
-EXEMPLO DE RESPOSTA CORRETA:
-Pergunta: "Como funciona o módulo de compras no ERP Senior?"
-Resposta: "No ERP Senior (Gestão Empresarial), o processo de compras inicia na identificação da demanda... O módulo permite gestão multidepósitos e multifiliais ([Portal de Compras](https://documentacao.senior.com.br/gestaoempresarialerp/...))."
-
-Agora responda a pergunta do usuário.`;
+6. NÃO diga que a mensagem está vazia, em branco, ou que nenhum tópico foi informado.`;
     }
 
-    // Para requisições DeepDive/Raio-X, o mega-prompt deve ser a INSTRUÇÃO DO SISTEMA,
-    // não a mensagem do usuário. Quando enviado como mensagem, o modelo o trata como
-    // um "texto ilegível" em vez de executá-lo como protocolo de investigação.
     let effectiveUserMessage = safeMessage;
-    if (isMegaPromptMessage && empresa) {
-      const megaPromptBody = message.split('\n\n').slice(1).join('\n\n');
-      // Prepend: mega-prompt instructions + separador + system instruction base
+    // Se for Mega-Prompt, GARANTE que o corpo das instruções vá pro System Prompt
+    if (isMegaPromptMessage) {
+      const parts = message.split('\n\n');
+      const megaPromptBody = parts.slice(1).join('\n\n');
       finalInstruction = `${megaPromptBody}\n\n---\n\n${finalInstruction}`;
-      // Simplifica a mensagem do usuário para apenas o comando de execução
-      effectiveUserMessage = `Execute o protocolo de investigação forense completo para a empresa: ${empresa}. Substitua todos os placeholders [NOME DA EMPRESA], [Item] e similares pelo nome real "${empresa}".`;
+      effectiveUserMessage = `Execute o protocolo de investigação forense completo para a empresa: ${empresa || 'a empresa alvo'}. Substitua todos os placeholders pelo nome real "${empresa || 'a empresa alvo'}".`;
     }
 
-    const selectedModel = rota === 'profunda' ? DEEP_CHAT_MODEL_ID : TACTICAL_MODEL_ID;
-    const isDeepResearch = rota === 'profunda';
+    // Mega Prompts SEMPRE forçam deep research route
+    const isDeepResearch = rota === 'profunda' || isMegaPromptMessage;
+    const selectedModel = isDeepResearch ? DEEP_CHAT_MODEL_ID : TACTICAL_MODEL_ID;
 
-    if (isDeepResearch) {
-      onStatus?.("Deep Research ativado — varredura completa da web iniciada...");
-    }
+    if (isDeepResearch) onStatus?.("Deep Research ativado — varredura completa da web iniciada...");
 
     const chatSession = createChatSession(finalInstruction, history, selectedModel, useGrounding, thinkingMode);
     if (signal?.aborted) throw new Error("Request aborted");
 
     let enrichments: string[] = [];
-
     const sessionId = currentCompanyContext?.sessionId;
 
     if (empresa) {
@@ -707,10 +617,7 @@ Agora responda a pergunta do usuário.`;
         onStatus?.(`Buscando histórico de ${empresa} na base interna...`);
         const lookup = await lookupCliente(empresa);
         enrichments.push(lookup.encontrado ? formatarParaPrompt(lookup) : `\n[Lookup: "${empresa}" não encontrado na base interna]\n`);
-      } else {
-        console.log(`[LOOKUP] Skipped — "${empresa}" é concorrente ou a própria empresa.`);
       }
-
       enrichments.push(generateContextReminder(empresa, sessionId));
 
       const estado = extractEstadoFromMessage(message);
@@ -725,93 +632,57 @@ Agora responda a pergunta do usuário.`;
       }
     }
 
-    // ✅ RAG: Aguarda os resultados do Pinecone com timeout de segurança (60s)
     onStatus?.("Consultando bases de conhecimento (Documentação e Propostas)...");
     const [ragContext, docsRagContext] = await Promise.all([
       Promise.race([
         ragContextPromise,
-        new Promise<string>(resolve => setTimeout(() => {
-          console.warn('[RAG] Race timeout (60s) — descartando promise RAG travada.');
-          resolve('');
-        }, 60000)),
+        new Promise<string>(resolve => setTimeout(() => resolve(''), 60000)),
       ]),
       Promise.race([
         docsRagPromise,
-        new Promise<string>(resolve => setTimeout(() => {
-          console.warn('[RAG DOCS] Race timeout (60s) — descartando promise RAG DOCS travada.');
-          resolve('');
-        }, 60000)),
+        new Promise<string>(resolve => setTimeout(() => resolve(''), 60000)),
       ])
     ]);
 
     if (ragContext) {
-      const safeRagContext = sanitizeExternalContent(ragContext);
       enrichments.push(`
 ## INTELIGÊNCIA INTERNA — PROPOSTAS REAIS DA TOTVS
-Os trechos abaixo são de propostas comerciais reais da TOTVS extraídas da base de conhecimento interna.
-Use para identificar preços praticados, argumentos de venda, diferenciais e fraquezas táticas do concorrente.
-ATENÇÃO: Estes dados são REAIS e CONFIDENCIAIS — priorize-os sobre informações genéricas da web.
-
-${safeRagContext}
-      `);
+Os trechos abaixo são de propostas comerciais reais extraídas da base de conhecimento. Use para gaps comerciais.
+${sanitizeExternalContent(ragContext)}`);
     }
 
     if (docsRagContext) {
-      const safeDocsContext = sanitizeExternalContent(docsRagContext);
       enrichments.push(`
-## DOCUMENTAÇÃO OFICIAL DO ERP SENIOR (FONTE PRIMÁRIA — USE OBRIGATORIAMENTE)
-Abaixo estão os guias e referências oficiais mais relevantes. Cada trecho possui uma URL entre parênteses.
-
-${safeDocsContext}
-
+## DOCUMENTAÇÃO OFICIAL DO ERP SENIOR
+Abaixo estão os guias e referências oficiais.
+${sanitizeExternalContent(docsRagContext)}
 INSTRUÇÕES DE CITAÇÃO:
-- Você DEVE basear sua resposta nesta documentação.
-- Para CADA informação que usar, inclua o link Markdown clicável inline: [nome legível](URL exata do RAG).
-- NUNCA invente links. Use APENAS as URLs que aparecem acima.
-- Se a documentação não cobrir a pergunta por completo, use seu conhecimento e sinalize: "[Informação complementar, não documentada oficialmente]".`);
+- Baseie sua resposta nesta documentação. Crie links Markdown: [nome legível](URL exata do RAG).`);
     }
 
-    // Monta mensagem final com contexto + input seguro
-    // ARQUITETURA: A pergunta do usuário aparece NO TOPO e NO FINAL da mensagem
-    // para evitar o "lost in the middle" — o LLM ignora conteúdo central em mensagens longas.
     const isTechnicalMode = !empresa && !history.some(h => h.sender === 'bot' && h.text.includes('PORTA:'));
-
     let messageToSend: string;
+    
     if (enrichments.length > 0) {
       const contextBlock = enrichments.join('\n');
       messageToSend = [
-        `## PERGUNTA DO USUÁRIO`,
-        `"${effectiveUserMessage}"`,
-        ``,
-        `---`,
-        `## CONTEXTO DE APOIO (use para embasar sua resposta)`,
-        contextBlock,
-        `---`,
-        ``,
-        `## LEMBRETE: RESPONDA A ESTA PERGUNTA`,
-        `O usuário perguntou: "${effectiveUserMessage}"`,
-        isTechnicalMode ? `Responda de forma DIRETA como Especialista Técnico da Senior. NÃO peça empresa, NÃO diga que a mensagem está vazia.` : '',
+        `## PERGUNTA DO USUÁRIO`, `"${effectiveUserMessage}"`, ``, `---`,
+        `## CONTEXTO DE APOIO (use para embasar sua resposta)`, contextBlock, `---`, ``,
+        `## LEMBRETE: RESPONDA A ESTA PERGUNTA`, `O usuário perguntou: "${effectiveUserMessage}"`,
+        isTechnicalMode ? `Responda de forma DIRETA como Especialista Técnico da Senior.` : '',
       ].filter(Boolean).join('\n');
     } else {
       messageToSend = isTechnicalMode
-        ? `${effectiveUserMessage}\n\nResponda de forma DIRETA como Especialista Técnico da Senior. NÃO peça empresa, NÃO diga que a mensagem está vazia.`
+        ? `${effectiveUserMessage}\n\nResponda de forma DIRETA como Especialista Técnico da Senior.`
         : effectiveUserMessage;
     }
 
-    if (isDeepResearch) {
-      onStatus?.("IA varrendo a web — pode levar alguns minutos...");
-    } else {
-      onStatus?.("Gerando resposta...");
-    }
+    if (!isDeepResearch) onStatus?.("Gerando resposta...");
 
-    // Timeout de inatividade adaptativo:
-    // Deep Research faz varredura web pesada — primeiro chunk pode levar 60s+
-    // Tático é mais rápido, mas LOOKUP/RAG podem demorar na pré-fase
     const STREAM_INACTIVITY_MS = isDeepResearch ? 120000 : 90000;
-
     const streamPromise = chatSession.sendMessageStream({ message: messageToSend });
     const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(() => reject(new Error(`A conexão com o motor de inteligência travou ao iniciar (${STREAM_INACTIVITY_MS / 1000}s)`)), STREAM_INACTIVITY_MS);
+      setTimeout(() => reject(new Error(`A conexão com o motor travou (${STREAM_INACTIVITY_MS / 1000}s)`)), STREAM_INACTIVITY_MS);
     });
 
     const result = await Promise.race([streamPromise, timeoutPromise]);
@@ -824,14 +695,13 @@ INSTRUÇÕES DE CITAÇÃO:
     let chunkCount = 0;
     let sourcesReported = 0;
     let textMilestone = 0;
-
     let streamTimedOut = false;
     let inactivityTimer: ReturnType<typeof setTimeout> | null = null;
+
     const resetInactivity = () => {
       if (inactivityTimer) clearTimeout(inactivityTimer);
       inactivityTimer = setTimeout(() => {
         streamTimedOut = true;
-        console.warn(`[GEMINI] Stream inativo por ${STREAM_INACTIVITY_MS / 1000}s — interrompendo e usando resposta parcial.`);
       }, STREAM_INACTIVITY_MS);
     };
     resetInactivity();
@@ -843,73 +713,55 @@ INSTRUÇÕES DE CITAÇÃO:
       rawAccumulator += chunkText;
       chunkCount++;
 
-      if (chunkCount === 1) {
-        onStatus?.("Primeiros dados recebidos do modelo...");
-      }
+      if (chunkCount === 1) onStatus?.("Primeiros dados recebidos do modelo...");
 
       if (chunk.candidates?.[0]?.groundingMetadata?.groundingChunks) {
-        const newChunks = chunk.candidates[0].groundingMetadata.groundingChunks;
-        groundingChunks = [...groundingChunks, ...newChunks];
-
+        groundingChunks = [...groundingChunks, ...chunk.candidates[0].groundingMetadata.groundingChunks];
         const totalSources = groundingChunks.filter(c => c.web?.uri).length;
         if (totalSources > sourcesReported) {
           sourcesReported = totalSources;
-          onStatus?.(`${totalSources} fonte${totalSources > 1 ? 's' : ''} da web encontrada${totalSources > 1 ? 's' : ''} — analisando...`);
+          onStatus?.(`${totalSources} fonte${totalSources > 1 ? 's' : ''} da web encontrada${totalSources > 1 ? 's' : ''}...`);
         }
       }
 
       const textLen = rawAccumulator.length;
       if (textLen > 12000 && textMilestone < 3) {
-        onStatus?.("Finalizando dossiê — estruturando conclusões...");
-        textMilestone = 3;
+        onStatus?.("Finalizando dossiê — estruturando conclusões..."); textMilestone = 3;
       } else if (textLen > 6000 && textMilestone < 2) {
-        onStatus?.("Dossiê avançado — compilando análise detalhada...");
-        textMilestone = 2;
+        onStatus?.("Dossiê avançado — compilando análise..."); textMilestone = 2;
       } else if (textLen > 2000 && textMilestone < 1) {
-        onStatus?.("Dossiê em construção — gerando análise...");
-        textMilestone = 1;
+        onStatus?.("Dossiê em construção..."); textMilestone = 1;
       }
 
       const parsed = parseMarkers(rawAccumulator);
-
       if (parsed.statuses.length > 0) {
         const lastStatus = parsed.statuses[parsed.statuses.length - 1];
         if (lastStatus !== lastEmittedStatus) {
-          onStatus?.(lastStatus);
-          lastEmittedStatus = lastStatus;
+          onStatus?.(lastStatus); lastEmittedStatus = lastStatus;
         }
       }
 
       if (parsed.scorePorta && JSON.stringify(parsed.scorePorta) !== JSON.stringify(lastEmittedScore)) {
-        onScorePorta?.(parsed.scorePorta);
-        lastEmittedScore = parsed.scorePorta;
+        onScorePorta?.(parsed.scorePorta); lastEmittedScore = parsed.scorePorta;
       }
 
       if (onCompetitor) {
         const competitorData = parseCompetitorMarker(rawAccumulator);
         if (competitorData && !lastEmittedCompetitor) {
-          onCompetitor(competitorData);
-          lastEmittedCompetitor = competitorData;
+          onCompetitor(competitorData); lastEmittedCompetitor = competitorData;
         }
       }
-
       onText?.(sanitizeStreamText(rawAccumulator));
     }
 
     if (inactivityTimer) clearTimeout(inactivityTimer);
 
-    const ghostReason: string | undefined =
-      (streamTimedOut && !rawAccumulator.trim())
-        ? `Timeout de stream: ${STREAM_INACTIVITY_MS / 1000}s sem dados. ` +
-        `Chunks recebidos: ${chunkCount}. ` +
-        `Resposta parcial: ${rawAccumulator.length} chars.`
-        : undefined;
-
+    const ghostReason: string | undefined = (streamTimedOut && !rawAccumulator.trim()) ? `Timeout de stream` : undefined;
     const finalParsed = parseMarkers(rawAccumulator);
     let finalText = enforceOpeningWithSeller(finalParsed.text, nomeParaInjetar);
 
-    // ✅ DETECÇÃO DE INCONSISTÊNCIA: compara métricas numéricas com pesquisa anterior
-    if (empresa && !isConcorrenteQuery) {
+    // Conflitos de Contexto Numérico
+    if (empresa && rawEmpresa && !isConcorrenteOuPropria(rawEmpresa)) {
       const newM = extractMetrics(finalText);
       const prevM = companyMetrics[empresa] || {};
       const conflicts: string[] = [];
@@ -925,36 +777,25 @@ INSTRUÇÕES DE CITAÇÃO:
       }
     }
 
-    // ✅ COLETA DE LINKS INLINE: extrai links para o rodapé MAS mantém os hiperlinks no corpo do texto
     const inlineLinks: Array<{ title: string; url: string }> = [];
-    // Apenas coleta os links para o array de sources, SEM removê-los do texto
     const linkCollectorRegex = /\[([^\]\n]{1,120})\]\((https?:\/\/[^)\s]{4,})\)/g;
     let linkMatch;
     while ((linkMatch = linkCollectorRegex.exec(finalText)) !== null) {
-      const clean = linkMatch[1].trim();
       const url = linkMatch[2];
-      if (!inlineLinks.some(l => l.url === url)) {
-        inlineLinks.push({ title: clean, url });
-      }
+      if (!inlineLinks.some(l => l.url === url)) inlineLinks.push({ title: linkMatch[1].trim(), url });
     }
 
-    // ✅ AUDITORIA: Adiciona seção "Fontes consultadas" com grounding + links inline coletados
     const groundingSources = groundingChunks
       .filter(c => c.web?.uri)
       .map(c => ({ title: getReadableTitle(c.web), url: c.web.uri }));
 
-    // Merge: grounding sources primeiro, depois inline links não duplicados
-    const allSources = [
-      ...groundingSources,
-      ...inlineLinks.filter(il => !groundingSources.some(s => s.url === il.url)),
-    ];
-    const sources = allSources; // mantém compatibilidade com o return abaixo
+    const sources = [...groundingSources, ...inlineLinks.filter(il => !groundingSources.some(s => s.url === il.url))];
 
     return {
       text: finalText,
       sources: sources,
       suggestions: [],
-      scorePorta: isConcorrenteQuery ? undefined : finalParsed.scorePorta,
+      scorePorta: (!rawEmpresa || isConcorrenteOuPropria(rawEmpresa)) ? undefined : finalParsed.scorePorta,
       statuses: finalParsed.statuses,
       empresa,
       ghostReason,
@@ -963,18 +804,23 @@ INSTRUÇÕES DE CITAÇÃO:
 
   try {
     const responseData = await withAutoRetry('Gemini:Stream', apiCall, { maxRetries: 2 });
-    onStatus?.("Gerando ganchos comerciais finais...");
-    const suggestions = await generateFallbackSuggestions(message, responseData.text, systemInstruction.includes("Operação"));
+    
+    // TENTA PEGAR AS SUGESTÕES "NATURAIS" DO MEGA-PROMPT PRIMEIRO
+    let suggestions = extractSuggestionsFromResponse(responseData.text);
+    
+    // SÓ ACIONA O FALLBACK SE NÃO TIVER ACHADO SUGESTÃO NATIVA
+    if (!suggestions || suggestions.length === 0) {
+      onStatus?.("Gerando ganchos comerciais finais...");
+      suggestions = await generateFallbackSuggestions(message, responseData.text, systemInstruction.includes("Operação"));
+    }
 
     const empresa = responseData.empresa;
     if (empresa && responseData.text.length > 300) {
       addInvestigation({
-        id: Date.now().toString(),
-        empresa,
+        id: Date.now().toString(), empresa,
         score: responseData.scorePorta?.score || 75,
         scoreLabel: responseData.scorePorta ? `${responseData.scorePorta.score}/100` : "ANALISADO",
-        gaps: [], familias: [],
-        isCliente: responseData.text.includes("✅ SIM"),
+        gaps: [], familias: [], isCliente: responseData.text.includes("✅ SIM"),
         modo: systemInstruction.includes("Operação") ? "Operação" : "Diretoria",
         data: new Date().toLocaleDateString("pt-BR"),
         resumo: responseData.text.substring(0, 150).replace(/[#*\n]/g, ' '),
@@ -998,21 +844,18 @@ export const generateNewSuggestions = async (contextText: string, previousSugges
       config: {
         systemInstruction: CONTINUITY_SYSTEM,
         responseMimeType: "application/json",
-        responseSchema: { type: Type.ARRAY, items: { type: Type.STRING } },
         temperature: 0.4,
         maxOutputTokens: 1024
       },
     });
 
-    const jsonText = response.text || "[]";
-    let json = JSON.parse(jsonText);
+    const cleanJsonText = (response.text || "[]").replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim();
+    let json = JSON.parse(cleanJsonText);
     if (!Array.isArray(json)) json = [];
 
     return json.map((item: any) => {
       if (typeof item === 'string') return item;
-      if (typeof item === 'object' && item !== null) {
-        return item.pergunta || item.sugestao || item.text || "Opção relacionada";
-      }
+      if (typeof item === 'object' && item !== null) return item.pergunta || item.sugestao || item.text || "Opção relacionada";
       return String(item);
     }).filter((s: string) => s && s.length > 2 && !s.includes("Opção relacionada")).slice(0, 3);
 
@@ -1026,11 +869,7 @@ export const generateConsolidatedDossier = async (history: Message[], systemInst
     const response = await ai.models.generateContent({
       model: TACTICAL_MODEL_ID,
       contents: prompt,
-      config: { 
-        systemInstruction, 
-        temperature: 0.2,
-        maxOutputTokens: 65536
-      }
+      config: { systemInstruction, temperature: 0.2, maxOutputTokens: 65536 }
     });
     return response.text || "Erro na consolidação.";
   } catch (error) { throw normalizeAppError(error, 'GEMINI'); }
