@@ -52,7 +52,7 @@ export default function WarRoom({ isOpen, onClose, isDarkMode }: WarRoomProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [status, setStatus] = useState('');
   const [queryCount, setQueryCount] = useState(0);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false); // Mobile drawer control
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -71,7 +71,7 @@ export default function WarRoom({ isOpen, onClose, isDarkMode }: WarRoomProps) {
     if (!text || isLoading) return;
 
     setInput('');
-    setIsSidebarOpen(false); // Close sidebar on mobile after sending
+    setIsSidebarOpen(false);
     const userMsg: WRMessage = { id: Date.now().toString(), role: 'user', text };
     const botId = (Date.now() + 1).toString();
     const loadingMsg: WRMessage = { id: botId, role: 'model', text: '', isLoading: true };
@@ -108,7 +108,7 @@ export default function WarRoom({ isOpen, onClose, isDarkMode }: WarRoomProps) {
   const handleClearAndSwitch = (newMode: WarRoomMode) => {
     setMessages([]);
     setMode(newMode);
-    setIsSidebarOpen(false); // Close sidebar on mobile after mode switch
+    setIsSidebarOpen(false);
   };
 
   if (!isOpen) return null;
@@ -191,7 +191,7 @@ export default function WarRoom({ isOpen, onClose, isDarkMode }: WarRoomProps) {
       {/* ============ MOBILE OVERLAY ============ */}
       {isSidebarOpen && (
         <div 
-          className="fixed inset-0 bg-black/50 z-40 md:hidden" 
+          className="fixed inset-0 bg-black/50 z-40 sm:hidden" 
           onClick={() => setIsSidebarOpen(false)}
         />
       )}
@@ -199,9 +199,9 @@ export default function WarRoom({ isOpen, onClose, isDarkMode }: WarRoomProps) {
       {/* ============ SIDEBAR ARSENAL ============ */}
       <div className={`
         ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
-        md:translate-x-0 md:relative
+        sm:translate-x-0 sm:relative
         fixed inset-y-0 left-0 z-50
-        w-80 md:w-72 flex-shrink-0 
+        w-80 sm:w-72 flex-shrink-0 
         border-r ${t.sidebarBdr} flex flex-col ${t.sidebarBg}
         transition-transform duration-300 ease-in-out
       `}>
@@ -212,7 +212,7 @@ export default function WarRoom({ isOpen, onClose, isDarkMode }: WarRoomProps) {
               <span className="text-2xl filter drop-shadow-lg">⚔️</span>
               <div>
                 <h2 className={`font-black uppercase tracking-[0.2em] text-xs ${t.headerTitle}`}>The War Room</h2>
-                <p className={`text-[10px] md:text-[9px] uppercase tracking-widest font-semibold ${t.headerSub}`}>Centro de Comando Tático</p>
+                <p className={`text-[10px] sm:text-[9px] uppercase tracking-widest font-semibold ${t.headerSub}`}>Centro de Comando Tático</p>
               </div>
             </div>
             <button onClick={onClose} className={`p-1.5 rounded-lg transition-all text-xs ${t.closeTxt}`}>✕</button>
@@ -221,7 +221,7 @@ export default function WarRoom({ isOpen, onClose, isDarkMode }: WarRoomProps) {
 
         {/* Competitor Selector */}
         <div className={`p-3 border-b ${t.sidebarBdr}`}>
-          <label className={`block text-[10px] md:text-[9px] font-bold uppercase tracking-[0.15em] ${t.labelTxt} mb-1.5`}>🎯 Concorrente Alvo</label>
+          <label className={`block text-[10px] sm:text-[9px] font-bold uppercase tracking-[0.15em] ${t.labelTxt} mb-1.5`}>🎯 Concorrente Alvo</label>
           <select
             value={target}
             onChange={(e) => setTarget(e.target.value)}
@@ -233,7 +233,7 @@ export default function WarRoom({ isOpen, onClose, isDarkMode }: WarRoomProps) {
 
         {/* Arsenal Cards */}
         <div className="flex-1 p-3 space-y-2 overflow-y-auto custom-scrollbar">
-          <p className={`text-[10px] md:text-[9px] font-bold uppercase tracking-[0.15em] ${t.labelTxt} mb-2`}>Arsenal de Inteligência</p>
+          <p className={`text-[10px] sm:text-[9px] font-bold uppercase tracking-[0.15em] ${t.labelTxt} mb-2`}>Arsenal de Inteligência</p>
           {(Object.keys(MODE_CONFIG) as WarRoomMode[]).map(m => {
             const c = MODE_CONFIG[m];
             const isActive = mode === m;
@@ -245,7 +245,7 @@ export default function WarRoom({ isOpen, onClose, isDarkMode }: WarRoomProps) {
                 onClick={() => !isLocked && handleClearAndSwitch(m)}
                 disabled={isLocked}
                 title={isLocked ? 'Limpe a conversa atual antes de trocar de modo' : c.label}
-                className={`w-full text-left p-3 md:p-3 rounded-xl border transition-all duration-200 group ${isActive
+                className={`w-full text-left p-3 sm:p-3 rounded-xl border transition-all duration-200 group ${isActive
                   ? `${accentBg[c.accent]} ${accentBorder[c.accent]} shadow-sm`
                   : isLocked
                     ? `${t.cardLocked} cursor-not-allowed opacity-50`
@@ -253,16 +253,16 @@ export default function WarRoom({ isOpen, onClose, isDarkMode }: WarRoomProps) {
                   }`}
               >
                 <div className="flex items-center gap-3">
-                  <span className={`text-xl md:text-lg transition-opacity flex-shrink-0 ${isActive ? '' : isLocked ? 'opacity-30' : 'opacity-60 group-hover:opacity-100'
+                  <span className={`text-xl sm:text-lg transition-opacity flex-shrink-0 ${isActive ? '' : isLocked ? 'opacity-30' : 'opacity-60 group-hover:opacity-100'
                     }`}>
                     {isLocked ? '🔒' : c.icon}
                   </span>
                   <div className="min-w-0 flex-1">
-                    <p className={`text-xs md:text-[11px] font-bold leading-tight mb-0.5 ${isActive ? accentText[c.accent] : isLocked ? t.cardSub : t.cardTxt
+                    <p className={`text-xs sm:text-[11px] font-bold leading-tight mb-0.5 ${isActive ? accentText[c.accent] : isLocked ? t.cardSub : t.cardTxt
                       }`}>
                       {c.label}
                     </p>
-                    <p className={`text-[10px] md:text-[9px] leading-snug ${t.cardSub}`}>
+                    <p className={`text-[10px] sm:text-[9px] leading-snug ${t.cardSub}`}>
                       {isLocked ? 'Limpe a conversa para ativar' : c.subtitle}
                     </p>
                   </div>
@@ -274,7 +274,7 @@ export default function WarRoom({ isOpen, onClose, isDarkMode }: WarRoomProps) {
 
         {/* Status Bar */}
         <div className={`p-3 border-t ${t.sidebarBdr} ${t.statusBg}`}>
-          <div className="flex items-center justify-between text-[10px] md:text-[9px]">
+          <div className="flex items-center justify-between text-[10px] sm:text-[9px]">
             <span className="flex items-center gap-1.5 text-emerald-500">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
               OPERACIONAL
@@ -287,12 +287,11 @@ export default function WarRoom({ isOpen, onClose, isDarkMode }: WarRoomProps) {
       {/* ============ MAIN TERMINAL ============ */}
       <div className={`flex-1 flex flex-col min-w-0 ${t.terminalBg}`}>
         {/* Terminal Header */}
-        <div className={`flex items-center justify-between px-3 md:px-5 py-3 border-b ${t.terminalBdr} ${t.terminalHdr}`}>
+        <div className={`flex items-center justify-between px-3 sm:px-5 py-3 border-b ${t.terminalBdr} ${t.terminalHdr}`}>
           <div className="flex items-center gap-3">
-            {/* Mobile hamburger button */}
             <button
               onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-              className={`md:hidden p-2 rounded-lg ${t.btnClear} border`}
+              className={`sm:hidden p-2 rounded-lg ${t.btnClear} border`}
             >
               ☰
             </button>
@@ -315,7 +314,7 @@ export default function WarRoom({ isOpen, onClose, isDarkMode }: WarRoomProps) {
         </div>
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto p-3 md:p-5 space-y-4 custom-scrollbar">
+        <div className="flex-1 overflow-y-auto p-3 sm:p-5 space-y-4 custom-scrollbar">
           {messages.length === 0 && (
             <div className="flex-1 flex items-center justify-center h-full px-4">
               <div className="text-center max-w-md">
@@ -339,7 +338,7 @@ export default function WarRoom({ isOpen, onClose, isDarkMode }: WarRoomProps) {
 
           {messages.map(msg => (
             <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-              <div className={`max-w-[95%] md:max-w-[85%] rounded-2xl px-3 md:px-4 py-3 ${msg.role === 'user'
+              <div className={`max-w-[95%] sm:max-w-[85%] rounded-2xl px-3 sm:px-4 py-3 ${msg.role === 'user'
                 ? `bg-gradient-to-br ${accentGrad[cfg.accent]} text-white shadow-lg`
                 : msg.isError
                   ? t.msgBotErr
@@ -381,8 +380,8 @@ export default function WarRoom({ isOpen, onClose, isDarkMode }: WarRoomProps) {
         </div>
 
         {/* Input */}
-        <div className={`p-3 md:p-4 border-t ${t.terminalBdr} ${t.inputWrap}`}>
-          <div className={`flex items-end gap-2 md:gap-3 rounded-xl border ${accentBorder[cfg.accent]} ${t.inputBg} p-2 transition-colors focus-within:shadow-sm`}>
+        <div className={`p-3 sm:p-4 border-t ${t.terminalBdr} ${t.inputWrap}`}>
+          <div className={`flex items-end gap-2 sm:gap-3 rounded-xl border ${accentBorder[cfg.accent]} ${t.inputBg} p-2 transition-colors focus-within:shadow-sm`}>
             <textarea
               ref={inputRef}
               value={input}
@@ -396,7 +395,7 @@ export default function WarRoom({ isOpen, onClose, isDarkMode }: WarRoomProps) {
             <button
               onClick={handleSend}
               disabled={!input.trim() || isLoading}
-              className={`px-3 md:px-4 py-2 rounded-lg text-xs font-black uppercase tracking-wider text-white ${accentBtn[cfg.accent]} transition-all disabled:opacity-30 disabled:cursor-not-allowed shadow-lg flex-shrink-0`}
+              className={`px-3 sm:px-4 py-2 rounded-lg text-xs font-black uppercase tracking-wider text-white ${accentBtn[cfg.accent]} transition-all disabled:opacity-30 disabled:cursor-not-allowed shadow-lg flex-shrink-0`}
             >
               {isLoading ? '⏳' : '▶'}
             </button>
