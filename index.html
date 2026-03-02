@@ -2,61 +2,42 @@
 <html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover" />
-    <meta name="mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>Senior Scout 360 | Sales Intelligence</title>
-    <link rel="stylesheet" href="/index.css">
-    <link rel="stylesheet" href="/mobile-responsive.css">
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
-    <style>
-      body {
-        font-family: 'Inter', sans-serif;
-        transition: background-color 0.3s ease, color 0.3s ease;
-        /* Prevent bounce scroll on iOS */
-        overscroll-behavior-y: contain;
-        -webkit-overflow-scrolling: touch;
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    
+    <!-- PWA Meta Tags -->
+    <meta name="application-name" content="Senior Scout 360" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Scout360" />
+    <meta name="format-detection" content="telephone=no" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="theme-color" content="#ef4444" />
+    <meta name="description" content="Inteligência comercial e análise de mercado para vendas B2B no agronegócio" />
+    
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="/manifest.json" />
+    
+    <!-- PWA Icons -->
+    <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
+    <link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png" />
+    <link rel="apple-touch-icon" href="/icon-192.png" />
+    <link rel="shortcut icon" href="/favicon.ico" />
+    
+    <title>Senior Scout 360</title>
+    
+    <!-- Service Worker Registration -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js')
+            .then(reg => console.log('✅ Service Worker registered:', reg.scope))
+            .catch(err => console.log('❌ SW registration failed:', err));
+        });
       }
-      .font-mono { font-family: 'JetBrains Mono', monospace; }
-      .dark ::-webkit-scrollbar { width: 8px; }
-      .dark ::-webkit-scrollbar-track { background: #0f172a; }
-      .dark ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
-      .dark ::-webkit-scrollbar-thumb:hover { background: #475569; }
-      .light ::-webkit-scrollbar { width: 8px; }
-      .light ::-webkit-scrollbar-track { background: #f1f5f9; }
-      .light ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
-      .light ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
-      @keyframes fade-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-      .animate-fade-in { animation: fade-in 0.6s ease-out forwards; }
-      @media print { body { background-color: white !important; color: black !important; } }
-      
-      /* Adicional: Fix para 100vh em mobile (conta com barra de endereço) */
-      @supports (-webkit-touch-callout: none) {
-        body {
-          min-height: -webkit-fill-available;
-        }
-      }
-    </style>
-  <script type="importmap">
-{
-  "imports": {
-    "react-dom/": "https://esm.sh/react-dom@^19.2.4/",
-    "react": "https://esm.sh/react@^19.2.4",
-    "react/": "https://esm.sh/react@^19.2.4/",
-    "@google/genai": "https://esm.sh/@google/genai@^1.41.0",
-    "uuid": "https://esm.sh/uuid@^13.0.0",
-    "react-markdown": "https://esm.sh/react-markdown@9?bundle",
-    "remark-gfm": "https://esm.sh/remark-gfm@4?bundle",
-    "remark-breaks": "https://esm.sh/remark-breaks@4?bundle",
-    "rehype-raw": "https://esm.sh/rehype-raw@7?bundle",
-    "framer-motion": "https://esm.sh/framer-motion@^12.34.2"
-  }
-}
-</script>
-</head>
+    </script>
+  </head>
   <body>
     <div id="root"></div>
-  <script type="module" src="/index.tsx"></script>
-</body>
+    <script type="module" src="/index.tsx"></script>
+  </body>
 </html>
