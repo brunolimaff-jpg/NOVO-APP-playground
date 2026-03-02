@@ -205,7 +205,20 @@ const generateBenchmarkKeywords = async (empresaNome: string, contexto: string):
   } catch { return []; }
 };
 
-// SUGESTÕES DE FALLBACK COM HERANÇA DE CONTEXTO (Corrigido o bug das sugestões ruins)
+// FUNÇÃO REINSERIDA: Usada pelo componente LoadingSmart
+export const generateLoadingCuriosities = async (context: string): Promise<string[]> => {
+  if (!context.trim()) return [];
+  try {
+    const response = await getGenAI().models.generateContent({
+      model: ROUTER_MODEL_ID,
+      contents: `Gere 6 curiosidades REAIS e VARIADAS sobre "${context}" (máx 120 chars cada).\n\nREGRAS:\n- VARIE o formato: NÃO comece todas com o mesmo nome. Alterne entre fatos da empresa, do setor e da região\n- Inclua dados específicos: números, anos, locais\n- Exemplo BOM: "Sapezal (MT) é um dos maiores municípios produtores de soja do Brasil"\n- Exemplo BOM: "O setor de grãos movimenta R$ 400 bi por ano no Brasil"\n- Exemplo RUIM: "Forte presença em mercados internacionais" (quem? onde? quanto?)\n- No máximo 2 das 6 podem citar o nome da empresa diretamente\n\nRetorne um JSON Array de strings.`,
+      config: { responseMimeType: 'application/json', temperature: 0.8, maxOutputTokens: 1024 }
+    });
+    return JSON.parse(response.text || "[]");
+  } catch { return []; }
+};
+
+// SUGESTÕES DE FALLBACK COM HERANÇA DE CONTEXTO
 const generateFallbackSuggestions = async (lastUserText: string, botResponseText: string, isOperacao: boolean, empresaAlvo: string | null): Promise<string[]> => {
   try {
     const isMegaPrompt = lastUserText.length > 300 && (lastUserText.includes('Protocolo de investigação') || lastUserText.includes('DIRETRIZ'));
@@ -424,4 +437,40 @@ export const generateConsolidatedDossier = async (history: Message[], systemInst
     });
     return response.text || "Erro na consolidação.";
   } catch (error) { throw normalizeAppError(error, 'GEMINI'); }
+};
+
+export const extractSpotterData = async (raw: string): Promise<SpotterExtractedData> => {
+  if (!raw.trim()) {
+    return {};
+  }
+  const systemInstruction = `
+Você é um analista SDR lendo uma ficha pública colada do ExactSpotter.
+
+TAREFA: Extrair APENAS os campos pedidos abaixo. Se um campo não aparecer, deixe como null ou lista vazia.
+FORMATO: Retorne EXCLUSIVAMENTE um JSON com as chaves: companyName, contactName, contactRole, contactEmail, contactPhone, segment, size, pains (array), currentSystems (array), summary.
+`;
+  const response = await getGenAI().models.generateContent({
+    model: ROUTER_MODEL_ID,
+    contents: [{ role: 'user', parts: [{ text: `${systemInstruction}\n\nFICHA COPIADA DO SPOTTER:\n\n${sanitizeExternalContent(raw)}` }] }],
+    config: { responseMimeType: 'application/json', temperature: 0.2, maxOutputTokens: 65536 },
+  });
+  try {
+    const text = response.text || '{}';
+    const parsed = JSON.parse(text);
+    return {
+      companyName: parsed.companyName || undefined,
+      contactName: parsed.contactName || undefined,
+      contactRole: parsed.contactRole || undefined,
+      contactEmail: parsed.contactEmail || undefined,
+      contactPhone: parsed.contactPhone || undefined,
+      segment: parsed.segment || undefined,
+      size: parsed.size || undefined,
+      pains: Array.isArray(parsed.pains) ? parsed.pains : [],
+      currentSystems: Array.isArray(parsed.currentSystems) ? parsed.currentSystems : [],
+      summary: parsed.summary || undefined,
+    };
+  } catch (err) {
+    console.error('Erro ao parsear JSON do Spotter:', err);
+    return {};
+  }
 };
