@@ -8,12 +8,6 @@ interface WarRoomProps {
   isDarkMode: boolean;
 }
 
-const COMPETITORS = [
-  'TOTVS', 'Sankhya', 'SAP', 'Aliare', 'Agrotis', 'CHB', 'Oracle',
-  'LG Lugar de Gente', 'Sólides', 'Metadados', 'ADP', 'Gupy',
-  'Intelipost', 'routEasy', 'Cobli', 'Lincros'
-];
-
 interface WRMessage {
   id: string;
   role: 'user' | 'model';
@@ -46,7 +40,6 @@ export default function WarRoom({ isOpen, onClose, isDarkMode }: WarRoomProps) {
   const dk = isDarkMode;
 
   const [mode, setMode] = useState<WarRoomMode>('tech');
-  const [target, setTarget] = useState('TOTVS');
   const [messages, setMessages] = useState<WRMessage[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -55,8 +48,6 @@ export default function WarRoom({ isOpen, onClose, isDarkMode }: WarRoomProps) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-
-  const hasConversation = messages.some(m => !m.isLoading && m.text);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -85,7 +76,8 @@ export default function WarRoom({ isOpen, onClose, isDarkMode }: WarRoomProps) {
         .filter(m => !m.isLoading && !m.isError)
         .map(m => ({ role: m.role, text: m.text }));
 
-      const result = await queryWarRoom(mode, text, history, target, setStatus);
+      // Concorrente agora é inferido do texto (removido dropdown)
+      const result = await queryWarRoom(mode, text, history, '', setStatus);
       setQueryCount(prev => prev + 1);
 
       setMessages(prev => prev.map(m =>
@@ -99,16 +91,16 @@ export default function WarRoom({ isOpen, onClose, isDarkMode }: WarRoomProps) {
       setIsLoading(false);
       setStatus('');
     }
-  }, [input, isLoading, messages, mode, target]);
+  }, [input, isLoading, messages, mode]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
   };
 
-  const handleClearAndSwitch = (newMode: WarRoomMode) => {
-    setMessages([]);
+  const handleModeSwitch = (newMode: WarRoomMode) => {
     setMode(newMode);
     setIsSidebarOpen(false);
+    // Histórico MANTIDO - usuário pode navegar entre modos livremente
   };
 
   if (!isOpen) return null;
@@ -123,7 +115,6 @@ export default function WarRoom({ isOpen, onClose, isDarkMode }: WarRoomProps) {
     headerBdr: dk ? 'border-red-900/50' : 'border-red-200',
     headerTitle: dk ? 'text-red-400' : 'text-red-700',
     headerSub: dk ? 'text-red-500/40' : 'text-red-800/50',
-    selectBg: dk ? 'bg-slate-800 border-slate-700 text-white' : 'bg-slate-50 border-slate-300 text-slate-900',
     labelTxt: dk ? 'text-slate-500' : 'text-slate-400',
     terminalBg: dk ? 'bg-slate-950' : 'bg-white',
     terminalHdr: dk ? 'bg-slate-900/80' : 'bg-slate-50',
@@ -141,7 +132,6 @@ export default function WarRoom({ isOpen, onClose, isDarkMode }: WarRoomProps) {
     textMain: dk ? 'text-white' : 'text-slate-900',
     cardInactive: dk ? 'border-slate-800/40 bg-slate-900/30 hover:bg-slate-800/30 hover:border-slate-700/60'
       : 'border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300',
-    cardLocked: dk ? 'border-slate-800/20 bg-slate-900/20' : 'border-slate-200/50 bg-slate-100/50',
     cardTxt: dk ? 'text-slate-300' : 'text-slate-700',
     cardSub: dk ? 'text-slate-500' : 'text-slate-400',
     srcBg: dk ? 'bg-slate-800/60 hover:bg-slate-700/60' : 'bg-slate-100 hover:bg-slate-200',
@@ -188,7 +178,7 @@ export default function WarRoom({ isOpen, onClose, isDarkMode }: WarRoomProps) {
   return (
     <div className={`fixed inset-0 z-50 flex ${t.pageBg} ${t.textMain} animate-fade-in`}>
 
-      {/* ============ MOBILE OVERLAY ============ */}
+      {/* MOBILE OVERLAY */}
       {isSidebarOpen && (
         <div 
           className="fixed inset-0 bg-black/50 z-40 sm:hidden" 
@@ -196,7 +186,7 @@ export default function WarRoom({ isOpen, onClose, isDarkMode }: WarRoomProps) {
         />
       )}
 
-      {/* ============ SIDEBAR ARSENAL ============ */}
+      {/* SIDEBAR ARSENAL */}
       <div className={`
         ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
         sm:translate-x-0 sm:relative
@@ -219,51 +209,36 @@ export default function WarRoom({ isOpen, onClose, isDarkMode }: WarRoomProps) {
           </div>
         </div>
 
-        {/* Competitor Selector */}
-        <div className={`p-3 border-b ${t.sidebarBdr}`}>
-          <label className={`block text-[10px] sm:text-[9px] font-bold uppercase tracking-[0.15em] ${t.labelTxt} mb-1.5`}>🎯 Concorrente Alvo</label>
-          <select
-            value={target}
-            onChange={(e) => setTarget(e.target.value)}
-            className={`w-full p-2 rounded-lg border text-xs font-semibold outline-none transition-colors cursor-pointer appearance-none ${t.selectBg}`}
-          >
-            {COMPETITORS.map(c => <option key={c} value={c}>{c}</option>)}
-          </select>
-        </div>
-
         {/* Arsenal Cards */}
         <div className="flex-1 p-3 space-y-2 overflow-y-auto custom-scrollbar">
           <p className={`text-[10px] sm:text-[9px] font-bold uppercase tracking-[0.15em] ${t.labelTxt} mb-2`}>Arsenal de Inteligência</p>
           {(Object.keys(MODE_CONFIG) as WarRoomMode[]).map(m => {
             const c = MODE_CONFIG[m];
             const isActive = mode === m;
-            const isLocked = !isActive && (hasConversation || isLoading);
 
             return (
               <button
                 key={m}
-                onClick={() => !isLocked && handleClearAndSwitch(m)}
-                disabled={isLocked}
-                title={isLocked ? 'Limpe a conversa atual antes de trocar de modo' : c.label}
+                onClick={() => handleModeSwitch(m)}
                 className={`w-full text-left p-3 sm:p-3 rounded-xl border transition-all duration-200 group ${isActive
                   ? `${accentBg[c.accent]} ${accentBorder[c.accent]} shadow-sm`
-                  : isLocked
-                    ? `${t.cardLocked} cursor-not-allowed opacity-50`
-                    : t.cardInactive
+                  : t.cardInactive
                   }`}
               >
                 <div className="flex items-center gap-3">
-                  <span className={`text-xl sm:text-lg transition-opacity flex-shrink-0 ${isActive ? '' : isLocked ? 'opacity-30' : 'opacity-60 group-hover:opacity-100'
-                    }`}>
-                    {isLocked ? '🔒' : c.icon}
+                  <span className={`text-xl sm:text-lg transition-opacity flex-shrink-0 ${
+                    isActive ? '' : 'opacity-60 group-hover:opacity-100'
+                  }`}>
+                    {c.icon}
                   </span>
                   <div className="min-w-0 flex-1">
-                    <p className={`text-xs sm:text-[11px] font-bold leading-tight mb-0.5 ${isActive ? accentText[c.accent] : isLocked ? t.cardSub : t.cardTxt
-                      }`}>
+                    <p className={`text-xs sm:text-[11px] font-bold leading-tight mb-0.5 ${
+                      isActive ? accentText[c.accent] : t.cardTxt
+                    }`}>
                       {c.label}
                     </p>
                     <p className={`text-[10px] sm:text-[9px] leading-snug ${t.cardSub}`}>
-                      {isLocked ? 'Limpe a conversa para ativar' : c.subtitle}
+                      {c.subtitle}
                     </p>
                   </div>
                 </div>
@@ -284,7 +259,7 @@ export default function WarRoom({ isOpen, onClose, isDarkMode }: WarRoomProps) {
         </div>
       </div>
 
-      {/* ============ MAIN TERMINAL ============ */}
+      {/* MAIN TERMINAL */}
       <div className={`flex-1 flex flex-col min-w-0 ${t.terminalBg}`}>
         {/* Terminal Header */}
         <div className={`flex items-center justify-between px-3 sm:px-5 py-3 border-b ${t.terminalBdr} ${t.terminalHdr}`}>
@@ -298,7 +273,7 @@ export default function WarRoom({ isOpen, onClose, isDarkMode }: WarRoomProps) {
             <span className="text-xl">{cfg.icon}</span>
             <div className="min-w-0">
               <h3 className={`text-sm font-black uppercase tracking-wide ${accentText[cfg.accent]} truncate`}>{cfg.label}</h3>
-              <p className={`text-[10px] ${t.emptySub} truncate`}>{cfg.subtitle} {mode !== 'tech' && `• vs ${target}`}</p>
+              <p className={`text-[10px] ${t.emptySub} truncate`}>{cfg.subtitle}</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
