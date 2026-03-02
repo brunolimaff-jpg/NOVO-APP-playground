@@ -10,7 +10,7 @@ const SettingsDrawer = React.lazy(() => import('./SettingsDrawer'));
 const WarRoom = React.lazy(() => import('./WarRoom'));
 import { cleanTitle } from '../utils/textCleaners';
 import ConfirmPopover from './ConfirmPopover';
-import { parseSmartOptions } from './SmartOptions';
+import { parseSmartOptions } from './SmartOptions'; // <-- ADICIONADO AQUI
 
 const QUICK_ACTIONS = [
   { icon: "🎯", label: "Comparar", prompt: "Compare com o principal concorrente dessa empresa" },
@@ -133,11 +133,11 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
   const lastBotWithSuggestionsIndex = useMemo(() =>
     [...messages]
       .map((m, i) => ({ m, i }))
-      .filter(({ m }) => m.sender === Sender.Bot && ((m.suggestions && m.suggestions.length > 0) || parseSmartOptions(m.text).options.length > 0))
+      .filter(({ m }) => m.sender === Sender.Bot && ((m.suggestions && m.suggestions.length > 0) || parseSmartOptions(m.text).options.length > 0)) // <-- CORREÇÃO AQUI
       .map(({ i }) => i)
       .pop(),
     [messages]);
-
+    
   const lastUserIndex = useMemo(() =>
     [...messages].map((m, i) => ({ m, i })).filter(({ m }) => m.sender === Sender.User).map(({ i }) => i).pop(),
     [messages]);
@@ -195,12 +195,13 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
     hideSuggestionsForMessageId, setInput,
     sessionId: currentSession?.id, userId, processing, lastUserQuery,
     onStop: handleStopWithToast,
-    onSendMessage,
+    onSendMessage, // <-- CORREÇÃO AQUI (Para as sugestões clicáveis enviarem sozinhas)
   }), [
     messages, isLoading, isDarkMode, mode, onRetry, onDeleteMessage, onReportError,
     onFeedback, onSendFeedback, onToggleMessageSources, onDeepDive, onRegenerateSuggestions,
     pendingDeleteId, hideSuggestionsForMessageId,
-    currentSession?.id, userId, processing, lastUserQuery, handleStopWithToast, onSendMessage,
+    currentSession?.id, userId, processing, lastUserQuery, handleStopWithToast,
+    onSendMessage, // <-- CORREÇÃO AQUI NAS DEPENDÊNCIAS
   ]);
 
   return (
