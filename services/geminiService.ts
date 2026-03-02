@@ -256,8 +256,11 @@ export const sendMessageToGemini = async (message: string, history: Message[], s
     let embeddedCompany = null;
     
     // Se não encontrou o nome entre colchetes, mas é Mega Prompt, usa a empresa da sessão ativa
-    if (isMegaPromptMessage && !embeddedCompany && currentCompanyContext?.empresa) {
-        embeddedCompany = currentCompanyContext.empresa;
+        if (isMegaPromptMessage) {
+      // Como o novo formato é "Dossiê completo: Tema\n\nPrompt...", o split continua igual
+      const parts = message.split('\n\n'); 
+      finalInstruction = `${parts.slice(1).join('\n\n')}\n\n---\n\n${finalInstruction}`;
+      effectiveUserMessage = `Execute o protocolo de investigação forense para a empresa: ${empresa || 'a empresa alvo'}.`;
     }
 
     const ragQuery = isMegaPromptMessage ? (embeddedCompany || 'Empresa Alvo') : message;
