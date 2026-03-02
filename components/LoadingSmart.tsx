@@ -52,10 +52,7 @@ const LoadingSmart: React.FC<LoadingSmartProps> = ({
       generateLoadingCuriosities(searchQuery).then(facts => {
         if (facts && facts.length > 0) {
           curiositiesRef.current = facts;
-          // Só mostra curiosidade se não houver status ativo do Gemini
-          if (!processing?.stage || processing.stage === 'Iniciando análise') {
-            setCurrentInsight(facts[0]);
-          }
+          setCurrentInsight(facts[0]);
         } else {
           curiositiesRef.current = [
             "O Mato Grosso lidera a produção de soja do Brasil — Fonte: IBGE",
@@ -63,9 +60,7 @@ const LoadingSmart: React.FC<LoadingSmartProps> = ({
             "O Brasil é o maior exportador de soja do mundo — Fonte: CONAB",
             "O agronegócio representa 25% do PIB brasileiro — Fonte: IBGE"
           ];
-          if (!processing?.stage || processing.stage === 'Iniciando análise') {
-            setCurrentInsight(curiositiesRef.current[0]);
-          }
+          setCurrentInsight(curiositiesRef.current[0]);
         }
       }).catch(() => {
         curiositiesRef.current = [
@@ -73,21 +68,14 @@ const LoadingSmart: React.FC<LoadingSmartProps> = ({
           "A Senior atende mais de 13.000 grupos econômicos — Fonte: Senior",
           "O Brasil é o maior exportador de soja do mundo — Fonte: CONAB"
         ];
-        if (!processing?.stage || processing.stage === 'Iniciando análise') {
-          setCurrentInsight(curiositiesRef.current[0]);
-        }
+        setCurrentInsight(curiositiesRef.current[0]);
       });
     }
   }, [isLoading, searchQuery]);
 
-  // 3. Ciclo de rotação de curiosidades (DESABILITADO quando há status do Gemini)
+  // 3. Ciclo de rotação de curiosidades (SEMPRE ATIVO)
   const cycleCuriosity = useCallback(() => {
     if (timerRef.current) clearTimeout(timerRef.current);
-
-    // Se tem status ativo do Gemini, não rotaciona curiosidades
-    if (processing?.stage && processing.stage !== 'Iniciando análise' && processing.stage !== 'Investigando...') {
-      return;
-    }
 
     setIsFadingOut(true);
 
@@ -105,7 +93,7 @@ const LoadingSmart: React.FC<LoadingSmartProps> = ({
 
       timerRef.current = setTimeout(cycleCuriosity, 12000);
     }, FADE_DURATION);
-  }, [processing?.stage]);
+  }, []);
 
   // 4. Controle de Exibição
   useEffect(() => {
@@ -128,10 +116,6 @@ const LoadingSmart: React.FC<LoadingSmartProps> = ({
   const displayStage = processing?.stage || "Investigando...";
   const completedStages = processing?.completedStages || [];
   const totalSteps = completedStages.length + 1;
-
-  // Decide se mostra status do Gemini ou curiosidade
-  const hasRealStatus = displayStage && displayStage !== 'Iniciando análise' && displayStage !== 'Investigando...';
-  const showCuriosity = !hasRealStatus && currentInsight;
 
   return (
     <div className={`
@@ -217,36 +201,18 @@ const LoadingSmart: React.FC<LoadingSmartProps> = ({
         </div>
       </div>
 
-      {/* CURIOSIDADES (só aparece quando NÃO há status real do Gemini) */}
-      {showCuriosity && (
-        <div className={`pt-3 border-t ${
-          isDarkMode ? 'border-emerald-500/10' : 'border-emerald-200'
-        } transition-opacity duration-300 ${
-          isFadingOut ? 'opacity-0' : 'opacity-100'
+      {/* CURIOSIDADES PERSONALIZADAS (SEMPRE VISÍVEL) */}
+      <div className={`pt-3 border-t ${
+        isDarkMode ? 'border-emerald-500/10' : 'border-emerald-200'
+      } transition-opacity duration-300 ${
+        isFadingOut ? 'opacity-0' : 'opacity-100'
+      }`}>
+        <p className={`text-sm leading-relaxed ${
+          isDarkMode ? 'text-slate-400' : 'text-slate-600'
         }`}>
-          <p className={`text-sm leading-relaxed ${
-            isDarkMode ? 'text-slate-400' : 'text-slate-600'
-          }`}>
-            💡 {currentInsight}
-          </p>
-        </div>
-      )}
-
-      {/* STATUS DO GEMINI (aparece quando há status real) */}
-      {hasRealStatus && (
-        <div className={`pt-3 border-t ${
-          isDarkMode ? 'border-emerald-500/20' : 'border-emerald-300'
-        } animate-fade-in`}>
-          <div className="flex items-start gap-2">
-            <span className="text-lg">🔍</span>
-            <p className={`text-sm font-medium leading-relaxed ${
-              isDarkMode ? 'text-emerald-300' : 'text-emerald-700'
-            }`}>
-              {displayStage}
-            </p>
-          </div>
-        </div>
-      )}
+          💡 {currentInsight}
+        </p>
+      </div>
     </div>
   );
 };
