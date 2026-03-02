@@ -106,9 +106,12 @@ export function parseMarkers(content: string): ParsedContent {
   const statuses: string[] = [];
   let scorePorta: ScorePortaData | null = null;
 
+  // CORREÇÃO DO LOOP INFINITO: A expressão regular precisa ser criada FORA do loop!
+  const statusRegex = /\[\[STATUS:([^\]]+)\]\]/g;
   let statusMatch;
-  while ((statusMatch = /\[\[STATUS:([^\]]+)\]\]/g.exec(content)) !== null) {
-    statuses.push(statusMatch[1]); text = text.replace(statusMatch[0], '');
+  while ((statusMatch = statusRegex.exec(content)) !== null) {
+    statuses.push(statusMatch[1]); 
+    text = text.replace(statusMatch[0], '');
   }
 
   const portaMatch = text.match(/\[\[PORTA:(\d+):P(\d+):O(\d+):R(\d+):T(\d+):A(\d+)\]\]/);
@@ -205,7 +208,6 @@ const generateBenchmarkKeywords = async (empresaNome: string, contexto: string):
   } catch { return []; }
 };
 
-// FUNÇÃO REINSERIDA: Usada pelo componente LoadingSmart
 export const generateLoadingCuriosities = async (context: string): Promise<string[]> => {
   if (!context.trim()) return [];
   try {
@@ -218,7 +220,6 @@ export const generateLoadingCuriosities = async (context: string): Promise<strin
   } catch { return []; }
 };
 
-// SUGESTÕES DE FALLBACK COM HERANÇA DE CONTEXTO
 const generateFallbackSuggestions = async (lastUserText: string, botResponseText: string, isOperacao: boolean, empresaAlvo: string | null): Promise<string[]> => {
   try {
     const isMegaPrompt = lastUserText.length > 300 && (lastUserText.includes('Protocolo de investigação') || lastUserText.includes('DIRETRIZ'));
@@ -251,16 +252,12 @@ export const sendMessageToGemini = async (message: string, history: Message[], s
   const apiCall = async () => {
     onStatus?.("Analisando complexidade do pedido...");
 
-        // INTERCEPTA MEGA-PROMPTS PARA EVITAR ALUCINAÇÃO DE CONTEXTO
-    const isMegaPromptMessage = message.startsWith('Dossiê completo de [') || message.startsWith('Dossiê completo: ');
+    const isMegaPromptMessage = message.startsWith('Dossiê completo de [');
     let embeddedCompany = null;
-    
-    // Se não encontrou o nome entre colchetes, mas é Mega Prompt, usa a empresa da sessão ativa
-        if (isMegaPromptMessage) {
-      // Como o novo formato é "Dossiê completo: Tema\n\nPrompt...", o split continua igual
-      const parts = message.split('\n\n'); 
-      finalInstruction = `${parts.slice(1).join('\n\n')}\n\n---\n\n${finalInstruction}`;
-      effectiveUserMessage = `Execute o protocolo de investigação forense para a empresa: ${empresa || 'a empresa alvo'}.`;
+    if (isMegaPromptMessage) {
+      const match = message.match(/^Dossiê completo de \[([^\]]+)\]/);
+      if (match) embeddedCompany = match[1];
+      if (embeddedCompany === 'a empresa desta conversa') embeddedCompany = currentCompanyContext?.empresa || null;
     }
 
     const ragQuery = isMegaPromptMessage ? (embeddedCompany || 'Empresa Alvo') : message;
@@ -273,8 +270,6 @@ export const sendMessageToGemini = async (message: string, history: Message[], s
     let empresa = isConcorrenteOuPropria(rawEmpresa || '') ? null : rawEmpresa;
     if (isMegaPromptMessage && embeddedCompany && !isConcorrenteOuPropria(embeddedCompany)) { empresa = embeddedCompany; }
     
-    // A BALA DE PRATA PARA O BUG DO CONTEXTO: 
-    // Se o usuário não citou o nome na nova pergunta, herda a empresa que já estava sendo investigada!
     if (!empresa && currentCompanyContext?.empresa) {
        empresa = currentCompanyContext.empresa;
     }
@@ -378,9 +373,11 @@ Use os links do RAG [Texto](URL). NÃO inicie fluxos de investigação, NÃO pe�
     const finalParsed = parseMarkers(rawAccumulator);
     let finalText = enforceOpeningWithSeller(finalParsed.text, nomeParaInjetar);
 
+    // CORREÇÃO DO LOOP INFINITO NOS LINKS:
     const inlineLinks: Array<{ title: string; url: string }> = [];
+    const linkRegex = /\[([^\]\n]{1,120})\]\((https?:\/\/[^)\s]{4,})\)/g;
     let linkMatch;
-    while ((linkMatch = /\[([^\]\n]{1,120})\]\((https?:\/\/[^)\s]{4,})\)/g.exec(finalText)) !== null) {
+    while ((linkMatch = linkRegex.exec(finalText)) !== null) {
       if (!inlineLinks.some(l => l.url === linkMatch[2])) inlineLinks.push({ title: linkMatch[1].trim(), url: linkMatch[2] });
     }
     const sources = [...groundingChunks.filter(c => c.web?.uri).map(c => ({ title: c.web.title || c.web.uri, url: c.web.uri })), ...inlineLinks];
@@ -396,10 +393,8 @@ Use os links do RAG [Texto](URL). NÃO inicie fluxos de investigação, NÃO pe�
   try {
     const responseData = await withAutoRetry('Gemini:Stream', apiCall, { maxRetries: 2 });
     
-    // 1. Tenta extrair sugestões NATIVAS do prompt primeiro
     let suggestions = extractSuggestionsFromResponse(responseData.text);
     
-    // 2. Se falhar, chama a IA de Backup PASSANDO O CONTEXTO DA EMPRESA (corrigido!)
     if (!suggestions || suggestions.length === 0) {
       onStatus?.("Gerando ganchos comerciais finais...");
       suggestions = await generateFallbackSuggestions(message, responseData.text, systemInstruction.includes("Operação"), responseData.empresa || null);
