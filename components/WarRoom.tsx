@@ -52,10 +52,10 @@ export default function WarRoom({ isOpen, onClose, isDarkMode }: WarRoomProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [status, setStatus] = useState('');
   const [queryCount, setQueryCount] = useState(0);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false); // Mobile drawer control
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  // Conversation is "active" if there are non-empty messages
   const hasConversation = messages.some(m => !m.isLoading && m.text);
 
   useEffect(() => {
@@ -71,6 +71,7 @@ export default function WarRoom({ isOpen, onClose, isDarkMode }: WarRoomProps) {
     if (!text || isLoading) return;
 
     setInput('');
+    setIsSidebarOpen(false); // Close sidebar on mobile after sending
     const userMsg: WRMessage = { id: Date.now().toString(), role: 'user', text };
     const botId = (Date.now() + 1).toString();
     const loadingMsg: WRMessage = { id: botId, role: 'model', text: '', isLoading: true };
@@ -107,13 +108,13 @@ export default function WarRoom({ isOpen, onClose, isDarkMode }: WarRoomProps) {
   const handleClearAndSwitch = (newMode: WarRoomMode) => {
     setMessages([]);
     setMode(newMode);
+    setIsSidebarOpen(false); // Close sidebar on mobile after mode switch
   };
 
   if (!isOpen) return null;
 
   const cfg = MODE_CONFIG[mode];
 
-  // ─── THEME TOKENS ─────────────────────────────────────────
   const t = {
     pageBg: dk ? 'bg-slate-950' : 'bg-slate-50',
     sidebarBg: dk ? 'bg-slate-900' : 'bg-white',
@@ -157,7 +158,6 @@ export default function WarRoom({ isOpen, onClose, isDarkMode }: WarRoomProps) {
     srcLabel: dk ? 'text-slate-500' : 'text-slate-400',
   };
 
-  // Accent colors per mode
   const accentGrad: Record<string, string> = {
     blue: 'from-blue-600 to-blue-700', red: 'from-red-600 to-red-700',
     amber: 'from-amber-500 to-amber-700', purple: 'from-purple-600 to-purple-700',
@@ -188,8 +188,23 @@ export default function WarRoom({ isOpen, onClose, isDarkMode }: WarRoomProps) {
   return (
     <div className={`fixed inset-0 z-50 flex ${t.pageBg} ${t.textMain} animate-fade-in`}>
 
+      {/* ============ MOBILE OVERLAY ============ */}
+      {isSidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-40 md:hidden" 
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      )}
+
       {/* ============ SIDEBAR ARSENAL ============ */}
-      <div className={`w-72 flex-shrink-0 border-r ${t.sidebarBdr} flex flex-col ${t.sidebarBg}`}>
+      <div className={`
+        ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+        md:translate-x-0 md:relative
+        fixed inset-y-0 left-0 z-50
+        w-80 md:w-72 flex-shrink-0 
+        border-r ${t.sidebarBdr} flex flex-col ${t.sidebarBg}
+        transition-transform duration-300 ease-in-out
+      `}>
         {/* Header */}
         <div className={`p-4 border-b ${t.headerBdr} ${t.headerBg}`}>
           <div className="flex items-center justify-between">
@@ -197,7 +212,7 @@ export default function WarRoom({ isOpen, onClose, isDarkMode }: WarRoomProps) {
               <span className="text-2xl filter drop-shadow-lg">⚔️</span>
               <div>
                 <h2 className={`font-black uppercase tracking-[0.2em] text-xs ${t.headerTitle}`}>The War Room</h2>
-                <p className={`text-[9px] uppercase tracking-widest font-semibold ${t.headerSub}`}>Centro de Comando Tático</p>
+                <p className={`text-[10px] md:text-[9px] uppercase tracking-widest font-semibold ${t.headerSub}`}>Centro de Comando Tático</p>
               </div>
             </div>
             <button onClick={onClose} className={`p-1.5 rounded-lg transition-all text-xs ${t.closeTxt}`}>✕</button>
@@ -206,7 +221,7 @@ export default function WarRoom({ isOpen, onClose, isDarkMode }: WarRoomProps) {
 
         {/* Competitor Selector */}
         <div className={`p-3 border-b ${t.sidebarBdr}`}>
-          <label className={`block text-[9px] font-bold uppercase tracking-[0.15em] ${t.labelTxt} mb-1.5`}>🎯 Concorrente Alvo</label>
+          <label className={`block text-[10px] md:text-[9px] font-bold uppercase tracking-[0.15em] ${t.labelTxt} mb-1.5`}>🎯 Concorrente Alvo</label>
           <select
             value={target}
             onChange={(e) => setTarget(e.target.value)}
@@ -218,7 +233,7 @@ export default function WarRoom({ isOpen, onClose, isDarkMode }: WarRoomProps) {
 
         {/* Arsenal Cards */}
         <div className="flex-1 p-3 space-y-2 overflow-y-auto custom-scrollbar">
-          <p className={`text-[9px] font-bold uppercase tracking-[0.15em] ${t.labelTxt} mb-2`}>Arsenal de Inteligência</p>
+          <p className={`text-[10px] md:text-[9px] font-bold uppercase tracking-[0.15em] ${t.labelTxt} mb-2`}>Arsenal de Inteligência</p>
           {(Object.keys(MODE_CONFIG) as WarRoomMode[]).map(m => {
             const c = MODE_CONFIG[m];
             const isActive = mode === m;
@@ -230,24 +245,24 @@ export default function WarRoom({ isOpen, onClose, isDarkMode }: WarRoomProps) {
                 onClick={() => !isLocked && handleClearAndSwitch(m)}
                 disabled={isLocked}
                 title={isLocked ? 'Limpe a conversa atual antes de trocar de modo' : c.label}
-                className={`w-full text-left p-3 rounded-xl border transition-all duration-200 group ${isActive
+                className={`w-full text-left p-3 md:p-3 rounded-xl border transition-all duration-200 group ${isActive
                   ? `${accentBg[c.accent]} ${accentBorder[c.accent]} shadow-sm`
                   : isLocked
                     ? `${t.cardLocked} cursor-not-allowed opacity-50`
                     : t.cardInactive
                   }`}
               >
-                <div className="flex items-center gap-2.5">
-                  <span className={`text-lg transition-opacity ${isActive ? '' : isLocked ? 'opacity-30' : 'opacity-60 group-hover:opacity-100'
+                <div className="flex items-center gap-3">
+                  <span className={`text-xl md:text-lg transition-opacity flex-shrink-0 ${isActive ? '' : isLocked ? 'opacity-30' : 'opacity-60 group-hover:opacity-100'
                     }`}>
                     {isLocked ? '🔒' : c.icon}
                   </span>
                   <div className="min-w-0 flex-1">
-                    <p className={`text-[11px] font-bold truncate ${isActive ? accentText[c.accent] : isLocked ? t.cardSub : t.cardTxt
+                    <p className={`text-xs md:text-[11px] font-bold leading-tight mb-0.5 ${isActive ? accentText[c.accent] : isLocked ? t.cardSub : t.cardTxt
                       }`}>
                       {c.label}
                     </p>
-                    <p className={`text-[9px] truncate ${t.cardSub}`}>
+                    <p className={`text-[10px] md:text-[9px] leading-snug ${t.cardSub}`}>
                       {isLocked ? 'Limpe a conversa para ativar' : c.subtitle}
                     </p>
                   </div>
@@ -259,7 +274,7 @@ export default function WarRoom({ isOpen, onClose, isDarkMode }: WarRoomProps) {
 
         {/* Status Bar */}
         <div className={`p-3 border-t ${t.sidebarBdr} ${t.statusBg}`}>
-          <div className="flex items-center justify-between text-[9px]">
+          <div className="flex items-center justify-between text-[10px] md:text-[9px]">
             <span className="flex items-center gap-1.5 text-emerald-500">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
               OPERACIONAL
@@ -272,12 +287,19 @@ export default function WarRoom({ isOpen, onClose, isDarkMode }: WarRoomProps) {
       {/* ============ MAIN TERMINAL ============ */}
       <div className={`flex-1 flex flex-col min-w-0 ${t.terminalBg}`}>
         {/* Terminal Header */}
-        <div className={`flex items-center justify-between px-5 py-3 border-b ${t.terminalBdr} ${t.terminalHdr}`}>
+        <div className={`flex items-center justify-between px-3 md:px-5 py-3 border-b ${t.terminalBdr} ${t.terminalHdr}`}>
           <div className="flex items-center gap-3">
+            {/* Mobile hamburger button */}
+            <button
+              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+              className={`md:hidden p-2 rounded-lg ${t.btnClear} border`}
+            >
+              ☰
+            </button>
             <span className="text-xl">{cfg.icon}</span>
-            <div>
-              <h3 className={`text-sm font-black uppercase tracking-wide ${accentText[cfg.accent]}`}>{cfg.label}</h3>
-              <p className={`text-[10px] ${t.emptySub}`}>{cfg.subtitle} {mode !== 'tech' && `• vs ${target}`}</p>
+            <div className="min-w-0">
+              <h3 className={`text-sm font-black uppercase tracking-wide ${accentText[cfg.accent]} truncate`}>{cfg.label}</h3>
+              <p className={`text-[10px] ${t.emptySub} truncate`}>{cfg.subtitle} {mode !== 'tech' && `• vs ${target}`}</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -286,16 +308,16 @@ export default function WarRoom({ isOpen, onClose, isDarkMode }: WarRoomProps) {
                 onClick={() => setMessages([])}
                 className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider border transition-all ${t.btnClear}`}
               >
-                🗑️ Limpar
+                🗑️ <span className="hidden sm:inline">Limpar</span>
               </button>
             )}
           </div>
         </div>
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto p-5 space-y-4 custom-scrollbar">
+        <div className="flex-1 overflow-y-auto p-3 md:p-5 space-y-4 custom-scrollbar">
           {messages.length === 0 && (
-            <div className="flex-1 flex items-center justify-center h-full">
+            <div className="flex-1 flex items-center justify-center h-full px-4">
               <div className="text-center max-w-md">
                 <span className={`text-5xl block mb-4 ${t.emptyIcon}`}>{cfg.icon}</span>
                 <h4 className={`font-semibold text-sm mb-2 ${t.emptyTxt}`}>{cfg.label}</h4>
@@ -317,7 +339,7 @@ export default function WarRoom({ isOpen, onClose, isDarkMode }: WarRoomProps) {
 
           {messages.map(msg => (
             <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-              <div className={`max-w-[85%] rounded-2xl px-4 py-3 ${msg.role === 'user'
+              <div className={`max-w-[95%] md:max-w-[85%] rounded-2xl px-3 md:px-4 py-3 ${msg.role === 'user'
                 ? `bg-gradient-to-br ${accentGrad[cfg.accent]} text-white shadow-lg`
                 : msg.isError
                   ? t.msgBotErr
@@ -359,8 +381,8 @@ export default function WarRoom({ isOpen, onClose, isDarkMode }: WarRoomProps) {
         </div>
 
         {/* Input */}
-        <div className={`p-4 border-t ${t.terminalBdr} ${t.inputWrap}`}>
-          <div className={`flex items-end gap-3 rounded-xl border ${accentBorder[cfg.accent]} ${t.inputBg} p-2 transition-colors focus-within:shadow-sm`}>
+        <div className={`p-3 md:p-4 border-t ${t.terminalBdr} ${t.inputWrap}`}>
+          <div className={`flex items-end gap-2 md:gap-3 rounded-xl border ${accentBorder[cfg.accent]} ${t.inputBg} p-2 transition-colors focus-within:shadow-sm`}>
             <textarea
               ref={inputRef}
               value={input}
@@ -374,7 +396,7 @@ export default function WarRoom({ isOpen, onClose, isDarkMode }: WarRoomProps) {
             <button
               onClick={handleSend}
               disabled={!input.trim() || isLoading}
-              className={`px-4 py-2 rounded-lg text-xs font-black uppercase tracking-wider text-white ${accentBtn[cfg.accent]} transition-all disabled:opacity-30 disabled:cursor-not-allowed shadow-lg`}
+              className={`px-3 md:px-4 py-2 rounded-lg text-xs font-black uppercase tracking-wider text-white ${accentBtn[cfg.accent]} transition-all disabled:opacity-30 disabled:cursor-not-allowed shadow-lg flex-shrink-0`}
             >
               {isLoading ? '⏳' : '▶'}
             </button>
