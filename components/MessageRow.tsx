@@ -33,6 +33,7 @@ export interface MessageRowData {
   processing?: { stage?: string; completedStages?: string[] } | string[];
   lastUserQuery?: string;
   onStop?: () => void;
+  onSendMessage?: (text: string) => void;
 }
 
 interface MessageRowProps {
@@ -45,7 +46,7 @@ const MessageRow = memo(({ index, data }: MessageRowProps) => {
     messages, isLoading, isDarkMode, mode, onRetry, onDeleteMessage, onReportError,
     onFeedback, onSendFeedback, onToggleMessageSources, onDeepDive, onRegenerateSuggestions,
     handleDeleteWithUndo, pendingDeleteId, hideSuggestionsForMessageId,
-    setInput, sessionId, userId, processing, lastUserQuery, onStop,
+    setInput, sessionId, userId, processing, lastUserQuery, onStop, onSendMessage
   } = data;
 
   const msg = messages[index];
@@ -120,7 +121,14 @@ const MessageRow = memo(({ index, data }: MessageRowProps) => {
               <SectionalBotMessage
                 message={{ ...msg, groundingSources: displaySources }}
                 sessionId={sessionId} userId={userId} isDarkMode={isDarkMode} mode={mode}
-                onPreFillInput={setInput} onRegenerateSuggestions={onRegenerateSuggestions}
+                onPreFillInput={(text) => {
+                  if (onSendMessage) {
+                    onSendMessage(text);
+                  } else {
+                    setInput(text);
+                  }
+                }} 
+                onRegenerateSuggestions={onRegenerateSuggestions}
                 hideSuggestions={msg.id === hideSuggestionsForMessageId}
               />
               {isLast && !isLoading && onDeepDive && <DeepDiveTopics onSelectTopic={onDeepDive} />}
