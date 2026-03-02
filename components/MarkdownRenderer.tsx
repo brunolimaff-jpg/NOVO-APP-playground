@@ -113,12 +113,17 @@ function sanitizeMermaidCode(input: string): string {
   let code = input
     .replace(/<br\s*\/?>\s*/gi, '\n')
     .replace(/&lt;br\s*\/?&gt;\s*/gi, '\n')
-    .replace(/<!--[\s\S]*?-->/g, '')
+    .replace(//g, '')
     .replace(/[\u{1F000}-\u{1FFFF}]/gu, '')
     .replace(/[\u2600-\u27BF]/gu, '')
     .replace(/[\u2013\u2014]/g, '-')
     .replace(/^[^a-zA-Z0-9]+/, '')
     .trim();
+
+  // Limpa aspas problemáticas dentro de colchetes ou labels de conexão
+  code = code.replace(/\|([^|]+)\|/g, (match, label) => {
+    return `|${label.replace(/"/g, "'")}|`;
+  });
 
   // Corrigir subgraph labels com espaços ou parênteses (Mermaid 10 exige aspas)
   code = code.replace(
@@ -129,6 +134,25 @@ function sanitizeMermaidCode(input: string): string {
       return prefix + '"' + t.replace(/"/g, "'") + '"' + suffix;
     }
   );
+
+  const mermaidStart =
+    /(graph\s+(?:TB|TD|LR|RL|BT)?|flowchart\s+(?:TB|TD|LR|RL|BT)?|sequenceDiagram|gantt|classDiagram|stateDiagram-v2?|erDiagram|journey|pie|quadrantChart|gitGraph)/i;
+  const match = code.match(mermaidStart);
+  if (!match) return '';
+
+  code = code.slice(match.index ?? 0).trim();
+
+  const firstWord = code.split(/\s+/)[0].toLowerCase();
+  if (
+    !/^(graph|flowchart|sequencediagram|gantt|classdiagram|statediagram-v2?|erdiagram|journey|pie|quadrantchart|gitgraph)$/.test(
+      firstWord
+    )
+  ) {
+    return '';
+  }
+
+  return code;
+}
 
   const mermaidStart =
     /(graph\s+(?:TB|TD|LR|RL|BT)?|flowchart\s+(?:TB|TD|LR|RL|BT)?|sequenceDiagram|gantt|classDiagram|stateDiagram-v2?|erDiagram|journey|pie|quadrantChart|gitGraph)/i;
