@@ -1,8 +1,9 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { ChatMode } from '../constants';
 import { usePWA } from '../hooks/usePWA';
 import { version } from '../package.json';
+const SystemHealthCheck = React.lazy(() => import('./SystemHealthCheck'));
 
 interface SettingsDrawerProps {
   isOpen: boolean;
@@ -17,7 +18,7 @@ interface SettingsDrawerProps {
   onExportPDF: () => void;
   onCopyMarkdown: () => void;
   onSendEmail: () => void;
-  onScheduleFollowUp: () => void; // New prop
+  onScheduleFollowUp: () => void;
   exportStatus: 'idle' | 'loading' | 'success' | 'error';
 }
 
@@ -38,6 +39,8 @@ const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
   exportStatus
 }) => {
   const { canInstall, isInstalled, installApp } = usePWA();
+  const [showHealthCheck, setShowHealthCheck] = useState(false);
+  
   if (!isOpen) return null;
 
   return (
@@ -113,7 +116,7 @@ const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                     : 'border-gray-700/50 bg-gray-800/30 hover:bg-gray-800 hover:border-gray-600'
                 }`}
               >
-                <span className="text-3xl filter drop-shadow-lg group-hover:scale-110 transition-transform">🛻</span>
+                <span className="text-3xl filter drop-shadow-lg group-hover:scale-110 transition-transform">🛛</span>
                 <div className="text-left">
                   <p className={`text-sm font-bold ${mode === 'operacao' ? 'text-orange-400' : 'text-gray-200'}`}>Operação</p>
                   <p className="text-xs text-gray-400 mt-0.5">Direto ao ponto, linguagem de campo</p>
@@ -209,6 +212,22 @@ const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                   <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>Histórico e estatísticas</p>
                 </div>
               </button>
+
+              {/* NOVO: Teste de Integridade */}
+              <button
+                onClick={() => setShowHealthCheck(true)}
+                className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all text-left group border-blue-500/40 ${
+                  isDarkMode
+                    ? 'bg-blue-900/20 hover:bg-blue-900/40'
+                    : 'bg-blue-50 hover:bg-blue-100'
+                }`}
+              >
+                <span className={`text-lg p-2 rounded-lg ${isDarkMode ? 'bg-blue-800/60' : 'bg-blue-200'}`}>🔧</span>
+                <div>
+                  <p className={`text-sm font-medium ${isDarkMode ? 'text-blue-300' : 'text-blue-800'}`}>Teste de Integridade</p>
+                  <p className={`text-xs ${isDarkMode ? 'text-blue-500' : 'text-blue-600'}`}>Verificar sistema completo</p>
+                </div>
+              </button>
             </div>
           </section>
 
@@ -222,6 +241,16 @@ const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
           
         </div>
       </div>
+
+      {/* Modal de Teste de Integridade */}
+      {showHealthCheck && (
+        <React.Suspense fallback={null}>
+          <SystemHealthCheck 
+            isDarkMode={isDarkMode} 
+            onClose={() => setShowHealthCheck(false)}
+          />
+        </React.Suspense>
+      )}
     </>
   );
 };
