@@ -4,7 +4,6 @@ import { useOffline } from './hooks/useOffline';
 import { useToast } from './hooks/useToast';
 import ToastContainer from './components/ToastContainer';
 import ChatInterface from './components/ChatInterface';
-import InstallPrompt from './components/InstallPrompt';
 import { AuthModal } from './components/AuthModal';
 import { useAuth } from './contexts/AuthContext';
 import { useMode } from './contexts/ModeContext';
@@ -1028,9 +1027,6 @@ const AppCore: React.FC = () => {
 
     return (
     <>
-      {/* PWA Install Prompt */}
-      <InstallPrompt />
-      
       <AuthModal />
 
       {/* Banner offline */}
