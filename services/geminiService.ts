@@ -158,7 +158,7 @@ export function extractSuggestionsFromResponse(content: string): string[] {
     const parts = content.split(regex);
     if (parts.length >= 2) {
       return parts[parts.length - 1].split('\n').map(l => l.trim()).filter(l => /^[\*\-•\+]\s/.test(l) || /^\d+\./.test(l))
-        .map(l => l.replace(/^[\*\-•\+\d\.]+\s*/, '').replace(/^"|'|'|"$/g, '').replace(/\*+$/, '').trim()).filter(l => l.length > 0).slice(0, 4);
+        .map(l => l.replace(/^[\*\-•\+\d\.]+\s*/, '').replace(/^\"|'|'|\"$/g, '').replace(/\*+$/, '').trim()).filter(l => l.length > 0).slice(0, 4);
     }
   }
   return [];
@@ -222,21 +222,40 @@ export const generateLoadingCuriosities = async (context: string): Promise<strin
 const generateFallbackSuggestions = async (lastUserText: string, botResponseText: string, isOperacao: boolean, empresaAlvo: string | null): Promise<string[]> => {
   try {
     const isMegaPrompt = lastUserText.length > 300 && (lastUserText.includes('Protocolo de investigação') || lastUserText.includes('DIRETRIZ'));
-    const target = empresaAlvo ? `da empresa ${empresaAlvo}` : 'da empresa alvo';
+    
+    // CORREÇÃO: Sempre forçar a inclusão do nome da empresa nas sugestões
+    const empresaNome = empresaAlvo || 'a empresa alvo';
+    const target = `da empresa ${empresaNome}`;
+    
     const effectiveUserContext = isMegaPrompt 
-      ? `O usuário executou uma análise profunda (Raio-X/Dossiê) sobre ${target}.` 
-      : `O usuário, investigando ${target}, enviou a pergunta: "${lastUserText.substring(0, 500)}".`;
+      ? `O usuário executou uma análise profunda (Raio-X/Dossiê) sobre ${empresaNome}.` 
+      : `O usuário, investigando ${empresaNome}, enviou a pergunta: "${lastUserText.substring(0, 500)}".`;
 
     const response = await getGenAI().models.generateContent({
       model: ROUTER_MODEL_ID,
-      contents: `${effectiveUserContext}\n\nA IA respondeu com esta análise:\n"${botResponseText.substring(0, 1000)}..."\n\nGere 3 sugestões CURTAS E DIRETAS de perguntas (follow-up) que o usuário pode fazer para se aprofundar nesta resposta. Retorne APENAS um JSON Array de strings. Ex: ["Como isso impacta o caixa?", "Quais os gargalos no ERP?", "Verificar risco logístico de ${empresaAlvo || 'operações'}"].`,
-      config: { systemInstruction: "Você é o assistente B2B que sugere os próximos passos da investigação.", responseMimeType: 'application/json', temperature: 0.3 }
+      contents: `${effectiveUserContext}\n\nA IA respondeu com esta análise:\n"${botResponseText.substring(0, 1000)}..."\n\n**REGRA OBRIGATÓRIA**: Cada sugestão DEVE mencionar "${empresaNome}" ou usar pronomes que deixem clara a referência à empresa (ex: "dessa empresa", "deles", "lá").\n\nGere 3 sugestões CURTAS E DIRETAS de perguntas (follow-up) que o usuário pode fazer para se aprofundar nesta resposta. \n\nExemplos BONS:\n- "Como ${empresaNome} gerencia acesso e balanças hoje?"\n- "Quais concorrentes dessa empresa em MT já usam WMS Senior?"\n- "${empresaNome} tem planos de novas aquisições nos próximos 12 meses?"\n\nExemplos RUINS (NÃO FAZER):\n- "Quais concorrentes em MT já usam o WMS?" (falta o nome da empresa)\n- "Como gerenciam acesso?" (muito genérico)\n\nRetorne APENAS um JSON Array de strings.`,
+      config: { systemInstruction: "Você é o assistente B2B que sugere os próximos passos da investigação. SEMPRE mencione o nome da empresa nas sugestões.", responseMimeType: 'application/json', temperature: 0.3 }
     });
 
     const json = JSON.parse((response.text || "[]").replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim());
-    if (!Array.isArray(json)) return [`Mapear decisores ${target}`, "Verificar gaps técnicos"];
-    return json.map((item: any) => typeof item === 'string' ? item : item?.pergunta || item?.sugestao || "Aprofundar análise").slice(0, 3);
-  } catch { return ["Aprofundar análise", "Mapear decisores", "Verificar gaps técnicos"]; }
+    if (!Array.isArray(json)) return [`Mapear decisores ${target}`, `Verificar gaps técnicos de ${empresaNome}`];
+    
+    // Forçar substituição se a IA esqueceu
+    return json
+      .map((item: any) => typeof item === 'string' ? item : item?.pergunta || item?.sugestao || "Aprofundar análise")
+      .map((suggestion: string) => {
+        // Se não menciona a empresa, forçar adição
+        if (empresaAlvo && !suggestion.toLowerCase().includes(empresaAlvo.toLowerCase()) && 
+            !suggestion.includes('dessa empresa') && !suggestion.includes('deles') && !suggestion.includes('lá')) {
+          return suggestion.replace(/^(\w+)/, `$1 ${empresaAlvo}`);
+        }
+        return suggestion;
+      })
+      .slice(0, 3);
+  } catch { 
+    const empresa = empresaAlvo || 'a empresa';
+    return [`Aprofundar análise de ${empresa}`, `Mapear decisores de ${empresa}`, `Verificar gaps técnicos de ${empresa}`]; 
+  }
 };
 
 export const sendMessageToGemini = async (message: string, history: Message[], systemInstruction: string, options: GeminiRequestOptions = {}): Promise<{ text: string; sources: Array<{ title: string, url: string }>, suggestions: string[], scorePorta: ScorePortaData | null, statuses: string[], empresa?: string | null, ghostReason?: string }> => {
