@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { getGenAI } from '../services/geminiService';
+import { GoogleGenAI } from '@google/genai';
 import { buscarContextoPinecone, buscarContextoDocsPinecone } from '../services/ragService';
 import { lookupCliente } from '../services/clientLookupService';
 import { BACKEND_URL } from '../services/apiConfig';
@@ -49,7 +49,12 @@ const SystemHealthCheck: React.FC<SystemHealthCheckProps> = ({ isDarkMode, onClo
     try {
       updateTest('🤖 Gemini API', { status: 'running' });
       const start = Date.now();
-      const genAI = getGenAI();
+      
+      if (!process.env.API_KEY) {
+        throw new Error('API_KEY não configurada');
+      }
+      
+      const genAI = new GoogleGenAI({ apiKey: process.env.API_KEY });
       const response = await genAI.models.generateContent({
         model: 'gemini-2.5-flash',
         contents: 'Responda apenas: OK',
