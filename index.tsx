@@ -26,3 +26,15 @@ root.render(
     </ErrorBoundary>
   </React.StrictMode>
 );
+
+@supports (height: 100dvh) {
+  .h-screen {
+    height: 100dvh !important;
+  }
+}
+
+/* Garante que o input tenha espaço no fundo no iOS */
+.custom-scrollbar {
+  padding-bottom: env(safe-area-inset-bottom, 12px);
+}
+
