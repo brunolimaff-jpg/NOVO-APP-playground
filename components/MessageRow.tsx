@@ -34,6 +34,7 @@ export interface MessageRowData {
   lastUserQuery?: string;
   onStop?: () => void;
   onSendMessage?: (text: string) => void;
+  empresaAlvo?: string | null;
 }
 
 interface MessageRowProps {
@@ -46,7 +47,7 @@ const MessageRow = memo(({ index, data }: MessageRowProps) => {
     messages, isLoading, isDarkMode, mode, onRetry, onDeleteMessage, onReportError,
     onFeedback, onSendFeedback, onToggleMessageSources, onDeepDive, onRegenerateSuggestions,
     handleDeleteWithUndo, pendingDeleteId, hideSuggestionsForMessageId,
-    setInput, sessionId, userId, processing, lastUserQuery, onStop, onSendMessage
+    setInput, sessionId, userId, processing, lastUserQuery, onStop, onSendMessage, empresaAlvo
   } = data;
 
   const msg = messages[index];
@@ -121,6 +122,7 @@ const MessageRow = memo(({ index, data }: MessageRowProps) => {
               <SectionalBotMessage
                 message={{ ...msg, groundingSources: displaySources }}
                 sessionId={sessionId} userId={userId} isDarkMode={isDarkMode} mode={mode}
+                empresaAlvo={empresaAlvo}
                 onPreFillInput={(text) => {
                   if (onSendMessage) {
                     onSendMessage(text);
