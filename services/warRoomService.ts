@@ -5,7 +5,7 @@
 import { GoogleGenAI } from '@google/genai';
 import { buscarContextoDocsPinecone } from './ragService';
 
-// ─── TIPOS ──────────────────────────────────────────────────
+// ─── TIPOS ───────────────────────────────────────────
 export type WarRoomMode = 'tech' | 'killscript' | 'benchmark' | 'objections';
 
 export interface WarRoomMessage {
@@ -19,7 +19,7 @@ export interface WarRoomResult {
     outOfScope?: boolean; // true se a pergunta é fora do escopo do War Room
 }
 
-// ─── CONFIG ─────────────────────────────────────────────────
+// ─── CONFIG ───────────────────────────────────────
 const MODEL_ID = 'gemini-2.5-flash';
 
 let _ai: GoogleGenAI | null = null;
@@ -32,14 +32,13 @@ const getAI = (): GoogleGenAI => {
     return _ai;
 };
 
-// ─── DETECTOR DE ESCOPO ─────────────────────────────────────
-// Detecta se a pergunta é fora do escopo do War Room (investigação de empresa, CNPJ, etc.)
+// ─── DETECTOR DE ESCOPO ──────────────────────────────────
 const OUT_OF_SCOPE_PATTERNS = [
     /investigar?\s+(a\s+)?empresa/i,
     /dossi[eê]/i,
     /cnpj/i,
     /score\s+porta/i,
-    /prospec[çc][aã]o/i,
+    /prospec[cç][aã]o/i,
     /varredura/i,
     /capivara/i,
     /quero\s+saber\s+tudo\s+sobre/i,
@@ -52,7 +51,7 @@ function isOutOfScope(message: string): boolean {
     return OUT_OF_SCOPE_PATTERNS.some(p => p.test(message));
 }
 
-// ─── PROMPTS POR MODO ───────────────────────────────────────
+// ─── PROMPTS POR MODO ───────────────────────────────────
 const SYSTEM_PROMPTS: Record<WarRoomMode, (target: string) => string> = {
     tech: (_target) => `Você é o Especialista Técnico Sênior da Senior Sistemas.
 
@@ -70,7 +69,9 @@ REGRAS ABSOLUTAS:
 
     killscript: (target) => `Você é Estrategista Comercial da Senior Sistemas.
 
-MISSÃO: Gerar scripts de venda táticos contra ${target}.
+MISSÃO: Gerar scripts de venda táticos DEFENDENDO A SENIOR contra ${target}.
+
+ATENÇÃO: VOCÊ TRABALHA PARA A SENIOR! Sempre defenda a Senior e ataque ${target}.
 
 ESTRUTURA OBRIGATÓRIA:
 ### ⚔️ O Cenário
@@ -78,15 +79,15 @@ ESTRUTURA OBRIGATÓRIA:
 ### 🛡️ A Visão da ${target}
 (O que ${target} diz/faz — pontos fortes e fracos)
 ### 🚀 O Contra-Ataque Senior
-(Argumentos técnicos e comerciais — features, diferenciais, ROI)
+(Argumentos técnicos e comerciais — features, diferenciais, ROI da SENIOR)
 ### 🔪 Script de Vendas
-(Frases prontas para usar na reunião)
+(Frases prontas para usar na reunião defendendo a SENIOR)
 
-REGRAS: Tom agressivo mas profissional. Dados concretos. Português BR.`,
+REGRAS: Tom agressivo mas profissional. Dados concretos. Português BR. SEMPRE DEFENDA A SENIOR!`,
 
-    benchmark: (target) => `Você é Analista Comparativo de ERPs.
+    benchmark: (target) => `Você é Analista Comparativo de ERPs trabalhando para a Senior Sistemas.
 
-MISSÃO: Comparativo técnico detalhado Senior Sistemas vs ${target}.
+MISSÃO: Comparativo técnico detalhado mostrando VANTAGENS DA SENIOR sobre ${target}.
 
 FORMATO OBRIGATÓRIO:
 ### 📊 Comparativo: Senior vs ${target}
@@ -95,28 +96,30 @@ FORMATO OBRIGATÓRIO:
 (8-12 critérios: módulos, cloud, tecnologia, UX, preço, suporte, etc.)
 
 ### 💡 Resumo Executivo
-(3-4 frases de conclusão para o vendedor)
+(3-4 frases de conclusão destacando por que Senior é superior)
 
-REGRAS: Dados reais. Honesto quando ${target} tiver vantagem. Português BR.`,
+REGRAS: Dados reais. Honesto quando ${target} tiver vantagem, MAS sempre mostre como Senior compensa. Português BR.`,
 
-    objections: (target) => `Você é Consultor de Vendas Especialista em Objeções.
+    objections: (target) => `Você é Consultor de Vendas da Senior Sistemas especialista em rebater objeções.
 
-MISSÃO: Rebater objeções a favor da ${target} contra a Senior.
+MISSÃO: Rebater objeções DO CLIENTE que favorecem ${target}, DEFENDENDO A SENIOR.
+
+ATENÇÃO: O cliente está comparando Senior vs ${target}. Sua missão é DEFENDER A SENIOR e mostrar por que ela é superior!
 
 ESTRUTURA OBRIGATÓRIA:
 ### 🛡️ A Objeção
-(Resuma o que o cliente disse)
+(Resuma o que o cliente disse a favor de ${target})
 ### ⚡ Por que é MITO ou meia-verdade
-(Desmonte com dados e lógica)
+(Desmonte o argumento com dados e lógica, mostrando vantagens da SENIOR)
 ### 💬 O que responder na hora
-(2-3 frases prontas)
+(2-3 frases prontas DEFENDENDO A SENIOR)
 ### 🎯 Pergunta de Contra-Ataque
-(Pergunta inteligente para virar o jogo)
+(Pergunta inteligente para virar o jogo a favor da SENIOR)
 
-REGRAS: Confiante mas não arrogante. Reconheça objeções válidas. Português BR.`,
+REGRAS: Confiante mas não arrogante. Reconheça objeções válidas MAS sempre mostre como Senior é melhor. Português BR. SEMPRE DEFENDA A SENIOR!`,
 };
 
-// ─── FUNÇÃO PRINCIPAL ───────────────────────────────────────
+// ─── FUNÇÃO PRINCIPAL ───────────────────────────────────
 export async function queryWarRoom(
     mode: WarRoomMode,
     message: string,
