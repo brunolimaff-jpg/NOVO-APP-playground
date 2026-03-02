@@ -1025,7 +1025,7 @@ const AppCore: React.FC = () => {
     </div>
   );
 
-  return (
+    return (
     <>
       <AuthModal />
 
@@ -1052,7 +1052,8 @@ const AppCore: React.FC = () => {
         </div>
       )}
 
-      <div className={`flex flex-col h-screen w-full ${isDarkMode ? 'bg-slate-950' : 'bg-slate-50'}`}>
+      {/* AQUI ESTÁ A CORREÇÃO PRINCIPAL: h-[100dvh] em vez de h-screen e overscroll-none */}
+      <div className={`flex flex-col h-[100dvh] w-full overflow-hidden overscroll-none ${isDarkMode ? 'bg-slate-950' : 'bg-slate-50'}`}>
         <header className={`h-12 px-3 md:px-4 flex items-center justify-between border-b backdrop-blur-sm ${isDarkMode ? 'bg-slate-950/80 border-slate-800' : 'bg-white/80 border-slate-200'
           }`}>
           <div className="flex items-center gap-3 min-w-0">
