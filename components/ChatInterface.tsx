@@ -10,6 +10,7 @@ const SettingsDrawer = React.lazy(() => import('./SettingsDrawer'));
 const WarRoom = React.lazy(() => import('./WarRoom'));
 import { cleanTitle } from '../utils/textCleaners';
 import ConfirmPopover from './ConfirmPopover';
+import { parseSmartOptions } from './SmartOptions';
 
 const QUICK_ACTIONS = [
   { icon: "🎯", label: "Comparar", prompt: "Compare com o principal concorrente dessa empresa" },
@@ -130,11 +131,17 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
   }, [showRetryToast]);
 
   const lastBotWithSuggestionsIndex = useMemo(() =>
-    [...messages].map((m, i) => ({ m, i })).filter(({ m }) => m.sender === Sender.Bot && m.suggestions && m.suggestions.length > 0).map(({ i }) => i).pop(),
+    [...messages]
+      .map((m, i) => ({ m, i }))
+      .filter(({ m }) => m.sender === Sender.Bot && ((m.suggestions && m.suggestions.length > 0) || parseSmartOptions(m.text).options.length > 0))
+      .map(({ i }) => i)
+      .pop(),
     [messages]);
+
   const lastUserIndex = useMemo(() =>
     [...messages].map((m, i) => ({ m, i })).filter(({ m }) => m.sender === Sender.User).map(({ i }) => i).pop(),
     [messages]);
+    
   const hideSuggestionsForMessageId =
     lastBotWithSuggestionsIndex !== undefined &&
       lastUserIndex !== undefined &&
@@ -188,11 +195,12 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
     hideSuggestionsForMessageId, setInput,
     sessionId: currentSession?.id, userId, processing, lastUserQuery,
     onStop: handleStopWithToast,
+    onSendMessage,
   }), [
     messages, isLoading, isDarkMode, mode, onRetry, onDeleteMessage, onReportError,
     onFeedback, onSendFeedback, onToggleMessageSources, onDeepDive, onRegenerateSuggestions,
     pendingDeleteId, hideSuggestionsForMessageId,
-    currentSession?.id, userId, processing, lastUserQuery, handleStopWithToast,
+    currentSession?.id, userId, processing, lastUserQuery, handleStopWithToast, onSendMessage,
   ]);
 
   return (
