@@ -64,7 +64,10 @@ export const DeepDiveTopics: React.FC<DeepDiveTopicsProps> = ({ onSelectTopic })
         <button
           key={topic.id}
           title={topic.tooltip}
-          onClick={() => onSelectTopic(`Gerando Dossiê: ${topic.label}...`, topic.hiddenPrompt)}
+          onClick={() => onSelectTopic(
+            `Dossiê completo: ${topic.label}`,
+            topic.hiddenPrompt
+          )}
           className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-blue-100 border border-gray-300 rounded-full text-sm font-medium text-gray-700 transition-colors duration-200"
         >
           <span>{topic.icon}</span>
