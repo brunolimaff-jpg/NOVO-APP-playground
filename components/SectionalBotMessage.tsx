@@ -15,6 +15,7 @@ interface SectionalBotMessageProps {
   onPreFillInput?: (text: string) => void;
   onRegenerateSuggestions?: (messageId: string) => void;
   hideSuggestions?: boolean;
+  empresaAlvo?: string | null;
 }
 
 const SectionalBotMessage: React.FC<SectionalBotMessageProps> = ({
@@ -25,7 +26,8 @@ const SectionalBotMessage: React.FC<SectionalBotMessageProps> = ({
   mode = 'diretoria',
   onPreFillInput,
   onRegenerateSuggestions,
-  hideSuggestions = false
+  hideSuggestions = false,
+  empresaAlvo
 }) => {
   const content = message.text || "";
   const { user } = useAuth();
@@ -36,6 +38,19 @@ const SectionalBotMessage: React.FC<SectionalBotMessageProps> = ({
   const activeOptions = message.suggestions && message.suggestions.length > 0 
     ? message.suggestions 
     : parsedOptions;
+
+  // Substituir [NOME DA EMPRESA] nas sugestões
+  const processedOptions = useMemo(() => {
+    if (!empresaAlvo || !activeOptions || activeOptions.length === 0) return activeOptions;
+    
+    return activeOptions.map(option => 
+      option
+        .replace(/\[NOME DA EMPRESA\]/gi, empresaAlvo)
+        .replace(/\[Nome da Empresa\]/gi, empresaAlvo)
+        .replace(/\[Empresa\]/gi, empresaAlvo)
+        .replace(/\[NOME DO GRUPO \/ EMPRESA ALVO\]/gi, empresaAlvo)
+    );
+  }, [activeOptions, empresaAlvo]);
 
   const isRegenerating = Boolean(message.isRegeneratingSuggestions);
 
@@ -53,9 +68,9 @@ const SectionalBotMessage: React.FC<SectionalBotMessageProps> = ({
             isDarkMode={isDarkMode} 
             groundingSources={message.groundingSources}
          />
-         {activeOptions.length > 0 && onPreFillInput && !hideSuggestions && (
+         {processedOptions.length > 0 && onPreFillInput && !hideSuggestions && (
             <SmartOptions 
-              options={activeOptions} 
+              options={processedOptions} 
               onPreFillInput={onPreFillInput}
               isRegenerating={isRegenerating}
               onRegenerate={handleRegenerate}
@@ -80,10 +95,10 @@ const SectionalBotMessage: React.FC<SectionalBotMessageProps> = ({
         </div>
       ))}
 
-      {activeOptions.length > 0 && onPreFillInput && !hideSuggestions && (
+      {processedOptions.length > 0 && onPreFillInput && !hideSuggestions && (
         <div className="pt-2 border-t border-dashed border-gray-500/20 mt-4">
            <SmartOptions 
-              options={activeOptions} 
+              options={processedOptions} 
               onPreFillInput={onPreFillInput}
               isRegenerating={isRegenerating}
               onRegenerate={handleRegenerate}
