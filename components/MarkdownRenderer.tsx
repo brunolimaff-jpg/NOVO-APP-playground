@@ -175,42 +175,13 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
     text = autoLinkSeniorTerms(text);
     text = cleanFakeSourcesBlock(text);
 
-    // 3) Badges de confirmação/evidência
-    // Correção: Agora usa uma Regex que não "come" a letra ao lado do colchete
-    // Procura por colchetes explícitos primeiro para evitar falso positivos no meio das palavras
-    text = text.replace(
-      /\[(🟢|🟡|🟠|🔴)\s*([^\]\n]+?)\]/g,
-      (_, level, label) => {
-        let kind = '';
-        if (level === '🟢') kind = 'CONFIRMADO OFICIAL';
-        else if (level === '🟡') kind = 'EVIDÊNCIA FORTE';
-        else if (level === '🟠') kind = 'NÃO CONFIRMADO';
-        else kind = 'SUSPEITO';
-
-        let cleanLabel = label.replace(/^(CONFIRMADO OFICIAL|CONFIRMADO|EVIDÊNCIA FORTE|EVIDENCIA FORTE|NÃO CONFIRMADO|NAO CONFIRMADO|SUSPEITO)[\s-–:]*/i, '').trim();
-        cleanLabel = cleanLabel.replace(/\.$/, '').trim(); 
-
-        return ` <verified data-level="${level}" data-kind="${kind}" data-label="${cleanLabel}"></verified> `;
-      }
-    );
-
-    // Regex secundária: caso a IA cuspa o emoji *sem* os colchetes
-    text = text.replace(
-      /(^|\s)(🟢|🟡|🟠|🔴)\s*(Não confirmado|CONFIRMADO OFICIAL|CONFIRMADO|EVIDÊNCIA FORTE|EVIDENCIA FORTE|NAO CONFIRMADO|SUSPEITO)?[\s-–:]*([^\s]+(?:(?:\.com|\.br|\.org|\.net|\.gov)[^\s]*)?)/gi,
-      (_, space, level, prefix, label) => {
-        if (!label || label.trim() === '') return _;
-        
-        let kind = '';
-        if (level === '🟢') kind = 'CONFIRMADO OFICIAL';
-        else if (level === '🟡') kind = 'EVIDÊNCIA FORTE';
-        else if (level === '🟠') kind = 'NÃO CONFIRMADO';
-        else kind = 'SUSPEITO';
-
-        let cleanLabel = label.replace(/\.$/, '').trim();
-
-        return `${space}<verified data-level="${level}" data-kind="${kind}" data-label="${cleanLabel}"></verified> `;
-      }
-    );
+    // 3) SIMPLIFICADO: Não tentamos mais processar [🟢 label] em HTML complexo via regex.
+    // Vamos apenas formatar os links markdown da IA que têm o emoji dentro para ficarem em destaque,
+    // garantindo que os links abram sem quebrar os espaços e pontuações originais do texto.
+    // Tudo que é "badge" será renderizado nativamente pelo react-markdown (tag a).
+    
+    // Converte textos tipo "🟢Fonte oficial: x" em formato que o React Markdown processe
+    // sem quebrar. Se já tiver colchetes com link, o componente <a> cuida dele.
 
     return text;
   }, [content]);
@@ -242,73 +213,38 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
       );
     },
 
-    verified: (props: any) => {
-      const level = String(props['data-level'] || '');
-      const kind = String(props['data-kind'] || '').toUpperCase();
-      const label = String(props['data-label'] || '');
+    // Tratamento nativo e seguro para todos os links <a>
+    a: ({ href, children, ...props }: any) => {
+      // Se o texto do link for um daqueles gerados pela IA (ex: 🟠Não confirmado: site.com)
+      const textContent = String(children || '');
+      const isBadgeMatch = textContent.match(/^(🟢|🟡|🟠|🔴)\s*(.*)/);
 
-      const kindText =
-        /EVIDÊNCIA|EVIDENCIA/i.test(kind) ? 'Evidência forte' :
-          /NÃO\s*CONFIRMADO|NAO\s*CONFIRMADO/i.test(kind) ? 'Não confirmado' :
-            /SUSPEITO/i.test(kind) ? 'Suspeito' :
-              'Fonte oficial';
+      if (isBadgeMatch) {
+        const emoji = isBadgeMatch[1];
+        const label = isBadgeMatch[2];
+        
+        const colorClasses =
+          emoji === '🟢' ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-300 dark:border-emerald-700' :
+          emoji === '🟡' ? 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/40 dark:text-amber-300 dark:border-amber-700' :
+          emoji === '🟠' ? 'bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-900/40 dark:text-orange-300 dark:border-orange-700' :
+          'bg-red-50 text-red-700 border-red-200 dark:bg-red-900/40 dark:text-red-300 dark:border-red-700';
 
-      const displayText = label ? `${kindText}: ${label}` : kindText;
-
-      const colorClasses =
-        level === '🟢'
-          ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-300 dark:border-emerald-700'
-          : level === '🟡'
-            ? 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/40 dark:text-amber-300 dark:border-amber-700'
-            : level === '🟠'
-              ? 'bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-900/40 dark:text-orange-300 dark:border-orange-700'
-              : 'bg-red-50 text-red-700 border-red-200 dark:bg-red-900/40 dark:text-red-300 dark:border-red-700';
-
-      let targetUrl = '';
-
-      if (label && groundingSources.length > 0) {
-        const labelLower = label.toLowerCase().trim();
-        const sourceMatch = groundingSources.find(s =>
-          (s.url && s.url.toLowerCase().includes(labelLower)) ||
-          (s.title && s.title.toLowerCase().includes(labelLower))
-        );
-        if (sourceMatch && sourceMatch.url) {
-          targetUrl = sourceMatch.url;
-        }
-      }
-
-      // Fallback: Se o Gemini apenas cuspiu um domínio (ex: "comprerural.com")
-      if (!targetUrl && label && /^[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$/.test(label)) {
-         targetUrl = label.startsWith('http') ? label : `https://${label}`;
-      }
-
-      const isLink = !!targetUrl;
-
-      const badgeContent = (
-        <span className={'inline-flex items-center gap-1 px-2 py-0.5 mx-1 rounded-full text-[10px] font-semibold border align-middle transition-colors ' + colorClasses + (isLink ? ' hover:brightness-95 dark:hover:brightness-110 cursor-pointer' : '')}>
-          <span>{level}</span>
-          <span>{displayText}</span>
-        </span>
-      );
-
-      if (isLink) {
         return (
-          <a href={targetUrl} target="_blank" rel="noopener noreferrer" title={`Fonte: ${targetUrl}`} className="inline-block no-underline">
-            {badgeContent}
+          <a href={href} target="_blank" rel="noopener noreferrer" className={`inline-flex items-center gap-1 px-2 py-0.5 mx-1 rounded-full text-[10px] font-semibold border align-middle transition-colors no-underline hover:brightness-95 dark:hover:brightness-110 ${colorClasses}`} {...props}>
+            <span>{emoji}</span>
+            <span>{label}</span>
           </a>
         );
       }
 
-      // Se não é um link, retorna apenas o badge inativo
-      return badgeContent;
+      // Link normal do markdown
+      return (
+        <a href={href} target="_blank" rel="noopener noreferrer" className="text-emerald-700 dark:text-emerald-300 hover:underline break-words" {...props}>
+          {children}
+        </a>
+      );
     },
-
-    a: ({ href, children, ...props }: any) => (
-      <a href={href} target="_blank" rel="noopener noreferrer"
-        className="text-emerald-700 dark:text-emerald-300 hover:underline break-words" {...props}>
-        {children}
-      </a>
-    ),
+    
     p: ({ children }: any) => (
       <p className="mb-2 last:mb-0 text-sm md:text-[0.95rem] leading-relaxed text-slate-800 dark:text-slate-100">{children}</p>
     ),
