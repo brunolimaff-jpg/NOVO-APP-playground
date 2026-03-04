@@ -158,7 +158,6 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
   showCollapsibleSources = false,
 }) => {
   
-  // Variável externa ao useMemo para guardar os domínios mapeados e usar como índices de citação
   let citationMap = new Map<string, number>();
 
   const processedContent = useMemo(() => {
@@ -180,16 +179,17 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
     text = autoLinkSeniorTerms(text);
     text = cleanFakeSourcesBlock(text);
 
-    // 3) PRÉ-PROCESSAMENTO: Transforma citações brutas da IA [🟠 dominio.com] em 
-    // um formato interno simples para renderizar igual Wikipedia
+    // 3) LIMPEZA TOTAL DE EMOJI BADGES: Remove todos os balões [🟠 texto] ou [🟢Fonte: texto]
+    //    e transforma em superscript Wikipedia clicável baseado em domínio puro
     text = text.replace(
       /\[(🟢|🟡|🟠|🔴)\s*(?:Fonte oficial|Não confirmado|Evidência forte|Suspeito)?[\s-–:]*([^\]\n]+?)\]/gi,
       (_, emoji, label) => {
         let domainLabel = label.trim();
-        // Limpa sufixos e prefixos extras
+        
+        // Remove protocolos e barra final
         domainLabel = domainLabel.replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0].replace(/\.$/, '');
         
-        // Se a IA não gerou uma URL clicável e sim um texto cru:
+        // Se a IA mandou uma URL completa, extrai o domínio
         let urlTarget = label.trim().startsWith('http') ? label.trim() : `https://${domainLabel}`;
 
         if (!citationMap.has(domainLabel)) {
@@ -197,7 +197,7 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
         }
         const citationIndex = citationMap.get(domainLabel);
 
-        // Substitui a string "[🟠 reportermt.com]" pelo link formatado wikipedia
+        // Substitui pelo formato limpo Wikipedia: texto<sup><a>[1]</a></sup>
         return `<sup><a href="${urlTarget}" target="_blank" rel="noopener noreferrer" class="citation-link" title="${domainLabel}">[${citationIndex}]</a></sup>`;
       }
     );
@@ -205,9 +205,6 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
     return text;
   }, [content]);
 
-  // -------------------------------------------------------------------------
-  // Componentes de renderização
-  // -------------------------------------------------------------------------
   const components: any = {
     code: ({ inline, className, children, ...props }: any) => {
       const langMatch = /language-(\w+)/.exec(className || '');
@@ -232,12 +229,11 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
       );
     },
 
-    // Tratamento para links <a href="..."> gerados pelo markdown nativo (os [texto](url))
     a: ({ href, children, className, title, ...props }: any) => {
-      // Se for a classe "citation-link" significa que já processamos antes no useMemo
+      // Se é uma citação gerada pelo useMemo
       if (className === 'citation-link') {
         return (
-          <a href={href} className="text-[10px] text-emerald-600 dark:text-emerald-400 hover:text-emerald-800 dark:hover:text-emerald-300 hover:underline no-underline" title={title} {...props}>
+          <a href={href} className="text-[11px] text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline no-underline" title={title} {...props}>
             {children}
           </a>
         );
@@ -245,26 +241,26 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
 
       const textContent = String(children || '');
       
-      // Identifica se é um link [🟠 texto](url) que sobrou do markdown padrão
-      const isBadgeMatch = textContent.match(/^(🟢|🟡|🟠|🔴)\s*(?:Fonte oficial|Não confirmado|Evidência forte|Suspeito)?[\s-–:]*(.*)/i);
+      // Se ainda sobrou algum link markdown com emoji da IA que não foi capturado
+      const isBadgeMatch = textContent.match(/^(🟢|🟡|🟠|🔴)/);
 
       if (isBadgeMatch) {
-        let domainLabel = isBadgeMatch[2] || 'fonte';
-        domainLabel = domainLabel.replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0];
+        // Extrai o domínio puro do href
+        let domain = href.replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0];
         
-        if (!citationMap.has(domainLabel)) {
-           citationMap.set(domainLabel, citationMap.size + 1);
+        if (!citationMap.has(domain)) {
+           citationMap.set(domain, citationMap.size + 1);
         }
-        const citationIndex = citationMap.get(domainLabel);
+        const citationIndex = citationMap.get(domain);
 
         return (
-          <sup className="ml-0.5 print-exact">
+          <sup className="ml-0.5">
             <a 
               href={href} 
               target="_blank" 
               rel="noopener noreferrer" 
-              className="text-[10px] text-emerald-600 dark:text-emerald-400 hover:text-emerald-800 dark:hover:text-emerald-300 hover:underline no-underline" 
-              title={domainLabel}
+              className="text-[11px] text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline no-underline" 
+              title={domain}
               {...props}
             >
               [{citationIndex}]
@@ -273,41 +269,16 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
         );
       }
 
-      // Se for um link normal gigante, encurta
-      if (textContent.startsWith('http')) {
-        let shortUrl = textContent.replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0];
-        if (!citationMap.has(shortUrl)) {
-           citationMap.set(shortUrl, citationMap.size + 1);
-        }
-        const citationIndex = citationMap.get(shortUrl);
-        
-        return (
-          <sup className="ml-0.5 print-exact">
-            <a 
-              href={href} 
-              target="_blank" 
-              rel="noopener noreferrer" 
-              className="text-[10px] text-emerald-600 dark:text-emerald-400 hover:text-emerald-800 dark:hover:text-emerald-300 hover:underline no-underline" 
-              title={shortUrl}
-              {...props}
-            >
-              [{citationIndex}]
-            </a>
-          </sup>
-        );
-      }
-
-      // Link comum com texto sem ser URL direta ou emoji
+      // Link normal
       return (
-        <a href={href} target="_blank" rel="noopener noreferrer" className="text-emerald-600 dark:text-emerald-400 hover:underline break-words" {...props}>
+        <a href={href} target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 hover:underline break-words" {...props}>
           {children}
         </a>
       );
     },
     
-    // Tratamento para <sup /> (quando a gente já joga o HTML pronto no useMemo)
     sup: ({ children }: any) => (
-      <sup className="ml-0.5 print-exact">{children}</sup>
+      <sup className="ml-0.5">{children}</sup>
     ),
 
     p: ({ children }: any) => (
