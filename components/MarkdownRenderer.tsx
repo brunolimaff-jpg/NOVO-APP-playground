@@ -176,9 +176,10 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
     text = cleanFakeSourcesBlock(text);
 
     // 3) Badges de confirmação/evidência
-    // Suporta: [🟢 Label] ou apenas 🟢 Label (sem brackets se vier puro do Gemini)
+    // Correção: Agora usa uma Regex que não "come" a letra ao lado do colchete
+    // Procura por colchetes explícitos primeiro para evitar falso positivos no meio das palavras
     text = text.replace(
-      /\[?\s*(🟢|🟡|🟠|🔴)\s+([^\]\n]+?)\s*\]?/gi,
+      /\[(🟢|🟡|🟠|🔴)\s*([^\]\n]+?)\]/g,
       (_, level, label) => {
         let kind = '';
         if (level === '🟢') kind = 'CONFIRMADO OFICIAL';
@@ -186,11 +187,28 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
         else if (level === '🟠') kind = 'NÃO CONFIRMADO';
         else kind = 'SUSPEITO';
 
-        // Remove status anterior e pontos finais para limpar a URL
         let cleanLabel = label.replace(/^(CONFIRMADO OFICIAL|CONFIRMADO|EVIDÊNCIA FORTE|EVIDENCIA FORTE|NÃO CONFIRMADO|NAO CONFIRMADO|SUSPEITO)[\s-–:]*/i, '').trim();
-        cleanLabel = cleanLabel.replace(/\.$/, '').trim(); // Remove ponto final
+        cleanLabel = cleanLabel.replace(/\.$/, '').trim(); 
 
-        return `<verified data-level="${level}" data-kind="${kind}" data-label="${cleanLabel}"></verified>`;
+        return ` <verified data-level="${level}" data-kind="${kind}" data-label="${cleanLabel}"></verified> `;
+      }
+    );
+
+    // Regex secundária: caso a IA cuspa o emoji *sem* os colchetes
+    text = text.replace(
+      /(^|\s)(🟢|🟡|🟠|🔴)\s*(Não confirmado|CONFIRMADO OFICIAL|CONFIRMADO|EVIDÊNCIA FORTE|EVIDENCIA FORTE|NAO CONFIRMADO|SUSPEITO)?[\s-–:]*([^\s]+(?:(?:\.com|\.br|\.org|\.net|\.gov)[^\s]*)?)/gi,
+      (_, space, level, prefix, label) => {
+        if (!label || label.trim() === '') return _;
+        
+        let kind = '';
+        if (level === '🟢') kind = 'CONFIRMADO OFICIAL';
+        else if (level === '🟡') kind = 'EVIDÊNCIA FORTE';
+        else if (level === '🟠') kind = 'NÃO CONFIRMADO';
+        else kind = 'SUSPEITO';
+
+        let cleanLabel = label.replace(/\.$/, '').trim();
+
+        return `${space}<verified data-level="${level}" data-kind="${kind}" data-label="${cleanLabel}"></verified> `;
       }
     );
 
@@ -267,7 +285,7 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
       const isLink = !!targetUrl;
 
       const badgeContent = (
-        <span className={'inline-flex items-center gap-1 px-2 py-0.5 ml-1 rounded-full text-[10px] font-semibold border align-middle transition-colors ' + colorClasses + (isLink ? ' hover:brightness-95 dark:hover:brightness-110 cursor-pointer' : '')}>
+        <span className={'inline-flex items-center gap-1 px-2 py-0.5 mx-1 rounded-full text-[10px] font-semibold border align-middle transition-colors ' + colorClasses + (isLink ? ' hover:brightness-95 dark:hover:brightness-110 cursor-pointer' : '')}>
           <span>{level}</span>
           <span>{displayText}</span>
         </span>
