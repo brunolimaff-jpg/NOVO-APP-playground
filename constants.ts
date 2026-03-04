@@ -7,7 +7,14 @@ export const DEFAULT_MODE: ChatMode = 'operacao';
 
 export const NOME_VENDEDOR_PLACEHOLDER = "{{NOME_VENDEDOR}}";
 
-export const MODE_LABELS: Record<ChatMode, { label: string; icon: string; description: string; theme: any }> = {
+interface ModeTheme {
+  bg: string;
+  text: string;
+  border: string;
+  hover: string;
+}
+
+export const MODE_LABELS: Record<ChatMode, { label: string; icon: string; description: string; theme: ModeTheme }> = {
   operacao: {
     label: 'Modo Operação',
     icon: '🛻',

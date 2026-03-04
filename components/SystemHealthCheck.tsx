@@ -50,11 +50,11 @@ const SystemHealthCheck: React.FC<SystemHealthCheckProps> = ({ isDarkMode, onClo
       updateTest('🤖 Gemini API', { status: 'running' });
       const start = Date.now();
       
-      if (!process.env.API_KEY) {
-        throw new Error('API_KEY não configurada');
+      if (!process.env.GEMINI_API_KEY) {
+        throw new Error('GEMINI_API_KEY não configurada');
       }
       
-      const genAI = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
       const response = await genAI.models.generateContent({
         model: 'gemini-2.5-flash',
         contents: 'Responda apenas: OK',

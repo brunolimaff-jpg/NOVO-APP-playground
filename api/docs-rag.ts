@@ -1,30 +1,46 @@
 import { GoogleGenAI } from '@google/genai';
 import { Pinecone } from '@pinecone-database/pinecone';
+import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 export const config = {
     runtime: 'nodejs',
 };
-export const maxDuration = 60; // 60 segundos para Vercel Serverless Function
+export const maxDuration = 60;
 
-export default async function handler(req: any, res: any) {
+function getRequiredEnv(name: string): string {
+    const value = process.env[name];
+    if (!value) throw new Error(`Missing required env var: ${name}`);
+    return value;
+}
+
+export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method !== 'POST') {
-        return res.status(405).json({ context: '' });
+        return res.status(405).json({ error: 'Method not allowed' });
     }
 
     try {
-        const { query } = req.body;
-        if (!query) return res.status(200).json({ context: '' });
+        const body = req.body;
+        if (!body || typeof body !== 'object') {
+            return res.status(400).json({ error: 'Invalid request body' });
+        }
 
-        const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
+        const { query } = body;
+        if (!query || typeof query !== 'string') {
+            return res.status(400).json({ error: 'Missing or invalid "query" field (string required)' });
+        }
 
-        // Suporte para chave e index isolados para a base de documentação
-        const pineconeKey = process.env.PINECONE_DOCS_KEY || process.env.PINECONE_API_KEY;
+        if (query.length > 10000) {
+            return res.status(400).json({ error: 'Query too long (max 10000 chars)' });
+        }
+
+        const ai = new GoogleGenAI({ apiKey: getRequiredEnv('GEMINI_API_KEY') });
+
+        const pineconeKey = process.env.PINECONE_DOCS_KEY || getRequiredEnv('PINECONE_API_KEY');
         const pineconeIndexName = process.env.PINECONE_DOCS_INDEX || 'scout-arsenal';
 
-        const pc = new Pinecone({ apiKey: pineconeKey! });
+        const pc = new Pinecone({ apiKey: pineconeKey });
         const index = pc.index(pineconeIndexName);
 
-        // Gera embedding da query de documentação
         const embeddingResponse = await ai.models.embedContent({
             model: 'gemini-embedding-001',
             contents: query,
@@ -37,7 +53,6 @@ export default async function handler(req: any, res: any) {
             return res.status(200).json({ context: '' });
         }
 
-        // Busca no Pinecone, estritamente no namespace de documentacao
         const results = await index.namespace('senior-erp-docs').query({
             vector: queryVector,
             topK: 5,
@@ -48,7 +63,6 @@ export default async function handler(req: any, res: any) {
             return res.status(200).json({ context: '' });
         }
 
-        // Filtra e mapeia resultados (cortando score 0.35 para evitar alucinações de temas não relacionados)
         const context = results.matches
             .filter(m => (m.score ?? 0) > 0.35)
             .map(m => {
@@ -62,8 +76,9 @@ export default async function handler(req: any, res: any) {
 
         return res.status(200).json({ context, matches: results.matches.map(m => m.metadata) });
 
-    } catch (error: any) {
-        console.error('Docs RAG error:', error);
-        return res.status(200).json({ context: '' }); // falha silenciosa para não quebrar a UI
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        console.error('Docs RAG error:', message);
+        return res.status(500).json({ error: 'Docs RAG processing failed', detail: message });
     }
 }

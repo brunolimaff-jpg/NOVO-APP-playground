@@ -30,7 +30,7 @@ export interface MessageRowData {
   setInput: (text: string) => void;
   sessionId?: string;
   userId?: string;
-  processing?: { stage?: string; completedStages?: string[] } | string[];
+  processing?: { stage?: string; completedStages?: string[] };
   lastUserQuery?: string;
   onStop?: () => void;
   onSendMessage?: (text: string) => void;

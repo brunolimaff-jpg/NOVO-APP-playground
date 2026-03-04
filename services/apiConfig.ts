@@ -3,8 +3,11 @@
 // Centraliza TODAS as URLs de APIs externas e mapeamentos
 
 // === URLs do Backend ===
-export const BACKEND_URL = 'https://script.google.com/macros/s/AKfycbxvhFIWm6wOW0qDSrSB0lKA7UGkvxGltvZY9hghDpxv9r3diYcPoiPUq_n4WzJpkEY/exec';
-export const LOOKUP_URL = 'https://script.google.com/macros/s/AKfycbxscB2gSotAxrCdpRpyaqrPKlsPbRfe6fgjicbd69fG6sMM3vrbuGjDaRctWCTcE8d-/exec';
+const FALLBACK_BACKEND_URL = 'https://script.google.com/macros/s/AKfycbxvhFIWm6wOW0qDSrSB0lKA7UGkvxGltvZY9hghDpxv9r3diYcPoiPUq_n4WzJpkEY/exec';
+const FALLBACK_LOOKUP_URL = 'https://script.google.com/macros/s/AKfycbxscB2gSotAxrCdpRpyaqrPKlsPbRfe6fgjicbd69fG6sMM3vrbuGjDaRctWCTcE8d-/exec';
+
+export const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || FALLBACK_BACKEND_URL;
+export const LOOKUP_URL = import.meta.env.VITE_LOOKUP_URL || FALLBACK_LOOKUP_URL;
 
 // === Mapeamento de produtos Senior → URLs reais ===
 export const SENIOR_PRODUCT_URLS: Record<string, string> = {

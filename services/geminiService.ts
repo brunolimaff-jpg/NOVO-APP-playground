@@ -28,10 +28,12 @@ export interface SpotterExtractedData {
   size?: string; pains?: string[]; currentSystems?: string[]; summary?: string;
 }
 
-const ROUTER_MODEL_ID = 'gemini-2.5-flash';
-const TACTICAL_MODEL_ID = 'gemini-2.5-flash';
-const DEEP_CHAT_MODEL_ID = 'gemini-3.1-pro-preview';
-const DEEP_RESEARCH_MODEL_ID = 'gemini-3.1-pro-preview';
+import { MODEL_IDS } from '../config/models';
+
+const ROUTER_MODEL_ID = MODEL_IDS.router;
+const TACTICAL_MODEL_ID = MODEL_IDS.tactical;
+const DEEP_CHAT_MODEL_ID = MODEL_IDS.deepChat;
+const DEEP_RESEARCH_MODEL_ID = MODEL_IDS.deepResearch;
 
 const CONTINUITY_SYSTEM = `
 Você é o estrategista de continuidade do Senior Scout 360.
@@ -167,8 +169,9 @@ export function extractSuggestionsFromResponse(content: string): string[] {
 let genAI: GoogleGenAI | null = null;
 const getGenAI = (): GoogleGenAI => {
   if (!genAI) {
-    if (!process.env.API_KEY) throw new Error("API_KEY missing.");
-    genAI = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) throw new Error("GEMINI_API_KEY not configured.");
+    genAI = new GoogleGenAI({ apiKey });
   }
   return genAI;
 };
