@@ -110,8 +110,6 @@ const MermaidChart: React.FC<MermaidProps> = ({ chart, isDarkMode }) => {
 function sanitizeMermaidCode(input: string): string {
   if (!input) return '';
 
-  // BLINDAGEM CONTRA CELULAR E CLIPBOARD:
-  // Construído usando RegExp para evitar que o HTML engula a tag no copy/paste
   let code = input
     .replace(new RegExp('<br\\s*/?>\\s*', 'gi'), '\n')
     .replace(new RegExp('&lt;br\\s*/?&gt;\\s*', 'gi'), '\n')
@@ -122,12 +120,11 @@ function sanitizeMermaidCode(input: string): string {
     .replace(/^[^a-zA-Z0-9]+/, '')
     .trim();
 
-  // Corrigir subgraph labels com espaços ou parênteses (Mermaid 10 exige aspas)
   code = code.replace(
     /^(\s*subgraph\s+)([^"'\n\[\]{]+?)(\s*)$/gm,
     (full, prefix, label, suffix) => {
       const t = label.trim();
-      if (!t || !/[\s()\[\]\/\\%:]/.test(t)) return full;
+      if (!t || /[\s()\[\]\/\\%:]/.test(t)) return full;
       return prefix + '"' + t.replace(/"/g, "'") + '"' + suffix;
     }
   );
@@ -178,10 +175,10 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
     text = autoLinkSeniorTerms(text);
     text = cleanFakeSourcesBlock(text);
 
-    // 3) Badges de confirmação/evidência — padrão ampliado para pegar fontes mais curtas e dinâmicas
-    //    Suporta: [🟢 Label] ou [ 🟢 Label ] ou [🟢 CONFIRMADO - Label]
+    // 3) Badges de confirmação/evidência
+    // Suporta: [🟢 Label] ou apenas 🟢 Label (sem brackets se vier puro do Gemini)
     text = text.replace(
-      /\[\s*(🟢|🟡|🟠|🔴)\s+([^\]\n]+?)\s*\]/gi,
+      /\[?\s*(🟢|🟡|🟠|🔴)\s+([^\]\n]+?)\s*\]?/gi,
       (_, level, label) => {
         let kind = '';
         if (level === '🟢') kind = 'CONFIRMADO OFICIAL';
@@ -189,8 +186,9 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
         else if (level === '🟠') kind = 'NÃO CONFIRMADO';
         else kind = 'SUSPEITO';
 
-        // Limpa redundâncias se a IA tiver gerado "CONFIRMADO - Fonte"
-        const cleanLabel = label.replace(/^(CONFIRMADO OFICIAL|CONFIRMADO|EVIDÊNCIA FORTE|EVIDENCIA FORTE|NÃO CONFIRMADO|NAO CONFIRMADO|SUSPEITO)[\s-–]*/i, '').trim();
+        // Remove status anterior e pontos finais para limpar a URL
+        let cleanLabel = label.replace(/^(CONFIRMADO OFICIAL|CONFIRMADO|EVIDÊNCIA FORTE|EVIDENCIA FORTE|NÃO CONFIRMADO|NAO CONFIRMADO|SUSPEITO)[\s-–:]*/i, '').trim();
+        cleanLabel = cleanLabel.replace(/\.$/, '').trim(); // Remove ponto final
 
         return `<verified data-level="${level}" data-kind="${kind}" data-label="${cleanLabel}"></verified>`;
       }
@@ -203,7 +201,6 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
   // Componentes de renderização
   // -------------------------------------------------------------------------
   const components: any = {
-    // Único renderer de code — trata Mermaid E inline code
     code: ({ inline, className, children, ...props }: any) => {
       const langMatch = /language-(\w+)/.exec(className || '');
       const isMermaid = !inline && langMatch && langMatch[1] === 'mermaid';
@@ -227,13 +224,11 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
       );
     },
 
-    // Badge de confirmação — renderizado como pill colorido
     verified: (props: any) => {
       const level = String(props['data-level'] || '');
       const kind = String(props['data-kind'] || '').toUpperCase();
       const label = String(props['data-label'] || '');
 
-      // Texto descritivo do tipo de confirmação
       const kindText =
         /EVIDÊNCIA|EVIDENCIA/i.test(kind) ? 'Evidência forte' :
           /NÃO\s*CONFIRMADO|NAO\s*CONFIRMADO/i.test(kind) ? 'Não confirmado' :
@@ -242,7 +237,6 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
 
       const displayText = label ? `${kindText}: ${label}` : kindText;
 
-      // Cor por emoji
       const colorClasses =
         level === '🟢'
           ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-300 dark:border-emerald-700'
@@ -252,37 +246,48 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
               ? 'bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-900/40 dark:text-orange-300 dark:border-orange-700'
               : 'bg-red-50 text-red-700 border-red-200 dark:bg-red-900/40 dark:text-red-300 dark:border-red-700';
 
-      const badgeContent = (
-        <span className={'inline-flex items-center gap-1 px-2 py-0.5 ml-1 rounded-full text-[10px] font-semibold border align-middle transition-colors ' + colorClasses + (label ? ' hover:brightness-95 dark:hover:brightness-110 cursor-pointer' : '')}>
-          <span>{level}</span>
-          <span>{displayText}</span>
-        </span>
-      );
+      let targetUrl = '';
 
-      // Se houver label (nome da fonte), procura nos groundingSources
       if (label && groundingSources.length > 0) {
-        // Agora tenta achar tanto pelo domínio na URL quanto pelo Título.
         const labelLower = label.toLowerCase().trim();
         const sourceMatch = groundingSources.find(s =>
           (s.url && s.url.toLowerCase().includes(labelLower)) ||
           (s.title && s.title.toLowerCase().includes(labelLower))
         );
-
         if (sourceMatch && sourceMatch.url) {
-          return (
-            <a href={sourceMatch.url} target="_blank" rel="noopener noreferrer" title={`Fonte: ${sourceMatch.title || sourceMatch.url}`} className="inline-block no-underline">
-              {badgeContent}
-            </a>
-          );
+          targetUrl = sourceMatch.url;
         }
       }
 
+      // Fallback: Se o Gemini apenas cuspiu um domínio (ex: "comprerural.com")
+      if (!targetUrl && label && /^[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$/.test(label)) {
+         targetUrl = label.startsWith('http') ? label : `https://${label}`;
+      }
+
+      const isLink = !!targetUrl;
+
+      const badgeContent = (
+        <span className={'inline-flex items-center gap-1 px-2 py-0.5 ml-1 rounded-full text-[10px] font-semibold border align-middle transition-colors ' + colorClasses + (isLink ? ' hover:brightness-95 dark:hover:brightness-110 cursor-pointer' : '')}>
+          <span>{level}</span>
+          <span>{displayText}</span>
+        </span>
+      );
+
+      if (isLink) {
+        return (
+          <a href={targetUrl} target="_blank" rel="noopener noreferrer" title={`Fonte: ${targetUrl}`} className="inline-block no-underline">
+            {badgeContent}
+          </a>
+        );
+      }
+
+      // Se não é um link, retorna apenas o badge inativo
       return badgeContent;
     },
 
     a: ({ href, children, ...props }: any) => (
       <a href={href} target="_blank" rel="noopener noreferrer"
-        className="text-emerald-700 dark:text-emerald-300 hover:underline" {...props}>
+        className="text-emerald-700 dark:text-emerald-300 hover:underline break-words" {...props}>
         {children}
       </a>
     ),
