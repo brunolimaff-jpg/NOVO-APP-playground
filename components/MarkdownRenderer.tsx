@@ -158,6 +158,7 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
   showCollapsibleSources = false,
 }) => {
   
+  // Mapa que guarda a URL completa como chave e o índice numérico como valor
   let citationMap = new Map<string, number>();
 
   const processedContent = useMemo(() => {
@@ -179,26 +180,28 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
     text = autoLinkSeniorTerms(text);
     text = cleanFakeSourcesBlock(text);
 
-    // 3) LIMPEZA TOTAL DE EMOJI BADGES: Remove todos os balões [🟠 texto] ou [🟢Fonte: texto]
-    //    e transforma em superscript Wikipedia clicável baseado em domínio puro
+    // 3) LIMPEZA DE EMOJI BADGES mas mantendo a URL COMPLETA original para auditoria
     text = text.replace(
       /\[(🟢|🟡|🟠|🔴)\s*(?:Fonte oficial|Não confirmado|Evidência forte|Suspeito)?[\s-–:]*([^\]\n]+?)\]/gi,
-      (_, emoji, label) => {
-        let domainLabel = label.trim();
+      (_, emoji, rawUrl) => {
+        let fullUrl = rawUrl.trim();
         
-        // Remove protocolos e barra final
-        domainLabel = domainLabel.replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0].replace(/\.$/, '');
-        
-        // Se a IA mandou uma URL completa, extrai o domínio
-        let urlTarget = label.trim().startsWith('http') ? label.trim() : `https://${domainLabel}`;
-
-        if (!citationMap.has(domainLabel)) {
-           citationMap.set(domainLabel, citationMap.size + 1);
+        // Se não começar com http, adiciona https://
+        if (!fullUrl.startsWith('http')) {
+          fullUrl = 'https://' + fullUrl;
         }
-        const citationIndex = citationMap.get(domainLabel);
+        
+        // Extrai o domínio apenas para o title/hover
+        let displayDomain = fullUrl.replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0];
 
-        // Substitui pelo formato limpo Wikipedia: texto<sup><a>[1]</a></sup>
-        return `<sup><a href="${urlTarget}" target="_blank" rel="noopener noreferrer" class="citation-link" title="${domainLabel}">[${citationIndex}]</a></sup>`;
+        // Usa a URL COMPLETA como chave única no mapa
+        if (!citationMap.has(fullUrl)) {
+           citationMap.set(fullUrl, citationMap.size + 1);
+        }
+        const citationIndex = citationMap.get(fullUrl);
+
+        // O href agora aponta para a URL completa que a IA usou
+        return `<sup><a href="${fullUrl}" target="_blank" rel="noopener noreferrer" class="citation-link" title="${displayDomain}">[${citationIndex}]</a></sup>`;
       }
     );
 
@@ -233,7 +236,7 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
       // Se é uma citação gerada pelo useMemo
       if (className === 'citation-link') {
         return (
-          <a href={href} className="text-[11px] text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline no-underline" title={title} {...props}>
+          <a href={href} target="_blank" rel="noopener noreferrer" className="text-[11px] text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline no-underline" title={title} {...props}>
             {children}
           </a>
         );
@@ -245,13 +248,12 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
       const isBadgeMatch = textContent.match(/^(🟢|🟡|🟠|🔴)/);
 
       if (isBadgeMatch) {
-        // Extrai o domínio puro do href
-        let domain = href.replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0];
+        let displayDomain = href.replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0];
         
-        if (!citationMap.has(domain)) {
-           citationMap.set(domain, citationMap.size + 1);
+        if (!citationMap.has(href)) {
+           citationMap.set(href, citationMap.size + 1);
         }
-        const citationIndex = citationMap.get(domain);
+        const citationIndex = citationMap.get(href);
 
         return (
           <sup className="ml-0.5">
@@ -260,7 +262,7 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
               target="_blank" 
               rel="noopener noreferrer" 
               className="text-[11px] text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline no-underline" 
-              title={domain}
+              title={displayDomain}
               {...props}
             >
               [{citationIndex}]
