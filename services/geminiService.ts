@@ -399,13 +399,26 @@ Use os links do RAG [Texto](URL). NÃO inicie fluxos de investigação, NÃO pe�
     // Agora o nomeParaInjetar existe e não dará mais erro!
     let finalText = enforceOpeningWithSeller(finalParsed.text, nomeParaInjetar);
 
+    const { isFakeUrl: isFake, isUnreliableUrl: isUnreliable } = await import('../services/apiConfig');
     const inlineLinks: Array<{ title: string; url: string }> = [];
     const linkRegex = /\[([^\]\n]{1,120})\]\((https?:\/\/[^)\s]{4,})\)/g;
     let linkMatch;
     while ((linkMatch = linkRegex.exec(finalText)) !== null) {
-      if (!inlineLinks.some(l => l.url === linkMatch[2])) inlineLinks.push({ title: linkMatch[1].trim(), url: linkMatch[2] });
+      const linkUrl = linkMatch[2];
+      if (!isFake(linkUrl) && !isUnreliable(linkUrl) && !inlineLinks.some(l => l.url === linkUrl)) {
+        inlineLinks.push({ title: linkMatch[1].trim(), url: linkUrl });
+      }
     }
-    const sources = [...groundingChunks.filter(c => c.web?.uri).map(c => ({ title: c.web.title || c.web.uri, url: c.web.uri })), ...inlineLinks];
+    const sources = [
+      ...groundingChunks.filter((c: Record<string, unknown>) => {
+        const web = c.web as { uri?: string } | undefined;
+        return web?.uri && !isFake(web.uri) && !isUnreliable(web.uri);
+      }).map((c: Record<string, unknown>) => {
+        const web = c.web as { title?: string; uri: string };
+        return { title: web.title || web.uri, url: web.uri };
+      }),
+      ...inlineLinks
+    ];
 
     return {
       text: finalText, sources, suggestions: [],
