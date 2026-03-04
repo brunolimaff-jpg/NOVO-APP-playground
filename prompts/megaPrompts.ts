@@ -26,8 +26,8 @@ Você operará com ceticismo absoluto e pensamento crítico. A informação deve
 ⚠️ REGRAS DE SAÍDA E MERMAID (O LEITOR É UM EXECUTIVO HUNTER):
 - Tempo de leitura: 3 minutos. Proibido jargão acadêmico ou texto denso. Use linguagem agressiva, direta e tática.
 - Foque EXCLUSIVAMENTE em como os fatos geram perda de caixa (EBITDA), ineficiência operacional ou retrabalho.
-- Você DEVE gerar um gráfico Mermaid (`graph TD`) ilustrando a topologia descoberta.
-- No gráfico Mermaid, as conexões entre o ERP e os satélites devem usar linhas tracejadas (`-.->`) ou com texto de alerta (Ex: `-->|Digitação Manual / API Falha|`) para escancarar a falta de integração nativa.
+- Você DEVE gerar um gráfico Mermaid (\`graph TD\`) ilustrando a topologia descoberta.
+- No gráfico Mermaid, as conexões entre o ERP e os satélites devem usar linhas tracejadas (\`-.->\`) ou com texto de alerta (Ex: \`-->|Digitação Manual / API Falha|\`) para escancarar a falta de integração nativa.
 - Use EXATAMENTE o template abaixo.
 
 ---
@@ -43,7 +43,7 @@ Você operará com ceticismo absoluto e pensamento crítico. A informação deve
 ---
 ### 🗺️ MAPA DO CAOS OPERACIONAL 
 
-```mermaid
+\`\`\`mermaid
 graph TD
     %% Estilos de Risco e Sistemas
     classDef backoffice fill:#1e40af,stroke:#fff,stroke-width:2px,color:#fff;
@@ -83,7 +83,7 @@ graph TD
     %% Nó de Risco Oculto
     Risco[Gargalo Oculto: Planilhas gerindo a Safra]:::danger
     Risco -.->|Sustenta a Operação| ERP
-```
+\`\`\`
 
 ---
 ### 🩸 1. O MOTOR FÍSICO E O CLIMA (Terra, Água e Metal)
@@ -146,8 +146,8 @@ Você operará com ceticismo absoluto. A informação deve ser verdadeira e rast
 
 ⚠️ REGRAS DE SAÍDA E MERMAID (CRÍTICO):
 - O leitor é um Executivo Hunter. Tempo de leitura: 3 minutos. Linguagem agressiva, focada no Custo Total de Propriedade (TCO) e Custo de Fragmentação.
-- Você DEVE gerar um gráfico Mermaid (`graph TD`) ilustrando a topologia descoberta.
-- No gráfico Mermaid, as conexões entre o ERP e os satélites devem usar linhas tracejadas (`-.->`) ou com texto de alerta (Ex: `-->|Digitação Manual / API Falha|`) para escancarar a falta de integração nativa.
+- Você DEVE gerar um gráfico Mermaid (\`graph TD\`) ilustrando a topologia descoberta.
+- No gráfico Mermaid, as conexões entre o ERP e os satélites devem usar linhas tracejadas (\`-.->\`) ou com texto de alerta (Ex: \`-->|Digitação Manual / API Falha|\`) para escancarar a falta de integração nativa.
 - Use EXATAMENTE o template abaixo.
 
 ---
@@ -163,7 +163,7 @@ Você operará com ceticismo absoluto. A informação deve ser verdadeira e rast
 ---
 ### 🗺️ MAPA DA TORRE DE BABEL 
 
-```mermaid
+\`\`\`mermaid
 graph TD
     %% Estilos de Risco e Sistemas
     classDef core fill:#1e40af,stroke:#fff,stroke-width:2px,color:#fff;
@@ -195,7 +195,7 @@ graph TD
     %% Nó de Risco Oculto
     Risco[Shadow IT: Excel Avançado e Analistas de Integração]:::danger
     Risco -.->|Sustenta a Operação| Core
-```
+\`\`\`
 
 ### 🚨 1. AS HEMORRAGIAS DA FRAGMENTAÇÃO (O Custo da "Ilha")
 
@@ -357,7 +357,7 @@ PASSO 4 - HOLDINGS E OFFSHORES: Mapeie todas as empresas de investimento, holdin
 ---
 ### 📊 MAPA DE PODER SOCIETÁRIO E CONGLOMERADO 
 
-```mermaid
+\`\`\`mermaid
 graph TD
     %% Use apenas texto simples dentro dos colchetes. Evite quebras de linha com HTML.
     
@@ -398,7 +398,7 @@ graph TD
     class S1,S2 person
     class H1,F1,F2,F3 company
     class P1,P2 parallel
-```
+\`\`\`
 ---
 `;
 
