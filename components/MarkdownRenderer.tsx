@@ -180,6 +180,28 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
     text = autoLinkSeniorTerms(text);
     text = cleanFakeSourcesBlock(text);
 
+    // 3) PRÉ-PROCESSAMENTO: Transforma citações brutas da IA [🟠 dominio.com] em 
+    // um formato interno simples para renderizar igual Wikipedia
+    text = text.replace(
+      /\[(🟢|🟡|🟠|🔴)\s*(?:Fonte oficial|Não confirmado|Evidência forte|Suspeito)?[\s-–:]*([^\]\n]+?)\]/gi,
+      (_, emoji, label) => {
+        let domainLabel = label.trim();
+        // Limpa sufixos e prefixos extras
+        domainLabel = domainLabel.replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0].replace(/\.$/, '');
+        
+        // Se a IA não gerou uma URL clicável e sim um texto cru:
+        let urlTarget = label.trim().startsWith('http') ? label.trim() : `https://${domainLabel}`;
+
+        if (!citationMap.has(domainLabel)) {
+           citationMap.set(domainLabel, citationMap.size + 1);
+        }
+        const citationIndex = citationMap.get(domainLabel);
+
+        // Substitui a string "[🟠 reportermt.com]" pelo link formatado wikipedia
+        return `<sup><a href="${urlTarget}" target="_blank" rel="noopener noreferrer" class="citation-link" title="${domainLabel}">[${citationIndex}]</a></sup>`;
+      }
+    );
+
     return text;
   }, [content]);
 
@@ -210,21 +232,26 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
       );
     },
 
-    // Tratamento estilo Wikipedia para links <a>
-    a: ({ href, children, ...props }: any) => {
+    // Tratamento para links <a href="..."> gerados pelo markdown nativo (os [texto](url))
+    a: ({ href, children, className, title, ...props }: any) => {
+      // Se for a classe "citation-link" significa que já processamos antes no useMemo
+      if (className === 'citation-link') {
+        return (
+          <a href={href} className="text-[10px] text-emerald-600 dark:text-emerald-400 hover:text-emerald-800 dark:hover:text-emerald-300 hover:underline no-underline" title={title} {...props}>
+            {children}
+          </a>
+        );
+      }
+
       const textContent = String(children || '');
       
-      // Identifica se é um link com emoji de fonte da IA 
+      // Identifica se é um link [🟠 texto](url) que sobrou do markdown padrão
       const isBadgeMatch = textContent.match(/^(🟢|🟡|🟠|🔴)\s*(?:Fonte oficial|Não confirmado|Evidência forte|Suspeito)?[\s-–:]*(.*)/i);
 
       if (isBadgeMatch) {
         let domainLabel = isBadgeMatch[2] || 'fonte';
-        
-        // Remove .com, .br, etc para ficar um índice mais enxuto se possível, 
-        // ou deixa o domínio limpo
         domainLabel = domainLabel.replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0];
         
-        // Criação do índice numérico estilo Wikipedia [1], [2], etc
         if (!citationMap.has(domainLabel)) {
            citationMap.set(domainLabel, citationMap.size + 1);
         }
@@ -246,7 +273,7 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
         );
       }
 
-      // Se for um link normal mas o texto estiver muito grande (ex: a própria url), vamos encurtar
+      // Se for um link normal gigante, encurta
       if (textContent.startsWith('http')) {
         let shortUrl = textContent.replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0];
         if (!citationMap.has(shortUrl)) {
@@ -278,6 +305,11 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
       );
     },
     
+    // Tratamento para <sup /> (quando a gente já joga o HTML pronto no useMemo)
+    sup: ({ children }: any) => (
+      <sup className="ml-0.5 print-exact">{children}</sup>
+    ),
+
     p: ({ children }: any) => (
       <p className="mb-2 last:mb-0 text-sm md:text-[0.95rem] leading-relaxed text-slate-800 dark:text-slate-100">{children}</p>
     ),
