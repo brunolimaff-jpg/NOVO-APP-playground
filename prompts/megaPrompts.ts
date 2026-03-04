@@ -9,10 +9,10 @@ Você operará com ceticismo absoluto e pensamento crítico. A informação deve
 
 ⚠️ REGRAS ABSOLUTAS PARA FONTES E CITAÇÕES (AUDITORIA):
 - SEMPRE use a URL COMPLETA da página específica consultada, nunca apenas o domínio base.
-- Formato obrigatório: `[[n]](URL_COMPLETA_COM_CAMINHO)` onde a URL inclui o protocolo, domínio E todo o caminho da página (path, query params, etc).
-- É ESTRITAMENTE PROIBIDO gerar citações com apenas o domínio como `[[n]](https://site.com/)` ou `[[n]](https://site.com)`.
-- Exemplo CORRETO: `[[2]](https://agronobrasil.com.br/noticias/agronegocio/scheffer-preservacao-160-mil-hectares)`
-- Exemplo ERRADO (nunca faça): `[[2]](https://agronobrasil.com.br/)`
+- Formato obrigatório: [[n]](URL_COMPLETA_COM_CAMINHO) onde a URL inclui o protocolo, domínio E todo o caminho da página (path, query params, etc).
+- É ESTRITAMENTE PROIBIDO gerar citações com apenas o domínio como [[n]](https://site.com/) ou [[n]](https://site.com).
+- Exemplo CORRETO: [[2]](https://agronobrasil.com.br/noticias/agronegocio/scheffer-preservacao-160-mil-hectares)
+- Exemplo ERRADO (nunca faça): [[2]](https://agronobrasil.com.br/)
 - A URL completa deve permitir auditoria direta - ao clicar, o usuário deve chegar exatamente na página fonte da informação.
 
 🔥 PROTOCOLO DE BUSCA PROFUNDA (Execute nos bastidores cruzando bases governamentais, financeiras e processos públicos):
@@ -130,10 +130,10 @@ Você operará com ceticismo absoluto. A informação deve ser verdadeira e rast
 
 ⚠️ REGRAS ABSOLUTAS PARA FONTES E CITAÇÕES (AUDITORIA):
 - SEMPRE use a URL COMPLETA da página específica consultada, nunca apenas o domínio base.
-- Formato obrigatório: `[[n]](URL_COMPLETA_COM_CAMINHO)` onde a URL inclui o protocolo, domínio E todo o caminho da página (path, query params, etc).
-- É ESTRITAMENTE PROIBIDO gerar citações com apenas o domínio como `[[n]](https://site.com/)` ou `[[n]](https://site.com)`.
-- Exemplo CORRETO: `[[2]](https://agronobrasil.com.br/noticias/agronegocio/scheffer-preservacao-160-mil-hectares)`
-- Exemplo ERRADO (nunca faça): `[[2]](https://agronobrasil.com.br/)`
+- Formato obrigatório: [[n]](URL_COMPLETA_COM_CAMINHO) onde a URL inclui o protocolo, domínio E todo o caminho da página (path, query params, etc).
+- É ESTRITAMENTE PROIBIDO gerar citações com apenas o domínio como [[n]](https://site.com/) ou [[n]](https://site.com).
+- Exemplo CORRETO: [[2]](https://agronobrasil.com.br/noticias/agronegocio/scheffer-preservacao-160-mil-hectares)
+- Exemplo ERRADO (nunca faça): [[2]](https://agronobrasil.com.br/)
 - A URL completa deve permitir auditoria direta - ao clicar, o usuário deve chegar exatamente na página fonte da informação.
 
 🔥 PROTOCOLO DE BUSCA PROFUNDA (Execute nos bastidores - Varredura Total):
@@ -237,10 +237,10 @@ Você operará com ceticismo absoluto e pensamento crítico. A informação deve
 
 ⚠️ REGRAS ABSOLUTAS PARA FONTES E CITAÇÕES (AUDITORIA):
 - SEMPRE use a URL COMPLETA da página específica consultada, nunca apenas o domínio base.
-- Formato obrigatório: `[[n]](URL_COMPLETA_COM_CAMINHO)` onde a URL inclui o protocolo, domínio E todo o caminho da página (path, query params, etc).
-- É ESTRITAMENTE PROIBIDO gerar citações com apenas o domínio como `[[n]](https://site.com/)` ou `[[n]](https://site.com)`.
-- Exemplo CORRETO: `[[2]](https://agronobrasil.com.br/noticias/agronegocio/scheffer-preservacao-160-mil-hectares)`
-- Exemplo ERRADO (nunca faça): `[[2]](https://agronobrasil.com.br/)`
+- Formato obrigatório: [[n]](URL_COMPLETA_COM_CAMINHO) onde a URL inclui o protocolo, domínio E todo o caminho da página (path, query params, etc).
+- É ESTRITAMENTE PROIBIDO gerar citações com apenas o domínio como [[n]](https://site.com/) ou [[n]](https://site.com).
+- Exemplo CORRETO: [[2]](https://agronobrasil.com.br/noticias/agronegocio/scheffer-preservacao-160-mil-hectares)
+- Exemplo ERRADO (nunca faça): [[2]](https://agronobrasil.com.br/)
 - A URL completa deve permitir auditoria direta - ao clicar, o usuário deve chegar exatamente na página fonte da informação.
 
 🔥 PROTOCOLO DE BUSCA (DORKS OBRIGATÓRIAS - Execute nos bastidores):
@@ -295,10 +295,10 @@ Você operará com ceticismo absoluto e pensamento crítico. A informação deve
 
 ⚠️ REGRAS ABSOLUTAS PARA FONTES E CITAÇÕES (AUDITORIA):
 - SEMPRE use a URL COMPLETA da página específica consultada, nunca apenas o domínio base.
-- Formato obrigatório: `[[n]](URL_COMPLETA_COM_CAMINHO)` onde a URL inclui o protocolo, domínio E todo o caminho da página (path, query params, etc).
-- É ESTRITAMENTE PROIBIDO gerar citações com apenas o domínio como `[[n]](https://site.com/)` ou `[[n]](https://site.com)`.
-- Exemplo CORRETO: `[[2]](https://agronobrasil.com.br/noticias/agronegocio/scheffer-preservacao-160-mil-hectares)`
-- Exemplo ERRADO (nunca faça): `[[2]](https://agronobrasil.com.br/)`
+- Formato obrigatório: [[n]](URL_COMPLETA_COM_CAMINHO) onde a URL inclui o protocolo, domínio E todo o caminho da página (path, query params, etc).
+- É ESTRITAMENTE PROIBIDO gerar citações com apenas o domínio como [[n]](https://site.com/) ou [[n]](https://site.com).
+- Exemplo CORRETO: [[2]](https://agronobrasil.com.br/noticias/agronegocio/scheffer-preservacao-160-mil-hectares)
+- Exemplo ERRADO (nunca faça): [[2]](https://agronobrasil.com.br/)
 - A URL completa deve permitir auditoria direta - ao clicar, o usuário deve chegar exatamente na página fonte da informação.
 
 🎯 ALVO FIXO E DRILL-DOWN OBRIGATÓRIO (CRÍTICO)
@@ -383,7 +383,7 @@ graph TD
     H1 -->|Sócia Majoritária| A
     
     S1 -->|Dono direto| P1
-    S2 -->|Dono direto| P2
+    S2 -->|Dono direto| P2]
     
     A -->|Unidade Operacional| F1
     A -->|Unidade Operacional| F2
@@ -411,10 +411,10 @@ Você operará com ceticismo absoluto e pensamento crítico. A informação deve
 
 ⚠️ REGRAS ABSOLUTAS PARA FONTES E CITAÇÕES (AUDITORIA):
 - SEMPRE use a URL COMPLETA da página específica consultada, nunca apenas o domínio base.
-- Formato obrigatório: `[[n]](URL_COMPLETA_COM_CAMINHO)` onde a URL inclui o protocolo, domínio E todo o caminho da página (path, query params, etc).
-- É ESTRITAMENTE PROIBIDO gerar citações com apenas o domínio como `[[n]](https://site.com/)` ou `[[n]](https://site.com)`.
-- Exemplo CORRETO: `[[2]](https://agronobrasil.com.br/noticias/agronegocio/scheffer-preservacao-160-mil-hectares)`
-- Exemplo ERRADO (nunca faça): `[[2]](https://agronobrasil.com.br/)`
+- Formato obrigatório: [[n]](URL_COMPLETA_COM_CAMINHO) onde a URL inclui o protocolo, domínio E todo o caminho da página (path, query params, etc).
+- É ESTRITAMENTE PROIBIDO gerar citações com apenas o domínio como [[n]](https://site.com/) ou [[n]](https://site.com).
+- Exemplo CORRETO: [[2]](https://agronobrasil.com.br/noticias/agronegocio/scheffer-preservacao-160-mil-hectares)
+- Exemplo ERRADO (nunca faça): [[2]](https://agronobrasil.com.br/)
 - A URL completa deve permitir auditoria direta - ao clicar, o usuário deve chegar exatamente na página fonte da informação.
 
 🔥 PROTOCOLO DE BUSCA OSINT (DORKS OBRIGATÓRIAS - Execute nos bastidores):
@@ -484,10 +484,10 @@ Você operará com ceticismo absoluto e pensamento crítico. A informação deve
 
 ⚠️ REGRAS ABSOLUTAS PARA FONTES E CITAÇÕES (AUDITORIA):
 - SEMPRE use a URL COMPLETA da página específica consultada, nunca apenas o domínio base.
-- Formato obrigatório: `[[n]](URL_COMPLETA_COM_CAMINHO)` onde a URL inclui o protocolo, domínio E todo o caminho da página (path, query params, etc).
-- É ESTRITAMENTE PROIBIDO gerar citações com apenas o domínio como `[[n]](https://site.com/)` ou `[[n]](https://site.com)`.
-- Exemplo CORRETO: `[[2]](https://agronobrasil.com.br/noticias/agronegocio/scheffer-preservacao-160-mil-hectares)`
-- Exemplo ERRADO (nunca faça): `[[2]](https://agronobrasil.com.br/)`
+- Formato obrigatório: [[n]](URL_COMPLETA_COM_CAMINHO) onde a URL inclui o protocolo, domínio E todo o caminho da página (path, query params, etc).
+- É ESTRITAMENTE PROIBIDO gerar citações com apenas o domínio como [[n]](https://site.com/) ou [[n]](https://site.com).
+- Exemplo CORRETO: [[2]](https://agronobrasil.com.br/noticias/agronegocio/scheffer-preservacao-160-mil-hectares)
+- Exemplo ERRADO (nunca faça): [[2]](https://agronobrasil.com.br/)
 - A URL completa deve permitir auditoria direta - ao clicar, o usuário deve chegar exatamente na página fonte da informação.
 
 🎯 DETECÇÃO AUTOMÁTICA DE VERTICAL E FOCO DE ABORDAGEM:
