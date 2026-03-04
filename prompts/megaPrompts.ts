@@ -19,7 +19,7 @@ Você operará com ceticismo absoluto e pensamento crítico. A informação deve
 - Tempo de leitura: 3 minutos. Proibido jargão acadêmico ou texto denso. Use linguagem agressiva, direta e tática.
 - Foque EXCLUSIVAMENTE em como os fatos geram perda de caixa (EBITDA), ineficiência operacional ou retrabalho.
 - Você DEVE gerar um gráfico Mermaid (\`graph TD\`) ilustrando a topologia descoberta.
-- No gráfico Mermaid, as conexões entre o ERP e os satélites devem usar linhas tracejadas (\`-.->\`) ou com texto de alerta (Ex: \`-->|Digitação Manual / API Falha|\`) para escancarar a falta de integração nativa.
+- No gráfico Mermaid, as conexões entre o ERP e os satélites devem usar linhas tracejadas (\`-.->\ `) ou com texto de alerta (Ex: \`-->|Digitação Manual / API Falha|\`) para escancarar a falta de integração nativa.
 - Use EXATAMENTE o template abaixo.
 
 ---
@@ -33,7 +33,7 @@ Você operará com ceticismo absoluto e pensamento crítico. A informação deve
 * **O Calcanhar de Aquiles:** [Em 1 linha, defina a maior fissura operacional cruzando a operação física com a falha de sistema]
 
 ---
-### 🗺️ MAPA DO CAOS OPERACIONAL (Fluxo Físico vs Sistêmico)
+### 🗺️ MAPA DO CAOS OPERACIONAL 
 
 \`\`\`mermaid
 graph TD
@@ -131,7 +131,7 @@ Você operará com ceticismo absoluto. A informação deve ser verdadeira e rast
 ⚠️ REGRAS DE SAÍDA E MERMAID (CRÍTICO):
 - O leitor é um Executivo Hunter. Tempo de leitura: 3 minutos. Linguagem agressiva, focada no Custo Total de Propriedade (TCO) e Custo de Fragmentação.
 - Você DEVE gerar um gráfico Mermaid (\`graph TD\`) ilustrando a topologia descoberta.
-- No gráfico Mermaid, as conexões entre o ERP e os satélites devem usar linhas tracejadas (\`-.->\`) ou com texto de alerta (Ex: \`-->|Digitação Manual / API Falha|\`) para escancarar a falta de integração nativa.
+- No gráfico Mermaid, as conexões entre o ERP e os satélites devem usar linhas tracejadas (\`-.->\ `) ou com texto de alerta (Ex: \`-->|Digitação Manual / API Falha|\`) para escancarar a falta de integração nativa.
 - Use EXATAMENTE o template abaixo.
 
 ---
@@ -145,7 +145,7 @@ Você operará com ceticismo absoluto. A informação deve ser verdadeira e rast
 * **A Ruptura Crítica:** [Em 1 linha, a maior fissura. Ex: Torre de Babel onde a admissão na Gupy não reflete na folha, e o apontamento do GAtec é digitado manualmente no SAP.]
 
 ---
-### 🗺️ MAPA DA TORRE DE BABEL (Ilhas de Sistemas)
+### 🗺️ MAPA DA TORRE DE BABEL 
 
 \`\`\`mermaid
 graph TD
@@ -323,7 +323,7 @@ PASSO 4: Se aparecerem grupos grandes (TOTVS, bancos, outros ERPs etc.), usar ap
 * [Indícios de blindagem patrimonial via holdings, empresas baixadas/inaptas no nome dos sócios, ou filiais estratégicas em outros estados para elisão fiscal.]
 
 ---
-### 📊 MAPA DE PODER SOCIETÁRIO (Mermaid)
+### 📊 MAPA DE PODER SOCIETÁRIO 
 
 \`\`\`mermaid
 graph TD
@@ -434,7 +434,7 @@ Execute silenciosamente as seguintes varreduras cruzadas:
 5. [Exposição Legal/CPF]: Buscar site:jusbrasil.com.br "[NOME DA EMPRESA]" AND ("responsabilidade solidária" OR "Ministério Público do Trabalho" OR "execução fiscal").
 ⚠️ REGRAS DE SAÍDA E MERMAID:
 - Tempo de leitura: 3 minutos. Linguagem agressiva, tática, focada em dor e sangria financeira. Proibido eufemismos de RH.
-- Você DEVE gerar um gráfico Mermaid (graph TD) mapeando o Ecossistema de Decisão, Veto e Tensão.
+- Você DEVE gerar um gráfico Mermaid  mapeando o Ecossistema de Decisão, Veto e Tensão.
 - Conexões Mermaid: Use linhas cheias (-->) para subordinação direta e tracejadas (-.->) para atritos/influências externas com texto de alerta entre pipes (Ex: |Veto Cultural|, |Protege o Legado AdvPL|, |Pressão por DRE|, |Dita a Regra Fiscal|).
 - classDef Mermaid: danger (#b91c1c) para C-Level/Donos do Orçamento, warning (#b45309) para Sabotadores/Forças Ocultas/Contabilidades, core (#1e40af) para Diretores Operacionais/Avaliadores. NUNCA use HTML nos nós.
 - Mapeie o DNA Tecnológico (Quem vai lutar para manter o sistema antigo por sobrevivência profissional).
@@ -445,7 +445,7 @@ Obrigatoriamente, sua resposta deve seguir EXATAMENTE a estrutura abaixo:
 * **O Shadow Board / Gatekeeper**: [Qual consultoria, contador ou parceiro influencia/veta nos bastidores?]
 * **O Choque Interno (Vulnerabilidade)**: [1 linha sobre o atrito interno atual cruzado com o provável Frankenstein sistêmico]
 ---
-### 🗺️ MAPA DE INFLUÊNCIA, VETO E PODER (Mermaid graph TD)
+### 🗺️ MAPA DE INFLUÊNCIA, VETO E PODER 
 [Diagrama Mermaid com as classes e linhas tracejadas de tensão. Inclua os influenciadores externos apontando para o C-Level.]
 ---
 ### 👥 ALVOS DE ALTO VALOR E SABOTADORES (Matriz Tática)
