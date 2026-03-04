@@ -157,10 +157,15 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
   groundingSources = [],
   showCollapsibleSources = false,
 }) => {
+  
+  // Variável externa ao useMemo para guardar os domínios mapeados e usar como índices de citação
+  let citationMap = new Map<string, number>();
+
   const processedContent = useMemo(() => {
     if (!content) return '';
 
     let text = content;
+    citationMap.clear();
 
     // 1) Converter {"mermaid":"..."} → bloco mermaid
     const FENCE = '`'.repeat(3);
@@ -174,14 +179,6 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
     text = rewriteMarkdownLinksToGoogle(text);
     text = autoLinkSeniorTerms(text);
     text = cleanFakeSourcesBlock(text);
-
-    // 3) SIMPLIFICADO: Não tentamos mais processar [🟢 label] em HTML complexo via regex.
-    // Vamos apenas formatar os links markdown da IA que têm o emoji dentro para ficarem em destaque,
-    // garantindo que os links abram sem quebrar os espaços e pontuações originais do texto.
-    // Tudo que é "badge" será renderizado nativamente pelo react-markdown (tag a).
-    
-    // Converte textos tipo "🟢Fonte oficial: x" em formato que o React Markdown processe
-    // sem quebrar. Se já tiver colchetes com link, o componente <a> cuida dele.
 
     return text;
   }, [content]);
@@ -213,33 +210,69 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
       );
     },
 
-    // Tratamento nativo e seguro para todos os links <a>
+    // Tratamento estilo Wikipedia para links <a>
     a: ({ href, children, ...props }: any) => {
-      // Se o texto do link for um daqueles gerados pela IA (ex: 🟠Não confirmado: site.com)
       const textContent = String(children || '');
-      const isBadgeMatch = textContent.match(/^(🟢|🟡|🟠|🔴)\s*(.*)/);
+      
+      // Identifica se é um link com emoji de fonte da IA 
+      const isBadgeMatch = textContent.match(/^(🟢|🟡|🟠|🔴)\s*(?:Fonte oficial|Não confirmado|Evidência forte|Suspeito)?[\s-–:]*(.*)/i);
 
       if (isBadgeMatch) {
-        const emoji = isBadgeMatch[1];
-        const label = isBadgeMatch[2];
+        let domainLabel = isBadgeMatch[2] || 'fonte';
         
-        const colorClasses =
-          emoji === '🟢' ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-300 dark:border-emerald-700' :
-          emoji === '🟡' ? 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/40 dark:text-amber-300 dark:border-amber-700' :
-          emoji === '🟠' ? 'bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-900/40 dark:text-orange-300 dark:border-orange-700' :
-          'bg-red-50 text-red-700 border-red-200 dark:bg-red-900/40 dark:text-red-300 dark:border-red-700';
+        // Remove .com, .br, etc para ficar um índice mais enxuto se possível, 
+        // ou deixa o domínio limpo
+        domainLabel = domainLabel.replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0];
+        
+        // Criação do índice numérico estilo Wikipedia [1], [2], etc
+        if (!citationMap.has(domainLabel)) {
+           citationMap.set(domainLabel, citationMap.size + 1);
+        }
+        const citationIndex = citationMap.get(domainLabel);
 
         return (
-          <a href={href} target="_blank" rel="noopener noreferrer" className={`inline-flex items-center gap-1 px-2 py-0.5 mx-1 rounded-full text-[10px] font-semibold border align-middle transition-colors no-underline hover:brightness-95 dark:hover:brightness-110 ${colorClasses}`} {...props}>
-            <span>{emoji}</span>
-            <span>{label}</span>
-          </a>
+          <sup className="ml-0.5 print-exact">
+            <a 
+              href={href} 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              className="text-[10px] text-emerald-600 dark:text-emerald-400 hover:text-emerald-800 dark:hover:text-emerald-300 hover:underline no-underline" 
+              title={domainLabel}
+              {...props}
+            >
+              [{citationIndex}]
+            </a>
+          </sup>
         );
       }
 
-      // Link normal do markdown
+      // Se for um link normal mas o texto estiver muito grande (ex: a própria url), vamos encurtar
+      if (textContent.startsWith('http')) {
+        let shortUrl = textContent.replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0];
+        if (!citationMap.has(shortUrl)) {
+           citationMap.set(shortUrl, citationMap.size + 1);
+        }
+        const citationIndex = citationMap.get(shortUrl);
+        
+        return (
+          <sup className="ml-0.5 print-exact">
+            <a 
+              href={href} 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              className="text-[10px] text-emerald-600 dark:text-emerald-400 hover:text-emerald-800 dark:hover:text-emerald-300 hover:underline no-underline" 
+              title={shortUrl}
+              {...props}
+            >
+              [{citationIndex}]
+            </a>
+          </sup>
+        );
+      }
+
+      // Link comum com texto sem ser URL direta ou emoji
       return (
-        <a href={href} target="_blank" rel="noopener noreferrer" className="text-emerald-700 dark:text-emerald-300 hover:underline break-words" {...props}>
+        <a href={href} target="_blank" rel="noopener noreferrer" className="text-emerald-600 dark:text-emerald-400 hover:underline break-words" {...props}>
           {children}
         </a>
       );
@@ -272,7 +305,7 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
       <h4 className="text-[0.9rem] font-bold mt-2 mb-1 text-slate-900 dark:text-slate-50">{children}</h4>
     ),
     blockquote: ({ children }: any) => (
-      <blockquote className="border-l-4 border-amber-400/80 bg-amber-50/80 dark:bg-amber-950/40 dark:border-amber-500/70 px-3 py-2 my-2 rounded-r-md text-xs md:text-[0.9rem] text-amber-900 dark:text-amber-100">
+      <blockquote className="border-l-4 border-emerald-400/80 bg-emerald-50/50 dark:bg-emerald-900/20 dark:border-emerald-500/70 px-3 py-2 my-2 rounded-r-md text-xs md:text-[0.9rem] text-emerald-900 dark:text-emerald-100">
         {children}
       </blockquote>
     ),
