@@ -1,1 +1,1133 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';\nimport { v4 as uuidv4 } from 'uuid';\nimport { useOffline } from './hooks/useOffline';\nimport { useToast } from './hooks/useToast';\nimport ToastContainer from './components/ToastContainer';\nimport ChatInterface from './components/ChatInterface';\nimport { AuthModal } from './components/AuthModal';\nimport { useAuth } from './contexts/AuthContext';\nimport { useMode } from './contexts/ModeContext';\nimport { useCRM } from './contexts/CRMContext';\nconst CRMPipeline = React.lazy(() =>\n  import('./components/CRMPipeline').then(m => ({ default: m.CRMPipeline }))\n);\nconst CRMDetail = React.lazy(() =>\n  import('./components/CRMDetail').then(m => ({ default: m.CRMDetail }))\n);\nimport { Message, Sender, Feedback, ChatSession, ExportFormat, ReportType, AppError, CRMStage } from './types';\nimport { sendMessageToGemini, generateNewSuggestions, generateConsolidatedDossier, resetChatSession } from './services/geminiService';\nimport { listRemoteSessions, getRemoteSession, saveRemoteSession } from './services/sessionRemoteStore';\nimport { sendFeedbackRemote } from './services/feedbackRemoteStore';\nimport { APP_NAME, MODE_LABELS } from './constants';\nimport { normalizeAppError } from './utils/errorHelpers';\nimport { downloadFile } from './utils/downloadHelpers';\nimport { cleanStatusMarkers, cleanTitle, extractAllLinksFromMarkdown, formatSourcesForExport, SourceRef } from './utils/textCleaners';\nimport { fixFakeLinksHTML, extractValidLinks } from './utils/linkFixer';\nimport { BACKEND_URL } from './services/apiConfig';\n\nconst SESSIONS_STORAGE_KEY = 'scout360_sessions_v1';\nconst THEME_KEY = 'scout360_theme';\nconst PAGE_SIZE = 20;\n\ninterface LastAction {\n  type: 'sendMessage' | 'regenerateSuggestions';\n  payload: any;\n}\n\nfunction extractCompanyName(title: string | null | undefined): string {\n  if (!title) return 'Empresa';\n  const patterns = [\n    /completa?\\s+d[oa]s?\\s+(.*)/i,\n    /(?:empresa|grupo|companhia)\\s+(.*)/i,\n    /(?:investigar?|analisar?|pesquisar?)\\s+(?:a\\s+|o\\s+)?(.*)/i,\n    /(?:sobre\\s+(?:a|o)\\s+)(.*)/i,\n    /(?:dossie?\\s+d[oa]s?\\s+)(.*)/i,\n    /(?:capivara\\s+d[oa]s?\\s+)(.*)/i,\n  ];\n  for (const pattern of patterns) {\n    const match = title.match(pattern);\n    if (match && match[1]) {\n      let name = match[1].trim().replace(/\\.{3}$/, '').trim();\n      if (name.length > 2 && name.length < 60) return name;\n    }\n  }\n  return title.replace(/\\.{3}$/, '').trim();\n}\n\nfunction convertMarkdownToHTML(md: string, includeSources: boolean = true): string {\n  const allLinks = extractValidLinks(md);\n  let html = md\n    .replace(\n      /\\[\\[PORTA:(\\d+):P(\\d+):O(\\d+):R(\\d+):T(\\d+):A(\\d+)\\]\\]/g,\n      (_, score, p, o, r, t, a) => {\n        const s = parseInt(score);\n        const color = s >= 71 ? '#059669' : s >= 41 ? '#eab308' : '#ef4444';\n        const bgColor = s >= 71 ? '#f0fdf4' : s >= 41 ? '#fefce8' : '#fef2f2';\n        const borderColor = s >= 71 ? '#059669' : s >= 41 ? '#eab308' : '#ef4444';\n        const label = s >= 71 ? '🟢 Alta Compatibilidade' : s >= 41 ? '🟡 Média Compatibilidade' : '🔴 Baixa Compatibilidade';\n        return `<div class=\"porta-score\" style=\"border:2px solid ${borderColor};background:${bgColor};\">\n          <div class=\"header\"><span class=\"label-porta\">🎯 PORTA</span><span><span class=\"score-num\" style=\"color:${color};\">${score}</span><span class=\"score-max\">/100</span></span></div>\n          <div class=\"bar-bg\" style=\"background:${color}20;\"><div class=\"bar-fill\" style=\"width:${Math.min(s, 100)}%;background:${color};\"></div></div>\n          <div class=\"compat\" style=\"color:${color};\">${label}</div>\n          <div class=\"pillars\"><span class=\"pill\"><b>P</b> ${p}</span><span class=\"pill\"><b>O</b> ${o}</span><span class=\"pill\"><b>R</b> ${r}</span><span class=\"pill\"><b>T</b> ${t}</span><span class=\"pill\"><b>A</b> ${a}</span></div>\n        </div>`;\n      }\n    )\n    .replace(/^>\\s*(.*$)/gm, '<blockquote>$1</blockquote>')\n    .replace(/^#### (.*$)/gm, '<h4>$1</h4>')\n    .replace(/^### (.*$)/gm, '<h3>$1</h3>')\n    .replace(/^## (.*$)/gm, '<h2>$1</h2>')\n    .replace(/^# (.*$)/gm, '<h1>$1</h1>')\n    .replace(/\\*\\*\\*(.*?)\\*\\*\\*/g, '<strong><em>$1</em></strong>')\n    .replace(/\\*\\*(.*?)\\*\\*/g, '<strong>$1</strong>')\n    .replace(/\\*(.*?)\\*/g, '<em>$1</em>')\n    .replace(/\\[([^\\]]+)\\]\\(([^)]+)\\)/g, (match, text, url) => {\n      if (url.includes('ai.studio') || url.includes('google.com/search') || url.includes('vertexai')) {\n        return `<strong style=\"color:#059669;\">${text}</strong>`;\n      }\n      return `<a href=\"${url}\" target=\"_blank\" style=\"color:#059669;text-decoration:underline;\">${text}</a>`;\n    })\n    .replace(/\\^(\\d+)/g, '<sup style=\"background:#059669;color:#fff;padding:1px 5px;border-radius:8px;font-size:10px;margin:0 1px;\">$1</sup>')\n    .replace(/^[\\-\\*] (.*$)/gm, '<li>$1</li>')\n    .replace(/^\\d+\\. (.*$)/gm, '<li>$1</li>')\n    .replace(/\\n\\n/g, '</p><p>')\n    .replace(/\\n/g, '<br>')\n    .replace(/^-----+$/gm, '<hr>')\n    .replace(/^---+$/gm, '<hr>');\n  html = html.replace(/(<li>[\\s\\S]*?<\\/li>(?:\\s*<li>[\\s\\S]*?<\\/li>)*)/g, '<ul>$1</ul>');\n  html = html.replace(/(<blockquote>[\\s\\S]*?<\\/blockquote>)(\\s*<blockquote>[\\s\\S]*?<\\/blockquote>)*/g, (match) => {\n    const content = match.replace(/<\\/?blockquote>/g, '');\n    return '<blockquote>' + content + '</blockquote>';\n  });\n  html = html.replace(/<p><hr><\\/p>/g, '<hr>');\n  if (includeSources && allLinks.length > 0) html += formatSourcesForExport(allLinks);\n  return '<p>' + html + '</p>';\n}\n\nfunction collectFullReport(messages: Message[]): { text: string; sections: string[]; allLinks: SourceRef[] } {\n  const botMessages = messages.filter((m: any) => {\n    const sender = m.sender || (m as any).role || (m as any).type || '';\n    const text = m.text || (m as any).content || (m as any).message || '';\n    return (sender === 'bot' || sender === 'assistant' || sender === 'model') && typeof text === 'string' && text.length > 50;\n  });\n  if (botMessages.length === 0) return { text: '', sections: [], allLinks: [] };\n  const sections: string[] = [];\n  const allLinks: SourceRef[] = [];\n  const dossieText = (botMessages[0] as any).text || (botMessages[0] as any).content || '';\n  sections.push(dossieText);\n  const dossieLinks = extractAllLinksFromMarkdown(dossieText);\n  dossieLinks.forEach(link => { if (!allLinks.find(l => l.url === link.url)) allLinks.push(link); });\n  for (let i = 1; i < botMessages.length; i++) {\n    const botText = (botMessages[i] as any).text || (botMessages[i] as any).content || '';\n    const botIndex = messages.indexOf(botMessages[i] as Message);\n    let userQuestion = '';\n    for (let j = botIndex - 1; j >= 0; j--) {\n      const s = (messages[j] as any).sender || (messages[j] as any).role || '';\n      if (s === 'user' || s === 'human') { userQuestion = (messages[j] as any).text || (messages[j] as any).content || ''; break; }\n    }\n    if (botText.length > 50) {\n      const sectionHeader = userQuestion ? `\\n\\n---\\n\\n## 🔍 APROFUNDAMENTO: ${userQuestion}\\n\\n` : `\\n\\n---\\n\\n## 🔍 APROFUNDAMENTO #${i}\\n\\n`;\n      sections.push(sectionHeader + botText);\n      const sectionLinks = extractAllLinksFromMarkdown(botText);\n      sectionLinks.forEach(link => { if (!allLinks.find(l => l.url === link.url)) allLinks.push(link); });\n    }\n  }\n  return { text: sections.join('\\n\\n'), sections, allLinks };\n}\n\nfunction detectInconsistencies(sections: string[]): string {\n  if (sections.length < 2) return '';\n  const inconsistencies: string[] = [];\n  const patterns = [\n    { label: 'Faturamento', regex: /faturamento[^:]*?:?\\s*(?:R\\$\\s*)?(\\d[\\d.,]*\\s*(?:mi|bi|mil|trilh)[a-záãõüê]*)/gi },\n    { label: 'Área/Hectares', regex: /(\\d[\\d.,]*)\\s*(?:mil\\s+)?(?:hectares|ha\\b)/gi },\n    { label: 'Funcionários', regex: /(\\d[\\d.,]*)\\s*(?:mil\\s+)?(?:funcionários|colaboradores|empregados)/gi },\n    { label: 'Receita', regex: /receita[^:]*?:?\\s*(?:R\\$\\s*)?(\\d[\\d.,]*\\s*(?:mi|bi|mil|trilh)[a-záãõüê]*)/gi },\n    { label: 'Unidades', regex: /(\\d[\\d.,]*)\\s*(?:unidades|filiais|fábricas|plantas|usinas)/gi },\n  ];\n  const mainSection = sections[0];\n  for (let i = 1; i < sections.length; i++) {\n    const drilldown = sections[i];\n    for (const { label, regex } of patterns) {\n      regex.lastIndex = 0;\n      const mainMatches: string[] = [];\n      let match;\n      while ((match = regex.exec(mainSection)) !== null) mainMatches.push(match[0].trim());\n      regex.lastIndex = 0;\n      const drillMatches: string[] = [];\n      while ((match = regex.exec(drilldown)) !== null) drillMatches.push(match[0].trim());\n      if (mainMatches.length > 0 && drillMatches.length > 0) {\n        const mainVal = mainMatches[0].toLowerCase();\n        const drillVal = drillMatches[0].toLowerCase();\n        if (mainVal !== drillVal) {\n          inconsistencies.push(`**${label}:** Dossiê principal menciona *${mainMatches[0]}*, mas aprofundamento menciona *${drillMatches[0]}*. Verifique qual é o dado mais recente.`);\n        }\n      }\n    }\n  }\n  if (inconsistencies.length === 0) return '';\n  return '\\n\\n---\\n\\n## ⚠️ INCONSISTÊNCIAS DETECTADAS\\n\\n' +\n    '> Os dados abaixo apareceram com valores diferentes entre o dossiê principal e os aprofundamentos. Recomenda-se verificar a fonte mais confiável antes de usar em propostas.\\n\\n' +\n    inconsistencies.map((inc, i) => `${i + 1}. ${inc}`).join('\\n') + '\\n';\n}\n\nfunction simpleMarkdownToHtml(md: string, title: string): string {\n  const htmlBody = fixFakeLinksHTML(convertMarkdownToHTML(md, true));\n  return `\n    <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>\n    <head>\n      <meta charset=\"utf-8\">\n      <title>${title}</title>\n      <style>\n        body { font-family: Arial, sans-serif; font-size: 12pt; line-height: 1.5; color: #333; }\n        h1, h2, h3, h4 { color: #059669; font-family: Arial, sans-serif; }\n        a { color: #059669; text-decoration: underline; }\n        ul { padding-left: 20px; } li { margin-bottom: 5px; }\n        blockquote { border-left: 4px solid #f59e0b; background: #fffbeb; padding: 10px; margin: 10px 0; color: #92400e; }\n        .sources-section { margin-top: 20px; padding-top: 10px; border-top: 1px solid #059669; }\n        .sources-section h2 { color: #064e3b; font-size: 14px; }\n      </style>\n    </head>\n    <body>\n      <h1 style=\"font-size: 24px; border-bottom: 2px solid #059669; padding-bottom: 10px;\">${title}</h1>\n      ${htmlBody}\n      <br>\n      <p style=\"font-size: 10px; color: #666; text-align: center; border-top: 1px solid #ccc; padding-top: 10px;\">Gerado por ${APP_NAME} - Inteligência Comercial</p>\n    </body>\n    </html>\n  `;\n}\n\n\nconst AppCore: React.FC = () => {\n  const { userId, user, logout, isAuthenticated } = useAuth();\n  const { mode, systemInstruction } = useMode();\n  const { cards, createCardFromSession, createManualCard, moveCardToStage } = useCRM();\n  const { isOnline, wasOffline, clearWasOffline } = useOffline();\n\n  const [sessions, setSessions] = useState<ChatSession[]>([]);\n  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);\n  const sessionsRef = useRef<ChatSession[]>([]);\n  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);\n  const [isLoading, setIsLoading] = useState(false);\n  const [isLoadingSession, setIsLoadingSession] = useState(false);\n  const [loadingStatus, setLoadingStatus] = useState<string>('Iniciando análise');\n  const [completedLoadingStatuses, setCompletedLoadingStatuses] = useState<string[]>([]);\n  const [isInitialized, setIsInitialized] = useState(false);\n  const [isDarkMode, setIsDarkMode] = useState(() => localStorage.getItem(THEME_KEY) === 'dark');\n  const [isSidebarOpen, setIsSidebarOpen] = useState(true);\n  const [lastQuery, setLastQuery] = useState<string>('');\n  const [isSavingRemote, setIsSavingRemote] = useState(false);\n  const [remoteSaveStatus, setRemoteSaveStatus] = useState<'idle' | 'success' | 'error'>('idle');\n  const [exportStatus, setExportStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');\n  const [exportError, setExportError] = useState<string | null>(null);\n  const [pdfReportContent, setPdfReportContent] = useState<string | null>(null);\n  const [investigationLogged, setInvestigationLogged] = useState(false);\n  const [activeView, setActiveView] = useState<'chat' | 'crm'>('chat');\n  const [selectedCRMCardId, setSelectedCRMCardId] = useState<string | null>(null);\n  const [showNewCrmForm, setShowNewCrmForm] = useState(false);\n  const [newCrmName, setNewCrmName] = useState('');\n  const [newCrmWebsite, setNewCrmWebsite] = useState('');\n  const [newCrmResumo, setNewCrmResumo] = useState('');\n  const [isCreatingCrmCard, setIsCreatingCrmCard] = useState(false);\n  const [showEmailModal, setShowEmailModal] = useState(false);\n  const [emailTo, setEmailTo] = useState('');\n  const [emailSubject, setEmailSubject] = useState('');\n  const [emailStatus, setEmailStatus] = useState<'sending' | 'sent' | 'error' | null>(null);\n  const [showFollowUpModal, setShowFollowUpModal] = useState(false);\n  const [followUpDias, setFollowUpDias] = useState(7);\n  const [followUpNotas, setFollowUpNotas] = useState('');\n  const [followUpStatus, setFollowUpStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');\n\n  const { toasts, toast, dismiss: dismissToast } = useToast();\n  const lastActionRef = useRef<LastAction | null>(null);\n  const abortControllerRef = useRef<AbortController | null>(null);\n  const lastStatusRef = useRef<string | null>(null);\n  const activeGenerationRef = useRef<Record<string, string>>({});\n\n  // Fechar modais com Escape\n  useEffect(() => {\n    const handleEscape = (e: KeyboardEvent) => {\n      if (e.key === 'Escape') {\n        if (showEmailModal) setShowEmailModal(false);\n        if (showFollowUpModal) setShowFollowUpModal(false);\n      }\n    };\n    if (showEmailModal || showFollowUpModal) {\n      document.addEventListener('keydown', handleEscape);\n      return () => document.removeEventListener('keydown', handleEscape);\n    }\n  }, [showEmailModal, showFollowUpModal]);\n\n  const currentSession = sessions.find(s => s.id === currentSessionId) || null;\n  const allMessages = currentSession ? currentSession.messages : [];\n  const selectedCRMCard = selectedCRMCardId ? cards.find(c => c.id === selectedCRMCardId) || null : null;\n\n  const updateSessionById = useCallback(\n    (sessionId: string, updater: (session: ChatSession) => ChatSession) => {\n      setSessions(prev =>\n        prev.map(s =>\n          s.id === sessionId ? { ...updater(s), updatedAt: new Date().toISOString() } : s\n        )\n      );\n    },\n    []\n  );\n\n  const updateCurrentSession = useCallback(\n    (updater: (session: ChatSession) => ChatSession) => {\n      setSessions(prev => {\n        const target = prev.find(s => s.id === currentSessionId);\n        if (!target) return prev;\n        return prev.map(s =>\n          s.id === currentSessionId\n            ? { ...updater(s), updatedAt: new Date().toISOString() }\n            : s\n        );\n      });\n    },\n    [currentSessionId]\n  );\n\n  useEffect(() => {\n    const initApp = async () => {\n      const savedSessions = localStorage.getItem(SESSIONS_STORAGE_KEY);\n      let localSessions: ChatSession[] = [];\n      if (savedSessions) {\n        try {\n          const parsed = JSON.parse(savedSessions);\n          localSessions = parsed.map((s: any) => ({\n            ...s,\n            messages: s.messages.map((m: any) => ({\n              ...m,\n              text: cleanStatusMarkers(m.text || '').cleanText,\n              timestamp: new Date(m.timestamp),\n            })),\n          }));\n        } catch (e) { console.error('Load error', e); }\n      }\n      try {\n        const remoteList = await listRemoteSessions();\n        const sessionMap = new Map<string, ChatSession>();\n        localSessions.forEach(s => sessionMap.set(s.id, s));\n        remoteList.forEach(r => {\n          const existing = sessionMap.get(r.id);\n          if (existing) {\n            sessionMap.set(r.id, { ...existing, ...r, messages: existing.messages.length > 0 ? existing.messages : [] });\n          } else {\n            sessionMap.set(r.id, r);\n          }\n        });\n        const mergedSessions = Array.from(sessionMap.values()).sort(\n          (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()\n        );\n        setSessions(mergedSessions);\n        if (mergedSessions.length > 0) setCurrentSessionId(mergedSessions[0].id);\n        else handleNewSession();\n      } catch (e) {\n        setSessions(localSessions);\n        if (localSessions.length > 0) setCurrentSessionId(localSessions[0].id);\n        else handleNewSession();\n      }\n      const savedTheme = localStorage.getItem(THEME_KEY);\n      if (savedTheme) setIsDarkMode(savedTheme === 'dark');\n      if (window.innerWidth < 768) setIsSidebarOpen(false);\n      setIsInitialized(true);\n    };\n    initApp();\n  }, []);\n\n  useEffect(() => {\n    sessionsRef.current = sessions;\n    if (isInitialized) {\n      try {\n        localStorage.setItem(SESSIONS_STORAGE_KEY, JSON.stringify(sessions));\n      } catch (e: any) {\n        if (e?.name === 'QuotaExceededError' || e?.code === 22) {\n          console.warn('[Storage] Quota exceeded — clearing oldest sessions');\n          const trimmed = sessions.slice(0, Math.max(sessions.length - 5, 1));\n          try { localStorage.setItem(SESSIONS_STORAGE_KEY, JSON.stringify(trimmed)); } catch { /* fallback silencioso */ }\n          toast.error('Armazenamento local cheio. Sessões antigas foram removidas.');\n        }\n      }\n    }\n  }, [sessions, isInitialized]);\n\n  useEffect(() => {\n    document.body.className = isDarkMode ? 'dark' : 'light';\n    document.body.style.backgroundColor = isDarkMode ? '#020617' : '#f8fafc';\n    document.body.style.color = isDarkMode ? '#e2e8f0' : '#0f172a';\n    localStorage.setItem(THEME_KEY, isDarkMode ? 'dark' : 'light');\n  }, [isDarkMode]);\n\n  useEffect(() => {\n    resetChatSession();\n    document.title = `${APP_NAME} ${MODE_LABELS[mode].icon}`;\n  }, [mode]);\n\n  const handleNewSession = useCallback(() => {\n    if (isLoading && abortControllerRef.current) abortControllerRef.current.abort();\n    const newSession: ChatSession = {\n      id: uuidv4(),\n      title: 'Nova Investigação',\n      empresaAlvo: null, cnpj: null, modoPrincipal: null, scoreOportunidade: null, resumoDossie: null,\n      createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),\n      messages: [],\n    };\n    setSessions(prev => [newSession, ...prev]);\n    setCurrentSessionId(newSession.id);\n    setVisibleCount(PAGE_SIZE);\n    resetChatSession();\n    setRemoteSaveStatus('idle');\n    setExportStatus('idle');\n    setPdfReportContent(null);\n    setInvestigationLogged(false);\n    lastActionRef.current = null;\n    setLastQuery('');\n    setLoadingStatus('Iniciando análise');\n  }, [isLoading]);\n\n  const handleSelectSession = async (sessionId: string) => {\n    if (isLoading && abortControllerRef.current) abortControllerRef.current.abort();\n    setCurrentSessionId(sessionId);\n    setVisibleCount(PAGE_SIZE);\n    resetChatSession();\n    setRemoteSaveStatus('idle');\n    setExportStatus('idle');\n    setPdfReportContent(null);\n    setInvestigationLogged(false);\n    lastActionRef.current = null;\n    setLoadingStatus('Iniciando análise');\n    const targetSession = sessions.find(s => s.id === sessionId);\n    if (targetSession && targetSession.messages.length === 0) {\n      setIsLoadingSession(true);\n      try {\n        const fullSession = await getRemoteSession(sessionId);\n        if (fullSession) updateSessionById(sessionId, () => fullSession);\n      } catch (e) { console.error('Lazy load error', e); }\n      finally { setIsLoadingSession(false); }\n    }\n  };\n\n  const handleDeleteSession = (sessionId: string) => {\n    if (sessionId === currentSessionId && isLoading && abortControllerRef.current) {\n      abortControllerRef.current.abort();\n      abortControllerRef.current = null;\n      setIsLoading(false);\n    }\n    delete activeGenerationRef.current[sessionId];\n    const newSessions = sessions.filter(s => s.id !== sessionId);\n    setSessions(newSessions);\n    if (currentSessionId === sessionId) {\n      resetChatSession();\n      if (newSessions.length > 0) {\n        const nextSession = newSessions[0];\n        setCurrentSessionId(nextSession.id);\n        if (nextSession.messages.length === 0) {\n          setIsLoadingSession(true);\n          getRemoteSession(nextSession.id)\n            .then(fullSession => {\n              if (fullSession) updateSessionById(nextSession.id, () => fullSession);\n              setIsLoadingSession(false);\n            })\n            .catch(() => setIsLoadingSession(false));\n        }\n      } else {\n        handleNewSession();\n      }\n    }\n  };\n\n  const handleSaveRemote = async () => {\n    if (!currentSession || !isAuthenticated) return;\n    setIsSavingRemote(true);\n    setRemoteSaveStatus('idle');\n    const snapshotSessionId = currentSession.id;\n    const finalized: ChatSession = { ...currentSession, updatedAt: new Date().toISOString() };\n    updateSessionById(snapshotSessionId, () => finalized);\n    try {\n      await saveRemoteSession(finalized, userId, user?.displayName);\n      setRemoteSaveStatus('success');\n      setTimeout(() => setRemoteSaveStatus('idle'), 3000);\n    } catch { setRemoteSaveStatus('error'); }\n    finally { setIsSavingRemote(false); }\n  };\n\n  const handleClearChat = () => {\n    resetChatSession();\n    updateCurrentSession(session => ({\n      ...session, messages: [], title: 'Nova Investigação', empresaAlvo: null, updatedAt: new Date().toISOString(),\n    }));\n    setInvestigationLogged(false);\n    setLoadingStatus('Realizando pesquisa...');\n    lastActionRef.current = null;\n    setLastQuery('');\n    setVisibleCount(PAGE_SIZE);\n  };\n\n  const processMessage = async (text: string, explicitSessionId?: string, explicitHistory?: Message[]) => {\n    const sessionId = explicitSessionId || currentSessionId;\n    if (!sessionId) return;\n\n    setIsLoading(true);\n    setLoadingStatus('Realizando pesquisa...');\n    setCompletedLoadingStatuses([]);\n    setLastQuery(text);\n    abortControllerRef.current = new AbortController();\n    const signal = abortControllerRef.current.signal;\n    lastActionRef.current = { type: 'sendMessage', payload: { text } };\n\n    let historyToPass: Message[] = [];\n    if (explicitHistory) {\n      historyToPass = explicitHistory;\n    } else {\n      const session = sessionsRef.current.find(s => s.id === sessionId);\n      if (session) {\n        const msgs = session.messages;\n        historyToPass = (msgs.length > 0 && msgs[msgs.length - 1].text === text && msgs[msgs.length - 1].sender === Sender.User)\n          ? msgs.slice(0, -1)\n          : msgs;\n      }\n    }\n\n    const botMessageId = uuidv4();\n    activeGenerationRef.current[sessionId] = botMessageId;\n\n    const botMessagePlaceholder: Message = {\n      id: botMessageId, sender: Sender.Bot, text: '', timestamp: new Date(), isThinking: true, isSourcesOpen: false,\n    };\n\n    setSessions(prev => prev.map(s => s.id === sessionId ? {\n      ...s,\n      messages: [...s.messages.filter(m => !m.isError), botMessagePlaceholder],\n      updatedAt: new Date().toISOString(),\n    } : s));\n    setVisibleCount(prev => prev + 1);\n\n    try {\n      const { text: responseText, sources, suggestions, scorePorta, ghostReason } = await sendMessageToGemini(\n        text, historyToPass, systemInstruction,\n        {\n          signal,\n          onText: () => { },\n          onStatus: (newStatus) => {\n            setLoadingStatus(prev => {\n              if (prev && prev !== newStatus) lastStatusRef.current = prev;\n              return newStatus;\n            });\n            if (lastStatusRef.current && lastStatusRef.current !== newStatus) {\n              const statusToAdd = lastStatusRef.current;\n              setCompletedLoadingStatuses(completed =>\n                statusToAdd && !completed.includes(statusToAdd) ? [...completed, statusToAdd] : completed\n              );\n            }\n          },\n          nomeVendedor: typeof user?.displayName === 'string' ? user.displayName : 'Vendedor',\n        }\n      );\n\n      if (activeGenerationRef.current[sessionId] !== botMessageId) return;\n\n      updateSessionById(sessionId, s => ({\n        ...s,\n        title: (s.messages.length <= 2 || s.title === 'Nova Investigação') ? cleanTitle(extractCompanyName(text)) : s.title,\n        empresaAlvo: s.messages.length <= 2 ? extractCompanyName(text) : s.empresaAlvo,\n        messages: s.messages.map(msg =>\n          msg.id === botMessageId ? {\n            ...msg, text: responseText, groundingSources: sources, suggestions, scorePorta: scorePorta || undefined, isThinking: false,\n            ...(ghostReason && { ghostDetails: ghostReason }),\n          } : msg\n        ),\n      }));\n\n      if (!investigationLogged && responseText.length > 500) {\n        setInvestigationLogged(true);\n        fetch(BACKEND_URL, {\n          method: 'POST', redirect: 'follow',\n          headers: { 'Content-Type': 'text/plain' },\n          body: JSON.stringify({\n            action: 'logInvestigation',\n            vendedor: user?.displayName || 'Anônimo',\n            empresa: cleanTitle(extractCompanyName(text)),\n            modo: mode || '',\n            resumo: responseText.substring(0, 200),\n          }),\n        }).catch(err => console.log('Log falhou:', err));\n      }\n\n    } catch (error: any) {\n      if (error.name === 'AbortError' || error.message?.includes('aborted')) {\n        setSessions(prev => prev.map(s => s.id === sessionId ? {\n          ...s,\n          messages: s.messages.filter(msg => msg.id !== botMessageId || msg.text.trim().length > 0),\n        } : s));\n        setIsLoading(false);\n        abortControllerRef.current = null;\n        return;\n      }\n      if (activeGenerationRef.current[sessionId] !== botMessageId) return;\n      const appError = normalizeAppError(error);\n      updateSessionById(sessionId, s => ({\n        ...s,\n        messages: [...s.messages.filter(m => m.id !== botMessageId), {\n          id: uuidv4(), sender: Sender.Bot, text: 'Erro no processamento',\n          timestamp: new Date(), isError: true, errorDetails: appError,\n        }],\n      }));\n    } finally {\n      setIsLoading(false);\n      abortControllerRef.current = null;\n    }\n  };\n\n  const handleSendMessage = async (text: string, displayText?: string) => {\n    let sessionId = currentSessionId;\n    let currentHistory: Message[] = [];\n    if (!sessionId) {\n      sessionId = uuidv4();\n      const immediateTitle = cleanTitle(extractCompanyName(displayText || text));\n      const newSession: ChatSession = {\n        id: sessionId, title: immediateTitle || 'Nova Investigação',\n        empresaAlvo: immediateTitle || null, cnpj: null, modoPrincipal: null, scoreOportunidade: null, resumoDossie: null,\n        createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), messages: [],\n      };\n      setSessions(prev => [newSession, ...prev]);\n      setCurrentSessionId(sessionId);\n      currentHistory = [];\n    } else {\n      const session = sessions.find(s => s.id === sessionId);\n      currentHistory = session ? [...session.messages] : [];\n    }\n    const userMessage: Message = { id: uuidv4(), sender: Sender.User, text: displayText || text, timestamp: new Date() };\n    setSessions(prev => prev.map(s =>\n      s.id === sessionId ? { ...s, messages: [...s.messages, userMessage], updatedAt: new Date().toISOString() } : s\n    ));\n    setVisibleCount(prev => prev + 1);\n    await processMessage(text, sessionId, currentHistory);\n  };\n\n  const handleDeepDive = async (displayMessage: string, hiddenPrompt: string) => {\n    let finalPrompt = hiddenPrompt;\n    if (currentSession?.empresaAlvo) {\n        finalPrompt = hiddenPrompt.replace(/\\[NOME DA EMPRESA\\]/g, currentSession.empresaAlvo);\n    }\n\n    const empresaContext = currentSession?.empresaAlvo || currentSession?.title || 'a empresa desta conversa';\n    // \"Dossiê completo\" é o gatilho reconhecido pelo router para escalar ao modelo PROFUNDA (gemini-2.5-pro).\n    // Sem ele, o router classifica como 'tatica' e usa gemini-2.5-flash, que alucina com o mega-prompt de 100+ linhas.\n    await handleSendMessage(\n      `Dossiê completo de [${empresaContext}]. Protocolo de investigação forense especializada:\\n\\n${finalPrompt}`,\n      displayMessage\n    );\n  };\n\n  const handleDeleteMessage = (id: string) => {\n    if (!currentSessionId) return;\n    updateSessionById(currentSessionId, session => {\n      const msgIndex = session.messages.findIndex(m => m.id === id);\n      if (msgIndex === -1) return session;\n\n      // Corta a conversa a partir deste índice (remove a msg do usuário e TODAS as repostas a frente)\n      const truncatedMessages = session.messages.slice(0, msgIndex);\n\n      return {\n        ...session,\n        messages: truncatedMessages,\n      };\n    });\n  };\n\n  const handleStopGeneration = useCallback(() => {\n    if (abortControllerRef.current) {\n      abortControllerRef.current.abort();\n      abortControllerRef.current = null;\n      setIsLoading(false);\n    }\n  }, []);\n\n  const handleRetry = () => {\n    if (!lastActionRef.current) return;\n    if (lastActionRef.current.type === 'sendMessage') {\n      if (currentSessionId) {\n        updateSessionById(currentSessionId, session => {\n          const messages = session.messages;\n          const lastMsg = messages[messages.length - 1];\n          if (lastMsg && lastMsg.sender === Sender.Bot && (lastMsg.isError || !lastMsg.text || lastMsg.ghostReason)) {\n            return { ...session, messages: messages.slice(0, -1) };\n          }\n          return session;\n        });\n      }\n      processMessage(lastActionRef.current.payload.text, currentSessionId || undefined);\n    } else if (lastActionRef.current.type === 'regenerateSuggestions') {\n      handleRegenerateSuggestions(lastActionRef.current.payload.messageId);\n    }\n  };\n\n  const handleRegenerateSuggestions = async (messageId: string) => {\n    const sessionId = currentSessionId;\n    if (!sessionId) return;\n    lastActionRef.current = { type: 'regenerateSuggestions', payload: { messageId } };\n    const targetSession = sessions.find(s => s.id === sessionId);\n    if (!targetSession) return;\n    const targetMessage = targetSession.messages.find(m => m.id === messageId);\n    if (!targetMessage) return;\n    const companyName = targetSession.empresaAlvo || extractCompanyName(targetSession.title || '') || 'Empresa não identificada';\n    let lastUserQuestion = '';\n    const msgs = targetSession.messages;\n    const idx = msgs.findIndex(m => m.id === messageId);\n    for (let i = idx - 1; i >= 0; i--) {\n      if (msgs[i].sender === Sender.User) { lastUserQuestion = msgs[i].text; break; }\n    }\n    const snippet = (targetMessage.text || '').slice(0, 3000);\n    const contextText = [`EMPRESA: ${companyName}`, lastUserQuestion ? `PERGUNTA_ANTERIOR: ${lastUserQuestion}` : '', 'TRECHO_DOSSIE:', snippet].filter(Boolean).join('\\n\\n');\n    const oldSuggestions = targetMessage.suggestions || [];\n    updateSessionById(sessionId, session => ({\n      ...session, messages: session.messages.map(msg => msg.id === messageId ? { ...msg, isRegeneratingSuggestions: true } : msg),\n    }));\n    try {\n      const newSuggestions = await generateNewSuggestions(contextText, oldSuggestions);\n      updateSessionById(sessionId, session => ({\n        ...session, messages: session.messages.map(msg => msg.id === messageId ? { ...msg, suggestions: newSuggestions, isRegeneratingSuggestions: false } : msg),\n      }));\n    } catch (e: any) {\n      console.warn('Suggestion regeneration failed', e);\n      toast.error(e.message || 'Falha na conexão com a IA.');\n      updateSessionById(sessionId, session => ({\n        ...session, messages: session.messages.map(msg => msg.id === messageId ? { ...msg, isRegeneratingSuggestions: false } : msg),\n      }));\n    }\n  };\n\n  const handleReportError = async (messageId: string, error: AppError) => {\n    if (!currentSession) return;\n    const errorPayload = JSON.stringify({ code: error.code, source: error.source, message: error.message, details: error.details }, null, 2);\n    try {\n      await sendFeedbackRemote({\n        feedbackId: uuidv4(), sessionId: currentSession.id, messageId,\n        sectionKey: 'ERROR_REPORT', sectionTitle: 'System Error',\n        type: 'dislike', comment: `Automated Error Report: ${error.code}`,\n        aiContent: errorPayload, userId, userName: user?.displayName,\n        timestamp: new Date().toISOString(),\n      });\n    } catch (e) { console.error('Failed to report error', e); }\n  };\n\n  async function handleExportPDF() {\n    try {\n      const { text: fullText, sections, allLinks } = collectFullReport(allMessages);\n      if (!fullText || fullText.length < 100) { alert('Nenhum dossiê para exportar.'); return; }\n\n      const inconsistenciesSection = detectInconsistencies(sections);\n      const finalText = fullText + inconsistenciesSection;\n      const empresa = cleanTitle(extractCompanyName(currentSession?.title));\n      const now = new Date();\n      const dataStr = now.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });\n      const horaStr = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });\n      const metaLine = `${dataStr} às ${horaStr} · ${sections.length} seção${sections.length !== 1 ? 'ões' : ''}`;\n\n      const { PDFGenerator } = await import('./utils/PDFGenerator');\n      const pdf = new PDFGenerator();\n      pdf.addHeader(empresa, metaLine);\n      pdf.renderMarkdown(finalText);\n      pdf.addSources(allLinks.map(l => ({ text: l.text || l.url, url: l.url })));\n\n      const safeTitle = empresa.replace(/[^a-z0-9]/gi, '_').substring(0, 50);\n      pdf.save(`SeniorScout_${safeTitle}_${now.toISOString().slice(0, 10)}.pdf`);\n    } catch (e) {\n      console.error('Erro ao gerar PDF:', e);\n      toast.error('Erro ao gerar PDF. Tente novamente.');\n    }\n  }\n\n  const handleExportConversation = async (format: ExportFormat, reportType: ReportType) => {\n    if (!currentSession) return;\n    setExportStatus('loading');\n    setExportError(null);\n    try {\n      const contentMarkdown = await generateConsolidatedDossier(currentSession.messages, systemInstruction, mode, reportType);\n      const safeTitle = cleanTitle(currentSession.title).replace(/[^a-z0-9]/gi, '_').substring(0, 50);\n      const dateStr = new Date().toISOString().slice(0, 10);\n      const reportSuffix = reportType === 'executive' ? 'EXEC' : reportType === 'tech' ? 'FICHA' : 'DOSSIE';\n      const filename = `SeniorScout_${safeTitle}_${reportSuffix}_${dateStr}`;\n      if (format === 'md') {\n        downloadFile(`${filename}.md`, contentMarkdown, 'text/markdown;charset=utf-8');\n      } else if (format === 'doc') {\n        const htmlContent = simpleMarkdownToHtml(contentMarkdown, currentSession.title);\n        downloadFile(`${filename}.doc`, htmlContent, 'application/msword');\n      }\n      setExportStatus('success');\n      setTimeout(() => setExportStatus('idle'), 3000);\n    } catch (error: any) {\n      setExportError(error.message || 'Falha ao gerar o arquivo.');\n      setExportStatus('error');\n    }\n  };\n\n  async function handleSendEmail() {\n    if (!emailTo.includes('@')) return;\n    setEmailStatus('sending');\n    try {\n      const { text: fullText, sections } = collectFullReport(allMessages);\n      if (!fullText || fullText.length < 100) { setEmailStatus('error'); return; }\n      const inconsistenciesSection = detectInconsistencies(sections);\n      const htmlBody = fixFakeLinksHTML(convertMarkdownToHTML(fullText + inconsistenciesSection, true));\n      const response = await fetch(BACKEND_URL, {\n        method: 'POST', redirect: 'follow', headers: { 'Content-Type': 'text/plain' },\n        body: JSON.stringify({\n          action: 'sendEmail', email: emailTo, subject: emailSubject, body: htmlBody,\n          empresa: cleanTitle(extractCompanyName(currentSession?.title)), vendedor: user?.displayName || 'Vendedor',\n        }),\n      });\n      const text = await response.text();\n      let result;\n      try { result = JSON.parse(text); } catch { result = response.ok ? { success: true } : { success: false }; }\n      if (result.success) {\n        setEmailStatus('sent');\n        setTimeout(() => { setShowEmailModal(false); setEmailStatus(null); setEmailTo(''); }, 3000);\n      } else {\n        setEmailStatus('error');\n      }\n    } catch (err) { setEmailStatus('error'); toast.error('Falha ao enviar email. Verifique sua conexão.'); }\n  }\n\n  async function handleScheduleFollowUp() {\n    setFollowUpStatus('sending');\n    try {\n      const response = await fetch(BACKEND_URL, {\n        method: 'POST', redirect: 'follow', headers: { 'Content-Type': 'text/plain' },\n        body: JSON.stringify({\n          action: 'scheduleFollowUp',\n          empresa: cleanTitle(extractCompanyName(currentSession?.title)),\n          vendedor: user?.displayName || 'Vendedor', dias: followUpDias,\n          emailVendedor: emailTo, notas: followUpNotas,\n        }),\n      });\n      const text = await response.text();\n      let result;\n      try { result = JSON.parse(text); } catch { result = { success: true }; }\n      if (result.success || result.ok) {\n        setFollowUpStatus('sent');\n        setTimeout(() => { setShowFollowUpModal(false); setFollowUpStatus('idle'); setFollowUpNotas(''); }, 3000);\n      } else { setFollowUpStatus('error'); }\n    } catch { setFollowUpStatus('error'); }\n  }\n\n  const handleFeedback = (messageId: string, feedback: Feedback) => {\n    if (!currentSession) return;\n    updateCurrentSession(session => ({\n      ...session, messages: session.messages.map(m => m.id === messageId ? { ...m, feedback: m.feedback === feedback ? undefined : feedback } : m),\n    }));\n  };\n\n  const handleSendFeedback = async (messageId: string, feedback: Feedback, comment: string, content: string) => {\n    if (!currentSession) return;\n    const snapshotSessionId = currentSession.id;\n    updateSessionById(snapshotSessionId, session => ({\n      ...session, messages: session.messages.map(m => m.id === messageId ? { ...m, feedback } : m),\n    }));\n    try {\n      await sendFeedbackRemote({\n        feedbackId: uuidv4(), sessionId: snapshotSessionId, messageId,\n        sectionKey: null, sectionTitle: null,\n        type: feedback === 'up' ? 'like' : 'dislike', comment, aiContent: content,\n        userId, userName: user?.displayName, timestamp: new Date().toISOString(),\n      });\n    } catch (e) { console.error('Feedback error', e); }\n  };\n\n  const handleSectionFeedback = (messageId: string, sectionTitle: string, feedback: Feedback) => {\n    updateCurrentSession(session => ({\n      ...session, messages: session.messages.map(msg => {\n        if (msg.id !== messageId) return msg;\n        const currentSections = msg.sectionFeedback || {};\n        const newVal = currentSections[sectionTitle] === feedback ? undefined : feedback;\n        const newSections = { ...currentSections };\n        if (newVal === undefined) delete newSections[sectionTitle]; else newSections[sectionTitle] = newVal;\n        return { ...msg, sectionFeedback: newSections };\n      }),\n    }));\n  };\n\n  const handleToggleMessageSources = (messageId: string) => {\n    updateCurrentSession(session => ({\n      ...session, messages: session.messages.map(msg => msg.id === messageId ? { ...msg, isSourcesOpen: !msg.isSourcesOpen } : msg),\n    }));\n  };\n\n  const handleSaveToCRM = async (sessionId: string) => {\n    const session = sessions.find(s => s.id === sessionId);\n    if (!session) return;\n    const existingCard = cards.find(c => c.id === `crm_${sessionId}`);\n    if (existingCard) { setSelectedCRMCardId(existingCard.id); setActiveView('crm'); toast.success('Empresa já existe no CRM.'); return; }\n    const card = await createCardFromSession(session);\n    toast.success(`${card.companyName} adicionada ao CRM!`);\n    setSelectedCRMCardId(card.id);\n    setActiveView('crm');\n  };\n\n  const handleCreateManualCRMCard = async () => {\n    if (!newCrmName.trim()) return;\n    setIsCreatingCrmCard(true);\n    try {\n      const card = await createManualCard({\n        companyName: newCrmName.trim(), website: newCrmWebsite.trim() || undefined,\n        briefDescription: newCrmResumo.trim() || undefined, stage: 'prospeccao',\n      });\n      setNewCrmName(''); setNewCrmWebsite(''); setNewCrmResumo('');\n      setShowNewCrmForm(false);\n      setSelectedCRMCardId(card.id);\n    } catch (err) { console.error('Erro ao criar card:', err); }\n    finally { setIsCreatingCrmCard(false); }\n  };\n\n  const handleMoveCRMCard = async (cardId: string, toStage: CRMStage) => { await moveCardToStage(cardId, toStage); };\n  const handleSelectCRMCard = (cardId: string) => { setSelectedCRMCardId(cardId); };\n  const handleCloseCRMDetail = () => { setSelectedCRMCardId(null); };\n  const handleMoveStageFromDetail = async (stage: string) => { if (selectedCRMCardId) await moveCardToStage(selectedCRMCardId, stage as CRMStage); };\n\n  const handleSelectSessionFromDetail = async (sessionId: string) => {\n    await handleSelectSession(sessionId);\n    setActiveView('chat');\n    setSelectedCRMCardId(null);\n  };\n\n  const handleCreateSessionFromDetail = () => {\n    if (!selectedCRMCard) return;\n    const companyName = selectedCRMCard.companyName || 'Empresa';\n    setSelectedCRMCardId(null);\n    setActiveView('chat');\n    setTimeout(() => {\n      handleNewSession();\n      window.dispatchEvent(new CustomEvent('scout:prefill', { detail: { text: companyName } }));\n    }, 80);\n  };\n\n  const handleOpenKanban = () => { setActiveView('crm'); setSelectedCRMCardId(null); };\n\n  const renderUserHeader = () => {\n    if (!user) return null;\n    const displayName = typeof user.displayName === 'string' ? user.displayName : 'Usuário';\n    return (\n      <div className=\"hidden lg:flex items-center gap-2 mr-2 border-r border-slate-300 dark:border-slate-700 pr-3\">\n        <span className=\"text-xs font-medium text-slate-500 dark:text-slate-400 truncate max-w-[120px]\">\n          👤 {displayName}\n        </span>\n        <button onClick={logout} className=\"text-[10px] text-red-500 hover:text-red-600 font-medium hover:underline\">Sair</button>\n      </div>\n    );\n  };\n\n  if (!isInitialized) {\n    return (\n      <div className={`flex h-screen w-full items-center justify-center ${isDarkMode ? 'bg-slate-950' : 'bg-slate-50'}`}>\n        <div className=\"flex flex-col items-center gap-4\">\n          <div className=\"w-10 h-10 border-4 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin\" />\n          <p className={`text-sm font-medium ${isDarkMode ? 'text-slate-400' : 'text-slate-500'} animate-pulse`}>Preparando ambiente...</p>\n        </div>\n      </div>\n    );\n  }\n\n  const chatElement = (\n    <ChatInterface\n      currentSession={currentSession}\n      sessions={sessions}\n      onNewSession={handleNewSession}\n      onSelectSession={handleSelectSession}\n      onDeleteSession={handleDeleteSession}\n      onSaveToCRM={handleSaveToCRM}\n      onOpenKanban={handleOpenKanban}\n      isSidebarOpen={isSidebarOpen}\n      onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}\n      messages={allMessages.slice(-visibleCount)}\n      isLoading={isLoading}\n      hasMore={allMessages.length > visibleCount}\n      onSendMessage={handleSendMessage}\n      onDeepDive={handleDeepDive}\n      onFeedback={handleFeedback}\n      onSendFeedback={handleSendFeedback}\n      onSectionFeedback={handleSectionFeedback}\n      onLoadMore={() => setVisibleCount(prev => prev + PAGE_SIZE)}\n      onExportConversation={handleExportConversation}\n      onExportPDF={handleExportPDF}\n      onExportMessage={() => { }}\n      onRetry={handleRetry}\n      onStop={handleStopGeneration}\n      onReportError={handleReportError}\n      onClearChat={handleClearChat}\n      onRegenerateSuggestions={handleRegenerateSuggestions}\n      isDarkMode={isDarkMode}\n      onToggleTheme={() => setIsDarkMode(!isDarkMode)}\n      onToggleMessageSources={handleToggleMessageSources}\n      exportStatus={exportStatus}\n      exportError={exportError}\n      pdfReportContent={pdfReportContent}\n      onOpenEmailModal={() => {\n        setEmailSubject('Dossiê de Inteligência — ' + cleanTitle(extractCompanyName(currentSession?.title)) + ' — Senior Scout 360');\n        setShowEmailModal(true);\n        setEmailStatus(null);\n      }}\n      onOpenFollowUpModal={() => { setShowFollowUpModal(true); setFollowUpStatus('idle'); }}\n      onSaveRemote={handleSaveRemote}\n      isSavingRemote={isSavingRemote}\n      remoteSaveStatus={remoteSaveStatus}\n      userHeaderNode={renderUserHeader()}\n      onLogout={logout}\n      lastUserQuery={lastQuery}\n      processing={{ stage: loadingStatus, completedStages: completedLoadingStatuses }}\n      onDeleteMessage={handleDeleteMessage}\n    />\n  );\n\n  const crmElement = (\n    <div className={`flex h-full w-full ${isDarkMode ? 'bg-slate-950' : 'bg-slate-50'}`}>\n      <div className=\"flex-1 p-4 md:p-6 overflow-y-auto\">\n        <div className=\"flex items-center justify-between mb-4 gap-3 flex-wrap\">\n          <div>\n            <p className=\"text-[10px] font-semibold uppercase tracking-wide text-slate-400\">Pipeline · Kanban</p>\n            <h1 className=\"text-sm md:text-base font-semibold text-slate-800 dark:text-slate-100\">Mini CRM</h1>\n          </div>\n          <div className=\"flex items-center gap-2\">\n            <button onClick={() => setShowNewCrmForm(prev => !prev)}\n              className=\"text-[11px] px-3 py-1.5 rounded-full bg-emerald-500 text-white hover:bg-emerald-600 font-medium transition-colors\">\n              {showNewCrmForm ? '✕ Cancelar' : '+ Nova empresa'}\n            </button>\n            <button onClick={() => setActiveView('chat')}\n              className=\"text-[11px] px-3 py-1.5 rounded-full border border-slate-300/70 dark:border-slate-700 text-slate-600 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors\">\n              ← Voltar\n            </button>\n          </div>\n        </div>\n        {showNewCrmForm && (\n          <div className={`mb-5 rounded-xl border p-4 space-y-3 ${isDarkMode ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200'}`}>\n            <div className=\"grid grid-cols-1 md:grid-cols-3 gap-3\">\n              <input type=\"text\" value={newCrmName} onChange={e => setNewCrmName(e.target.value)} placeholder=\"Nome da empresa *\" autoFocus\n                className={`rounded-lg border px-3 py-2 text-sm bg-transparent ${isDarkMode ? 'border-slate-700 text-slate-100' : 'border-slate-300 text-slate-900'}`} />\n              <input type=\"text\" value={newCrmWebsite} onChange={e => setNewCrmWebsite(e.target.value)} placeholder=\"Website (opcional)\"\n                className={`rounded-lg border px-3 py-2 text-sm bg-transparent ${isDarkMode ? 'border-slate-700 text-slate-100' : 'border-slate-300 text-slate-900'}`} />\n              <input type=\"text\" value={newCrmResumo} onChange={e => setNewCrmResumo(e.target.value)} placeholder=\"Resumo breve (opcional)\"\n                className={`rounded-lg border px-3 py-2 text-sm bg-transparent ${isDarkMode ? 'border-slate-700 text-slate-100' : 'border-slate-300 text-slate-900'}`} />\n            </div>\n            <div className=\"flex justify-end\">\n              <button onClick={handleCreateManualCRMCard} disabled={!newCrmName.trim() || isCreatingCrmCard}\n                className=\"px-4 py-2 rounded-lg text-[12px] font-semibold bg-emerald-600 text-white hover:bg-emerald-500 disabled:bg-slate-400 disabled:cursor-not-allowed\">\n                {isCreatingCrmCard ? 'Criando...' : 'Criar empresa'}\n              </button>\n            </div>\n          </div>\n        )}\n        <React.Suspense fallback={null}>\n          <CRMPipeline cards={cards} onMoveCard={handleMoveCRMCard} onSelectCard={handleSelectCRMCard} />\n        </React.Suspense>\n      </div>\n    </div>\n  );\n\n  return (\n    <>\n      <AuthModal />\n\n      {/* Banner offline */}\n      {!isOnline && (\n        <div className=\"fixed top-0 inset-x-0 z-[100] flex items-center justify-center gap-2 bg-amber-500 text-amber-950 text-xs font-semibold py-1.5 px-4 shadow-lg\">\n          <svg className=\"w-4 h-4 shrink-0\" fill=\"none\" stroke=\"currentColor\" viewBox=\"0 0 24 24\">\n            <path strokeLinecap=\"round\" strokeLinejoin=\"round\" strokeWidth={2} d=\"M18.364 5.636a9 9 0 010 12.728M15.536 8.464a5 5 0 010 7.072M8.464 8.464a5 5 0 000 7.072M5.636 5.636a9 9 0 000 12.728M12 12v.01\" />\n          </svg>\n          Sem conexão — algumas funções ficam indisponíveis offline\n        </div>\n      )}\n\n      {/* Banner \"voltou online\" */}\n      {isOnline && wasOffline && (\n        <div\n          className=\"fixed top-0 inset-x-0 z-[100] flex items-center justify-center gap-2 bg-emerald-600 text-white text-xs font-semibold py-1.5 px-4 shadow-lg cursor-pointer\"\n          onClick={clearWasOffline}\n        >\n          <svg className=\"w-4 h-4 shrink-0\" fill=\"none\" stroke=\"currentColor\" viewBox=\"0 0 24 24\">\n            <path strokeLinecap=\"round\" strokeLinejoin=\"round\" strokeWidth={2} d=\"M5 13l4 4L19 7\" />\n          </svg>\n          Conexão restabelecida ✕\n        </div>\n      )}\n\n      <div className={`flex flex-col h-screen w-full ${isDarkMode ? 'bg-slate-950' : 'bg-slate-50'}`}>\n        <header className={`h-12 px-3 md:px-4 flex items-center justify-between border-b backdrop-blur-sm ${isDarkMode ? 'bg-slate-950/80 border-slate-800' : 'bg-white/80 border-slate-200'\n          }`}>\n          <div className=\"flex items-center gap-3 min-w-0\">\n            <div className=\"flex items-center gap-2\">\n              <span className=\"text-sm font-semibold text-slate-800 dark:text-slate-100\">Senior Scout 360</span>\n              <span className=\"hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300\">\n                {MODE_LABELS[mode].icon} {MODE_LABELS[mode].label}\n              </span>\n            </div>\n\n          </div>\n          <div className=\"flex items-center gap-2\">{renderUserHeader()}</div>\n        </header>\n        <div className=\"flex-1 min-h-0\">{activeView === 'chat' ? chatElement : crmElement}</div>\n      </div>\n      {selectedCRMCard && (\n        <React.Suspense fallback={null}>\n          <CRMDetail\n            card={selectedCRMCard} sessions={sessions} onClose={handleCloseCRMDetail}\n            onSelectSession={handleSelectSessionFromDetail} onMoveStage={handleMoveStageFromDetail}\n            onCreateSessionFromCard={handleCreateSessionFromDetail} isDarkMode={isDarkMode}\n          />\n        </React.Suspense>\n      )}\n      {showEmailModal && (\n        <>\n          <div className=\"fixed inset-0 bg-black/50 z-50\" onClick={() => setShowEmailModal(false)} />\n          <div className=\"fixed inset-0 flex items-center justify-center z-50 px-4 pointer-events-none\">\n            <div className=\"bg-gray-800 border border-gray-700 rounded-2xl p-6 max-w-md w-full shadow-xl pointer-events-auto\">\n              <h3 className=\"text-lg font-bold text-white mb-4\">📧 Enviar Dossiê por Email</h3>\n              <div className=\"space-y-3 mb-4\">\n                <input type=\"email\" value={emailTo} onChange={(e) => setEmailTo(e.target.value)} placeholder=\"Email do destinatário\"\n                  className=\"w-full px-3 py-2.5 rounded-lg bg-gray-900 border border-gray-700/50 text-white text-sm focus:outline-none focus:border-emerald-500\" autoFocus />\n                <input type=\"text\" value={emailSubject} onChange={(e) => setEmailSubject(e.target.value)} placeholder=\"Assunto\"\n                  className=\"w-full px-3 py-2.5 rounded-lg bg-gray-900 border border-gray-700/50 text-white text-sm focus:outline-none focus:border-emerald-500\" />\n              </div>\n              {emailStatus && (\n                <div className=\"text-sm mb-4 p-2 rounded-lg text-emerald-400 bg-emerald-500/10\">\n                  {emailStatus === 'sending' && '⏳ Enviando...'}{emailStatus === 'sent' && '✅ Enviado!'}{emailStatus === 'error' && '❌ Erro ao enviar.'}\n                </div>\n              )}\n              <div className=\"flex gap-3\">\n                <button onClick={() => setShowEmailModal(false)} className=\"flex-1 px-4 py-2.5 rounded-lg border border-gray-600 text-gray-300 hover:bg-gray-700 text-sm\">Cancelar</button>\n                <button onClick={handleSendEmail} disabled={emailStatus === 'sending' || !emailTo.includes('@')} className=\"flex-1 px-4 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:bg-gray-600 text-white text-sm\">{emailStatus === 'sending' ? 'Enviando...' : 'Enviar'}</button>\n              </div>\n            </div>\n          </div>\n        </>\n      )}\n      {showFollowUpModal && (\n        <>\n          <div className=\"fixed inset-0 bg-black/50 z-50\" onClick={() => setShowFollowUpModal(false)} />\n          <div className=\"fixed inset-0 flex items-center justify-center z-50 px-4 pointer-events-none\">\n            <div className=\"bg-gray-800 border border-gray-700 rounded-2xl p-6 max-w-md w-full shadow-xl pointer-events-auto\">\n              <h3 className=\"text-lg font-bold text-white mb-4\">📅 Agendar Follow-up</h3>\n              <div className=\"grid grid-cols-4 gap-2 mb-4\">\n                {[3, 7, 15, 30].map(d => (\n                  <button key={d} onClick={() => setFollowUpDias(d)}\n                    className={`p-3 rounded-xl border text-center transition-all ${followUpDias === d ? 'border-emerald-500 bg-emerald-500/10 text-white' : 'border-gray-700/30 bg-gray-800/50 text-gray-400'\n                      }`}>\n                    <p className=\"text-lg font-bold\">{d}</p><p className=\"text-xs\">dias</p>\n                  </button>\n                ))}\n              </div>\n              <input type=\"email\" value={emailTo} onChange={(e) => setEmailTo(e.target.value)} placeholder=\"Seu email para lembrete\"\n                className=\"w-full px-3 py-2.5 rounded-lg bg-gray-900 border border-gray-700/50 text-white text-sm mb-3 focus:outline-none focus:border-emerald-500\" />\n              <input type=\"text\" value={followUpNotas} onChange={(e) => setFollowUpNotas(e.target.value)} placeholder=\"Notas (opcional)\"\n                className=\"w-full px-3 py-2.5 rounded-lg bg-gray-900 border border-gray-700/50 text-white text-sm mb-4 focus:outline-none focus:border-emerald-500\" />\n              {followUpStatus === 'sent' && <div className=\"text-sm mb-4 p-2 rounded-lg text-emerald-400 bg-emerald-500/10\">✅ Follow-up agendado!</div>}\n              {followUpStatus === 'error' && <div className=\"text-sm mb-4 p-2 rounded-lg text-red-400 bg-red-500/10\">❌ Erro ao agendar.</div>}\n              <div className=\"flex gap-3\">\n                <button onClick={() => setShowFollowUpModal(false)} className=\"flex-1 px-4 py-2.5 rounded-lg border border-gray-600 text-gray-300 hover:bg-gray-700 text-sm\">Cancelar</button>\n                <button onClick={handleScheduleFollowUp} disabled={followUpStatus === 'sending'} className=\"flex-1 px-4 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:bg-gray-600 text-white text-sm\">{followUpStatus === 'sending' ? 'Agendando...' : `Agendar (${followUpDias}d)`}</button>\n              </div>\n            </div>\n          </div>\n        </>\n      )}\n      <ToastContainer toasts={toasts} onDismiss={dismissToast} />\n    </>\n  );\n};\n\nexport default AppCore;\n
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { v4 as uuidv4 } from 'uuid';
+import { useOffline } from './hooks/useOffline';
+import { useToast } from './hooks/useToast';
+import ToastContainer from './components/ToastContainer';
+import ChatInterface from './components/ChatInterface';
+import { AuthModal } from './components/AuthModal';
+import { useAuth } from './contexts/AuthContext';
+import { useMode } from './contexts/ModeContext';
+import { useCRM } from './contexts/CRMContext';
+const CRMPipeline = React.lazy(() =>
+  import('./components/CRMPipeline').then(m => ({ default: m.CRMPipeline }))
+);
+const CRMDetail = React.lazy(() =>
+  import('./components/CRMDetail').then(m => ({ default: m.CRMDetail }))
+);
+import { Message, Sender, Feedback, ChatSession, ExportFormat, ReportType, AppError, CRMStage } from './types';
+import { sendMessageToGemini, generateNewSuggestions, generateConsolidatedDossier, resetChatSession } from './services/geminiService';
+import { listRemoteSessions, getRemoteSession, saveRemoteSession } from './services/sessionRemoteStore';
+import { sendFeedbackRemote } from './services/feedbackRemoteStore';
+import { APP_NAME, MODE_LABELS } from './constants';
+import { normalizeAppError } from './utils/errorHelpers';
+import { downloadFile } from './utils/downloadHelpers';
+import { cleanStatusMarkers, cleanTitle, extractAllLinksFromMarkdown, formatSourcesForExport, SourceRef } from './utils/textCleaners';
+import { fixFakeLinksHTML, extractValidLinks } from './utils/linkFixer';
+import { BACKEND_URL } from './services/apiConfig';
+
+const SESSIONS_STORAGE_KEY = 'scout360_sessions_v1';
+const THEME_KEY = 'scout360_theme';
+const PAGE_SIZE = 20;
+
+interface LastAction {
+  type: 'sendMessage' | 'regenerateSuggestions';
+  payload: any;
+}
+
+function extractCompanyName(title: string | null | undefined): string {
+  if (!title) return 'Empresa';
+  const patterns = [
+    /completa?\s+d[oa]s?\s+(.*)/i,
+    /(?:empresa|grupo|companhia)\s+(.*)/i,
+    /(?:investigar?|analisar?|pesquisar?)\s+(?:a\s+|o\s+)?(.*)/i,
+    /(?:sobre\s+(?:a|o)\s+)(.*)/i,
+    /(?:dossie?\s+d[oa]s?\s+)(.*)/i,
+    /(?:capivara\s+d[oa]s?\s+)(.*)/i,
+  ];
+  for (const pattern of patterns) {
+    const match = title.match(pattern);
+    if (match && match[1]) {
+      let name = match[1].trim().replace(/\.{3}$/, '').trim();
+      if (name.length > 2 && name.length < 60) return name;
+    }
+  }
+  return title.replace(/\.{3}$/, '').trim();
+}
+
+function convertMarkdownToHTML(md: string, includeSources: boolean = true): string {
+  const allLinks = extractValidLinks(md);
+  let html = md
+    .replace(
+      /\[\[PORTA:(\d+):P(\d+):O(\d+):R(\d+):T(\d+):A(\d+)\]\]/g,
+      (_, score, p, o, r, t, a) => {
+        const s = parseInt(score);
+        const color = s >= 71 ? '#059669' : s >= 41 ? '#eab308' : '#ef4444';
+        const bgColor = s >= 71 ? '#f0fdf4' : s >= 41 ? '#fefce8' : '#fef2f2';
+        const borderColor = s >= 71 ? '#059669' : s >= 41 ? '#eab308' : '#ef4444';
+        const label = s >= 71 ? '🟢 Alta Compatibilidade' : s >= 41 ? '🟡 Média Compatibilidade' : '🔴 Baixa Compatibilidade';
+        return `<div class="porta-score" style="border:2px solid ${borderColor};background:${bgColor};">
+          <div class="header"><span class="label-porta">🎯 PORTA</span><span><span class="score-num" style="color:${color};">${score}</span><span class="score-max">/100</span></span></div>
+          <div class="bar-bg" style="background:${color}20;"><div class="bar-fill" style="width:${Math.min(s, 100)}%;background:${color};"></div></div>
+          <div class="compat" style="color:${color};">${label}</div>
+          <div class="pillars"><span class="pill"><b>P</b> ${p}</span><span class="pill"><b>O</b> ${o}</span><span class="pill"><b>R</b> ${r}</span><span class="pill"><b>T</b> ${t}</span><span class="pill"><b>A</b> ${a}</span></div>
+        </div>`;
+      }
+    )
+    .replace(/^>\s*(.*$)/gm, '<blockquote>$1</blockquote>')
+    .replace(/^#### (.*$)/gm, '<h4>$1</h4>')
+    .replace(/^### (.*$)/gm, '<h3>$1</h3>')
+    .replace(/^## (.*$)/gm, '<h2>$1</h2>')
+    .replace(/^# (.*$)/gm, '<h1>$1</h1>')
+    .replace(/\*\*\*(.*?)\*\*\*/g, '<strong><em>$1</em></strong>')
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.*?)\*/g, '<em>$1</em>')
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (match, text, url) => {
+      if (url.includes('ai.studio') || url.includes('google.com/search') || url.includes('vertexai')) {
+        return `<strong style="color:#059669;">${text}</strong>`;
+      }
+      return `<a href="${url}" target="_blank" style="color:#059669;text-decoration:underline;">${text}</a>`;
+    })
+    .replace(/\^(\d+)/g, '<sup style="background:#059669;color:#fff;padding:1px 5px;border-radius:8px;font-size:10px;margin:0 1px;">$1</sup>')
+    .replace(/^[\-\*] (.*$)/gm, '<li>$1</li>')
+    .replace(/^\d+\. (.*$)/gm, '<li>$1</li>')
+    .replace(/\n\n/g, '</p><p>')
+    .replace(/\n/g, '<br>')
+    .replace(/^-----+$/gm, '<hr>')
+    .replace(/^---+$/gm, '<hr>');
+  html = html.replace(/(<li>[\s\S]*?<\/li>(?:\s*<li>[\s\S]*?<\/li>)*)/g, '<ul>$1</ul>');
+  html = html.replace(/(<blockquote>[\s\S]*?<\/blockquote>)(\s*<blockquote>[\s\S]*?<\/blockquote>)*/g, (match) => {
+    const content = match.replace(/<\/?blockquote>/g, '');
+    return '<blockquote>' + content + '</blockquote>';
+  });
+  html = html.replace(/<p><hr><\/p>/g, '<hr>');
+  if (includeSources && allLinks.length > 0) html += formatSourcesForExport(allLinks);
+  return '<p>' + html + '</p>';
+}
+
+function collectFullReport(messages: Message[]): { text: string; sections: string[]; allLinks: SourceRef[] } {
+  const botMessages = messages.filter((m: any) => {
+    const sender = m.sender || (m as any).role || (m as any).type || '';
+    const text = m.text || (m as any).content || (m as any).message || '';
+    return (sender === 'bot' || sender === 'assistant' || sender === 'model') && typeof text === 'string' && text.length > 50;
+  });
+  if (botMessages.length === 0) return { text: '', sections: [], allLinks: [] };
+  const sections: string[] = [];
+  const allLinks: SourceRef[] = [];
+  const dossieText = (botMessages[0] as any).text || (botMessages[0] as any).content || '';
+  sections.push(dossieText);
+  const dossieLinks = extractAllLinksFromMarkdown(dossieText);
+  dossieLinks.forEach(link => { if (!allLinks.find(l => l.url === link.url)) allLinks.push(link); });
+  for (let i = 1; i < botMessages.length; i++) {
+    const botText = (botMessages[i] as any).text || (botMessages[i] as any).content || '';
+    const botIndex = messages.indexOf(botMessages[i] as Message);
+    let userQuestion = '';
+    for (let j = botIndex - 1; j >= 0; j--) {
+      const s = (messages[j] as any).sender || (messages[j] as any).role || '';
+      if (s === 'user' || s === 'human') { userQuestion = (messages[j] as any).text || (messages[j] as any).content || ''; break; }
+    }
+    if (botText.length > 50) {
+      const sectionHeader = userQuestion ? `\n\n---\n\n## 🔍 APROFUNDAMENTO: ${userQuestion}\n\n` : `\n\n---\n\n## 🔍 APROFUNDAMENTO #${i}\n\n`;
+      sections.push(sectionHeader + botText);
+      const sectionLinks = extractAllLinksFromMarkdown(botText);
+      sectionLinks.forEach(link => { if (!allLinks.find(l => l.url === link.url)) allLinks.push(link); });
+    }
+  }
+  return { text: sections.join('\n\n'), sections, allLinks };
+}
+
+function detectInconsistencies(sections: string[]): string {
+  if (sections.length < 2) return '';
+  const inconsistencies: string[] = [];
+  const patterns = [
+    { label: 'Faturamento', regex: /faturamento[^:]*?:?\s*(?:R\$\s*)?(\d[\d.,]*\s*(?:mi|bi|mil|trilh)[a-záãõüê]*)/gi },
+    { label: 'Área/Hectares', regex: /(\d[\d.,]*)\s*(?:mil\s+)?(?:hectares|ha\b)/gi },
+    { label: 'Funcionários', regex: /(\d[\d.,]*)\s*(?:mil\s+)?(?:funcionários|colaboradores|empregados)/gi },
+    { label: 'Receita', regex: /receita[^:]*?:?\s*(?:R\$\s*)?(\d[\d.,]*\s*(?:mi|bi|mil|trilh)[a-záãõüê]*)/gi },
+    { label: 'Unidades', regex: /(\d[\d.,]*)\s*(?:unidades|filiais|fábricas|plantas|usinas)/gi },
+  ];
+  const mainSection = sections[0];
+  for (let i = 1; i < sections.length; i++) {
+    const drilldown = sections[i];
+    for (const { label, regex } of patterns) {
+      regex.lastIndex = 0;
+      const mainMatches: string[] = [];
+      let match;
+      while ((match = regex.exec(mainSection)) !== null) mainMatches.push(match[0].trim());
+      regex.lastIndex = 0;
+      const drillMatches: string[] = [];
+      while ((match = regex.exec(drilldown)) !== null) drillMatches.push(match[0].trim());
+      if (mainMatches.length > 0 && drillMatches.length > 0) {
+        const mainVal = mainMatches[0].toLowerCase();
+        const drillVal = drillMatches[0].toLowerCase();
+        if (mainVal !== drillVal) {
+          inconsistencies.push(`**${label}:** Dossiê principal menciona *${mainMatches[0]}*, mas aprofundamento menciona *${drillMatches[0]}*. Verifique qual é o dado mais recente.`);
+        }
+      }
+    }
+  }
+  if (inconsistencies.length === 0) return '';
+  return '\n\n---\n\n## ⚠️ INCONSISTÊNCIAS DETECTADAS\n\n' +
+    '> Os dados abaixo apareceram com valores diferentes entre o dossiê principal e os aprofundamentos. Recomenda-se verificar a fonte mais confiável antes de usar em propostas.\n\n' +
+    inconsistencies.map((inc, i) => `${i + 1}. ${inc}`).join('\n') + '\n';
+}
+
+function simpleMarkdownToHtml(md: string, title: string): string {
+  const htmlBody = fixFakeLinksHTML(convertMarkdownToHTML(md, true));
+  return `
+    <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+    <head>
+      <meta charset="utf-8">
+      <title>${title}</title>
+      <style>
+        body { font-family: Arial, sans-serif; font-size: 12pt; line-height: 1.5; color: #333; }
+        h1, h2, h3, h4 { color: #059669; font-family: Arial, sans-serif; }
+        a { color: #059669; text-decoration: underline; }
+        ul { padding-left: 20px; } li { margin-bottom: 5px; }
+        blockquote { border-left: 4px solid #f59e0b; background: #fffbeb; padding: 10px; margin: 10px 0; color: #92400e; }
+        .sources-section { margin-top: 20px; padding-top: 10px; border-top: 1px solid #059669; }
+        .sources-section h2 { color: #064e3b; font-size: 14px; }
+      </style>
+    </head>
+    <body>
+      <h1 style="font-size: 24px; border-bottom: 2px solid #059669; padding-bottom: 10px;">${title}</h1>
+      ${htmlBody}
+      <br>
+      <p style="font-size: 10px; color: #666; text-align: center; border-top: 1px solid #ccc; padding-top: 10px;">Gerado por ${APP_NAME} - Inteligência Comercial</p>
+    </body>
+    </html>
+  `;
+}
+
+
+const AppCore: React.FC = () => {
+  const { userId, user, logout, isAuthenticated } = useAuth();
+  const { mode, systemInstruction } = useMode();
+  const { cards, createCardFromSession, createManualCard, moveCardToStage } = useCRM();
+  const { isOnline, wasOffline, clearWasOffline } = useOffline();
+
+  const [sessions, setSessions] = useState<ChatSession[]>([]);
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+  const sessionsRef = useRef<ChatSession[]>([]);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingSession, setIsLoadingSession] = useState(false);
+  const [loadingStatus, setLoadingStatus] = useState<string>('Iniciando análise');
+  const [completedLoadingStatuses, setCompletedLoadingStatuses] = useState<string[]>([]);
+  const [isInitialized, setIsInitialized] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(() => localStorage.getItem(THEME_KEY) === 'dark');
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [lastQuery, setLastQuery] = useState<string>('');
+  const [isSavingRemote, setIsSavingRemote] = useState(false);
+  const [remoteSaveStatus, setRemoteSaveStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [exportStatus, setExportStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const [exportError, setExportError] = useState<string | null>(null);
+  const [pdfReportContent, setPdfReportContent] = useState<string | null>(null);
+  const [investigationLogged, setInvestigationLogged] = useState(false);
+  const [activeView, setActiveView] = useState<'chat' | 'crm'>('chat');
+  const [selectedCRMCardId, setSelectedCRMCardId] = useState<string | null>(null);
+  const [showNewCrmForm, setShowNewCrmForm] = useState(false);
+  const [newCrmName, setNewCrmName] = useState('');
+  const [newCrmWebsite, setNewCrmWebsite] = useState('');
+  const [newCrmResumo, setNewCrmResumo] = useState('');
+  const [isCreatingCrmCard, setIsCreatingCrmCard] = useState(false);
+  const [showEmailModal, setShowEmailModal] = useState(false);
+  const [emailTo, setEmailTo] = useState('');
+  const [emailSubject, setEmailSubject] = useState('');
+  const [emailStatus, setEmailStatus] = useState<'sending' | 'sent' | 'error' | null>(null);
+  const [showFollowUpModal, setShowFollowUpModal] = useState(false);
+  const [followUpDias, setFollowUpDias] = useState(7);
+  const [followUpNotas, setFollowUpNotas] = useState('');
+  const [followUpStatus, setFollowUpStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
+
+  const { toasts, toast, dismiss: dismissToast } = useToast();
+  const lastActionRef = useRef<LastAction | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const lastStatusRef = useRef<string | null>(null);
+  const activeGenerationRef = useRef<Record<string, string>>({});
+
+  // Fechar modais com Escape
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (showEmailModal) setShowEmailModal(false);
+        if (showFollowUpModal) setShowFollowUpModal(false);
+      }
+    };
+    if (showEmailModal || showFollowUpModal) {
+      document.addEventListener('keydown', handleEscape);
+      return () => document.removeEventListener('keydown', handleEscape);
+    }
+  }, [showEmailModal, showFollowUpModal]);
+
+  const currentSession = sessions.find(s => s.id === currentSessionId) || null;
+  const allMessages = currentSession ? currentSession.messages : [];
+  const selectedCRMCard = selectedCRMCardId ? cards.find(c => c.id === selectedCRMCardId) || null : null;
+
+  const updateSessionById = useCallback(
+    (sessionId: string, updater: (session: ChatSession) => ChatSession) => {
+      setSessions(prev =>
+        prev.map(s =>
+          s.id === sessionId ? { ...updater(s), updatedAt: new Date().toISOString() } : s
+        )
+      );
+    },
+    []
+  );
+
+  const updateCurrentSession = useCallback(
+    (updater: (session: ChatSession) => ChatSession) => {
+      setSessions(prev => {
+        const target = prev.find(s => s.id === currentSessionId);
+        if (!target) return prev;
+        return prev.map(s =>
+          s.id === currentSessionId
+            ? { ...updater(s), updatedAt: new Date().toISOString() }
+            : s
+        );
+      });
+    },
+    [currentSessionId]
+  );
+
+  useEffect(() => {
+    const initApp = async () => {
+      const savedSessions = localStorage.getItem(SESSIONS_STORAGE_KEY);
+      let localSessions: ChatSession[] = [];
+      if (savedSessions) {
+        try {
+          const parsed = JSON.parse(savedSessions);
+          localSessions = parsed.map((s: any) => ({
+            ...s,
+            messages: s.messages.map((m: any) => ({
+              ...m,
+              text: cleanStatusMarkers(m.text || '').cleanText,
+              timestamp: new Date(m.timestamp),
+            })),
+          }));
+        } catch (e) { console.error('Load error', e); }
+      }
+      try {
+        const remoteList = await listRemoteSessions();
+        const sessionMap = new Map<string, ChatSession>();
+        localSessions.forEach(s => sessionMap.set(s.id, s));
+        remoteList.forEach(r => {
+          const existing = sessionMap.get(r.id);
+          if (existing) {
+            sessionMap.set(r.id, { ...existing, ...r, messages: existing.messages.length > 0 ? existing.messages : [] });
+          } else {
+            sessionMap.set(r.id, r);
+          }
+        });
+        const mergedSessions = Array.from(sessionMap.values()).sort(
+          (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+        );
+        setSessions(mergedSessions);
+        if (mergedSessions.length > 0) setCurrentSessionId(mergedSessions[0].id);
+        else handleNewSession();
+      } catch (e) {
+        setSessions(localSessions);
+        if (localSessions.length > 0) setCurrentSessionId(localSessions[0].id);
+        else handleNewSession();
+      }
+      const savedTheme = localStorage.getItem(THEME_KEY);
+      if (savedTheme) setIsDarkMode(savedTheme === 'dark');
+      if (window.innerWidth < 768) setIsSidebarOpen(false);
+      setIsInitialized(true);
+    };
+    initApp();
+  }, []);
+
+  useEffect(() => {
+    sessionsRef.current = sessions;
+    if (isInitialized) {
+      try {
+        localStorage.setItem(SESSIONS_STORAGE_KEY, JSON.stringify(sessions));
+      } catch (e: any) {
+        if (e?.name === 'QuotaExceededError' || e?.code === 22) {
+          console.warn('[Storage] Quota exceeded — clearing oldest sessions');
+          const trimmed = sessions.slice(0, Math.max(sessions.length - 5, 1));
+          try { localStorage.setItem(SESSIONS_STORAGE_KEY, JSON.stringify(trimmed)); } catch { /* fallback silencioso */ }
+          toast.error('Armazenamento local cheio. Sessões antigas foram removidas.');
+        }
+      }
+    }
+  }, [sessions, isInitialized]);
+
+  useEffect(() => {
+    document.body.className = isDarkMode ? 'dark' : 'light';
+    document.body.style.backgroundColor = isDarkMode ? '#020617' : '#f8fafc';
+    document.body.style.color = isDarkMode ? '#e2e8f0' : '#0f172a';
+    localStorage.setItem(THEME_KEY, isDarkMode ? 'dark' : 'light');
+  }, [isDarkMode]);
+
+  useEffect(() => {
+    resetChatSession();
+    document.title = `${APP_NAME} ${MODE_LABELS[mode].icon}`;
+  }, [mode]);
+
+  const handleNewSession = useCallback(() => {
+    if (isLoading && abortControllerRef.current) abortControllerRef.current.abort();
+    const newSession: ChatSession = {
+      id: uuidv4(),
+      title: 'Nova Investigação',
+      empresaAlvo: null, cnpj: null, modoPrincipal: null, scoreOportunidade: null, resumoDossie: null,
+      createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+      messages: [],
+    };
+    setSessions(prev => [newSession, ...prev]);
+    setCurrentSessionId(newSession.id);
+    setVisibleCount(PAGE_SIZE);
+    resetChatSession();
+    setRemoteSaveStatus('idle');
+    setExportStatus('idle');
+    setPdfReportContent(null);
+    setInvestigationLogged(false);
+    lastActionRef.current = null;
+    setLastQuery('');
+    setLoadingStatus('Iniciando análise');
+  }, [isLoading]);
+
+  const handleSelectSession = async (sessionId: string) => {
+    if (isLoading && abortControllerRef.current) abortControllerRef.current.abort();
+    setCurrentSessionId(sessionId);
+    setVisibleCount(PAGE_SIZE);
+    resetChatSession();
+    setRemoteSaveStatus('idle');
+    setExportStatus('idle');
+    setPdfReportContent(null);
+    setInvestigationLogged(false);
+    lastActionRef.current = null;
+    setLoadingStatus('Iniciando análise');
+    const targetSession = sessions.find(s => s.id === sessionId);
+    if (targetSession && targetSession.messages.length === 0) {
+      setIsLoadingSession(true);
+      try {
+        const fullSession = await getRemoteSession(sessionId);
+        if (fullSession) updateSessionById(sessionId, () => fullSession);
+      } catch (e) { console.error('Lazy load error', e); }
+      finally { setIsLoadingSession(false); }
+    }
+  };
+
+  const handleDeleteSession = (sessionId: string) => {
+    if (sessionId === currentSessionId && isLoading && abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+      setIsLoading(false);
+    }
+    delete activeGenerationRef.current[sessionId];
+    const newSessions = sessions.filter(s => s.id !== sessionId);
+    setSessions(newSessions);
+    if (currentSessionId === sessionId) {
+      resetChatSession();
+      if (newSessions.length > 0) {
+        const nextSession = newSessions[0];
+        setCurrentSessionId(nextSession.id);
+        if (nextSession.messages.length === 0) {
+          setIsLoadingSession(true);
+          getRemoteSession(nextSession.id)
+            .then(fullSession => {
+              if (fullSession) updateSessionById(nextSession.id, () => fullSession);
+              setIsLoadingSession(false);
+            })
+            .catch(() => setIsLoadingSession(false));
+        }
+      } else {
+        handleNewSession();
+      }
+    }
+  };
+
+  const handleSaveRemote = async () => {
+    if (!currentSession || !isAuthenticated) return;
+    setIsSavingRemote(true);
+    setRemoteSaveStatus('idle');
+    const snapshotSessionId = currentSession.id;
+    const finalized: ChatSession = { ...currentSession, updatedAt: new Date().toISOString() };
+    updateSessionById(snapshotSessionId, () => finalized);
+    try {
+      await saveRemoteSession(finalized, userId, user?.displayName);
+      setRemoteSaveStatus('success');
+      setTimeout(() => setRemoteSaveStatus('idle'), 3000);
+    } catch { setRemoteSaveStatus('error'); }
+    finally { setIsSavingRemote(false); }
+  };
+
+  const handleClearChat = () => {
+    resetChatSession();
+    updateCurrentSession(session => ({
+      ...session, messages: [], title: 'Nova Investigação', empresaAlvo: null, updatedAt: new Date().toISOString(),
+    }));
+    setInvestigationLogged(false);
+    setLoadingStatus('Realizando pesquisa...');
+    lastActionRef.current = null;
+    setLastQuery('');
+    setVisibleCount(PAGE_SIZE);
+  };
+
+  const processMessage = async (text: string, explicitSessionId?: string, explicitHistory?: Message[]) => {
+    const sessionId = explicitSessionId || currentSessionId;
+    if (!sessionId) return;
+
+    setIsLoading(true);
+    setLoadingStatus('Realizando pesquisa...');
+    setCompletedLoadingStatuses([]);
+    setLastQuery(text);
+    abortControllerRef.current = new AbortController();
+    const signal = abortControllerRef.current.signal;
+    lastActionRef.current = { type: 'sendMessage', payload: { text } };
+
+    let historyToPass: Message[] = [];
+    if (explicitHistory) {
+      historyToPass = explicitHistory;
+    } else {
+      const session = sessionsRef.current.find(s => s.id === sessionId);
+      if (session) {
+        const msgs = session.messages;
+        historyToPass = (msgs.length > 0 && msgs[msgs.length - 1].text === text && msgs[msgs.length - 1].sender === Sender.User)
+          ? msgs.slice(0, -1)
+          : msgs;
+      }
+    }
+
+    const botMessageId = uuidv4();
+    activeGenerationRef.current[sessionId] = botMessageId;
+
+    const botMessagePlaceholder: Message = {
+      id: botMessageId, sender: Sender.Bot, text: '', timestamp: new Date(), isThinking: true, isSourcesOpen: false,
+    };
+
+    setSessions(prev => prev.map(s => s.id === sessionId ? {
+      ...s,
+      messages: [...s.messages.filter(m => !m.isError), botMessagePlaceholder],
+      updatedAt: new Date().toISOString(),
+    } : s));
+    setVisibleCount(prev => prev + 1);
+
+    try {
+      const { text: responseText, sources, suggestions, scorePorta, ghostReason } = await sendMessageToGemini(
+        text, historyToPass, systemInstruction,
+        {
+          signal,
+          onText: () => { },
+          onStatus: (newStatus) => {
+            setLoadingStatus(prev => {
+              if (prev && prev !== newStatus) lastStatusRef.current = prev;
+              return newStatus;
+            });
+            if (lastStatusRef.current && lastStatusRef.current !== newStatus) {
+              const statusToAdd = lastStatusRef.current;
+              setCompletedLoadingStatuses(completed =>
+                statusToAdd && !completed.includes(statusToAdd) ? [...completed, statusToAdd] : completed
+              );
+            }
+          },
+          nomeVendedor: typeof user?.displayName === 'string' ? user.displayName : 'Vendedor',
+        }
+      );
+
+      if (activeGenerationRef.current[sessionId] !== botMessageId) return;
+
+      updateSessionById(sessionId, s => ({
+        ...s,
+        title: (s.messages.length <= 2 || s.title === 'Nova Investigação') ? cleanTitle(extractCompanyName(text)) : s.title,
+        empresaAlvo: s.messages.length <= 2 ? extractCompanyName(text) : s.empresaAlvo,
+        messages: s.messages.map(msg =>
+          msg.id === botMessageId ? {
+            ...msg, text: responseText, groundingSources: sources, suggestions, scorePorta: scorePorta || undefined, isThinking: false,
+            ...(ghostReason && { ghostDetails: ghostReason }),
+          } : msg
+        ),
+      }));
+
+      if (!investigationLogged && responseText.length > 500) {
+        setInvestigationLogged(true);
+        fetch(BACKEND_URL, {
+          method: 'POST', redirect: 'follow',
+          headers: { 'Content-Type': 'text/plain' },
+          body: JSON.stringify({
+            action: 'logInvestigation',
+            vendedor: user?.displayName || 'Anônimo',
+            empresa: cleanTitle(extractCompanyName(text)),
+            modo: mode || '',
+            resumo: responseText.substring(0, 200),
+          }),
+        }).catch(err => console.log('Log falhou:', err));
+      }
+
+    } catch (error: any) {
+      if (error.name === 'AbortError' || error.message?.includes('aborted')) {
+        setSessions(prev => prev.map(s => s.id === sessionId ? {
+          ...s,
+          messages: s.messages.filter(msg => msg.id !== botMessageId || msg.text.trim().length > 0),
+        } : s));
+        setIsLoading(false);
+        abortControllerRef.current = null;
+        return;
+      }
+      if (activeGenerationRef.current[sessionId] !== botMessageId) return;
+      const appError = normalizeAppError(error);
+      updateSessionById(sessionId, s => ({
+        ...s,
+        messages: [...s.messages.filter(m => m.id !== botMessageId), {
+          id: uuidv4(), sender: Sender.Bot, text: 'Erro no processamento',
+          timestamp: new Date(), isError: true, errorDetails: appError,
+        }],
+      }));
+    } finally {
+      setIsLoading(false);
+      abortControllerRef.current = null;
+    }
+  };
+
+  const handleSendMessage = async (text: string, displayText?: string) => {
+    let sessionId = currentSessionId;
+    let currentHistory: Message[] = [];
+    if (!sessionId) {
+      sessionId = uuidv4();
+      const immediateTitle = cleanTitle(extractCompanyName(displayText || text));
+      const newSession: ChatSession = {
+        id: sessionId, title: immediateTitle || 'Nova Investigação',
+        empresaAlvo: immediateTitle || null, cnpj: null, modoPrincipal: null, scoreOportunidade: null, resumoDossie: null,
+        createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), messages: [],
+      };
+      setSessions(prev => [newSession, ...prev]);
+      setCurrentSessionId(sessionId);
+      currentHistory = [];
+    } else {
+      const session = sessions.find(s => s.id === sessionId);
+      currentHistory = session ? [...session.messages] : [];
+    }
+    const userMessage: Message = { id: uuidv4(), sender: Sender.User, text: displayText || text, timestamp: new Date() };
+    setSessions(prev => prev.map(s =>
+      s.id === sessionId ? { ...s, messages: [...s.messages, userMessage], updatedAt: new Date().toISOString() } : s
+    ));
+    setVisibleCount(prev => prev + 1);
+    await processMessage(text, sessionId, currentHistory);
+  };
+
+  const handleDeepDive = async (displayMessage: string, hiddenPrompt: string) => {
+    const empresaContext = currentSession?.empresaAlvo || currentSession?.title || 'a empresa desta conversa';
+    // "Dossiê completo" é o gatilho reconhecido pelo router para escalar ao modelo PROFUNDA (gemini-2.5-pro).
+    // Sem ele, o router classifica como 'tatica' e usa gemini-2.5-flash, que alucina com o mega-prompt de 100+ linhas.
+    await handleSendMessage(
+      `Dossiê completo de [${empresaContext}]. Protocolo de investigação forense especializada:\n\n${hiddenPrompt}`,
+      displayMessage
+    );
+  };
+
+  const handleDeleteMessage = (id: string) => {
+    if (!currentSessionId) return;
+    updateSessionById(currentSessionId, session => {
+      const msgIndex = session.messages.findIndex(m => m.id === id);
+      if (msgIndex === -1) return session;
+
+      // Corta a conversa a partir deste índice (remove a msg do usuário e TODAS as repostas a frente)
+      const truncatedMessages = session.messages.slice(0, msgIndex);
+
+      return {
+        ...session,
+        messages: truncatedMessages,
+      };
+    });
+  };
+
+  const handleStopGeneration = useCallback(() => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+      setIsLoading(false);
+    }
+  }, []);
+
+  const handleRetry = () => {
+    if (!lastActionRef.current) return;
+    if (lastActionRef.current.type === 'sendMessage') {
+      if (currentSessionId) {
+        updateSessionById(currentSessionId, session => {
+          const messages = session.messages;
+          const lastMsg = messages[messages.length - 1];
+          if (lastMsg && lastMsg.sender === Sender.Bot && (lastMsg.isError || !lastMsg.text || lastMsg.ghostReason)) {
+            return { ...session, messages: messages.slice(0, -1) };
+          }
+          return session;
+        });
+      }
+      processMessage(lastActionRef.current.payload.text, currentSessionId || undefined);
+    } else if (lastActionRef.current.type === 'regenerateSuggestions') {
+      handleRegenerateSuggestions(lastActionRef.current.payload.messageId);
+    }
+  };
+
+  const handleRegenerateSuggestions = async (messageId: string) => {
+    const sessionId = currentSessionId;
+    if (!sessionId) return;
+    lastActionRef.current = { type: 'regenerateSuggestions', payload: { messageId } };
+    const targetSession = sessions.find(s => s.id === sessionId);
+    if (!targetSession) return;
+    const targetMessage = targetSession.messages.find(m => m.id === messageId);
+    if (!targetMessage) return;
+    const companyName = targetSession.empresaAlvo || extractCompanyName(targetSession.title || '') || 'Empresa não identificada';
+    let lastUserQuestion = '';
+    const msgs = targetSession.messages;
+    const idx = msgs.findIndex(m => m.id === messageId);
+    for (let i = idx - 1; i >= 0; i--) {
+      if (msgs[i].sender === Sender.User) { lastUserQuestion = msgs[i].text; break; }
+    }
+    const snippet = (targetMessage.text || '').slice(0, 3000);
+    const contextText = [`EMPRESA: ${companyName}`, lastUserQuestion ? `PERGUNTA_ANTERIOR: ${lastUserQuestion}` : '', 'TRECHO_DOSSIE:', snippet].filter(Boolean).join('\n\n');
+    const oldSuggestions = targetMessage.suggestions || [];
+    updateSessionById(sessionId, session => ({
+      ...session, messages: session.messages.map(msg => msg.id === messageId ? { ...msg, isRegeneratingSuggestions: true } : msg),
+    }));
+    try {
+      const newSuggestions = await generateNewSuggestions(contextText, oldSuggestions);
+      updateSessionById(sessionId, session => ({
+        ...session, messages: session.messages.map(msg => msg.id === messageId ? { ...msg, suggestions: newSuggestions, isRegeneratingSuggestions: false } : msg),
+      }));
+    } catch (e: any) {
+      console.warn('Suggestion regeneration failed', e);
+      toast.error(e.message || 'Falha na conexão com a IA.');
+      updateSessionById(sessionId, session => ({
+        ...session, messages: session.messages.map(msg => msg.id === messageId ? { ...msg, isRegeneratingSuggestions: false } : msg),
+      }));
+    }
+  };
+
+  const handleReportError = async (messageId: string, error: AppError) => {
+    if (!currentSession) return;
+    const errorPayload = JSON.stringify({ code: error.code, source: error.source, message: error.message, details: error.details }, null, 2);
+    try {
+      await sendFeedbackRemote({
+        feedbackId: uuidv4(), sessionId: currentSession.id, messageId,
+        sectionKey: 'ERROR_REPORT', sectionTitle: 'System Error',
+        type: 'dislike', comment: `Automated Error Report: ${error.code}`,
+        aiContent: errorPayload, userId, userName: user?.displayName,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (e) { console.error('Failed to report error', e); }
+  };
+
+  async function handleExportPDF() {
+    try {
+      const { text: fullText, sections, allLinks } = collectFullReport(allMessages);
+      if (!fullText || fullText.length < 100) { alert('Nenhum dossiê para exportar.'); return; }
+
+      const inconsistenciesSection = detectInconsistencies(sections);
+      const finalText = fullText + inconsistenciesSection;
+      const empresa = cleanTitle(extractCompanyName(currentSession?.title));
+      const now = new Date();
+      const dataStr = now.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+      const horaStr = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+      const metaLine = `${dataStr} às ${horaStr} · ${sections.length} seção${sections.length !== 1 ? 'ões' : ''}`;
+
+      const { PDFGenerator } = await import('./utils/PDFGenerator');
+      const pdf = new PDFGenerator();
+      pdf.addHeader(empresa, metaLine);
+      pdf.renderMarkdown(finalText);
+      pdf.addSources(allLinks.map(l => ({ text: l.text || l.url, url: l.url })));
+
+      const safeTitle = empresa.replace(/[^a-z0-9]/gi, '_').substring(0, 50);
+      pdf.save(`SeniorScout_${safeTitle}_${now.toISOString().slice(0, 10)}.pdf`);
+    } catch (e) {
+      console.error('Erro ao gerar PDF:', e);
+      toast.error('Erro ao gerar PDF. Tente novamente.');
+    }
+  }
+
+  const handleExportConversation = async (format: ExportFormat, reportType: ReportType) => {
+    if (!currentSession) return;
+    setExportStatus('loading');
+    setExportError(null);
+    try {
+      const contentMarkdown = await generateConsolidatedDossier(currentSession.messages, systemInstruction, mode, reportType);
+      const safeTitle = cleanTitle(currentSession.title).replace(/[^a-z0-9]/gi, '_').substring(0, 50);
+      const dateStr = new Date().toISOString().slice(0, 10);
+      const reportSuffix = reportType === 'executive' ? 'EXEC' : reportType === 'tech' ? 'FICHA' : 'DOSSIE';
+      const filename = `SeniorScout_${safeTitle}_${reportSuffix}_${dateStr}`;
+      if (format === 'md') {
+        downloadFile(`${filename}.md`, contentMarkdown, 'text/markdown;charset=utf-8');
+      } else if (format === 'doc') {
+        const htmlContent = simpleMarkdownToHtml(contentMarkdown, currentSession.title);
+        downloadFile(`${filename}.doc`, htmlContent, 'application/msword');
+      }
+      setExportStatus('success');
+      setTimeout(() => setExportStatus('idle'), 3000);
+    } catch (error: any) {
+      setExportError(error.message || 'Falha ao gerar o arquivo.');
+      setExportStatus('error');
+    }
+  };
+
+  async function handleSendEmail() {
+    if (!emailTo.includes('@')) return;
+    setEmailStatus('sending');
+    try {
+      const { text: fullText, sections } = collectFullReport(allMessages);
+      if (!fullText || fullText.length < 100) { setEmailStatus('error'); return; }
+      const inconsistenciesSection = detectInconsistencies(sections);
+      const htmlBody = fixFakeLinksHTML(convertMarkdownToHTML(fullText + inconsistenciesSection, true));
+      const response = await fetch(BACKEND_URL, {
+        method: 'POST', redirect: 'follow', headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({
+          action: 'sendEmail', email: emailTo, subject: emailSubject, body: htmlBody,
+          empresa: cleanTitle(extractCompanyName(currentSession?.title)), vendedor: user?.displayName || 'Vendedor',
+        }),
+      });
+      const text = await response.text();
+      let result;
+      try { result = JSON.parse(text); } catch { result = response.ok ? { success: true } : { success: false }; }
+      if (result.success) {
+        setEmailStatus('sent');
+        setTimeout(() => { setShowEmailModal(false); setEmailStatus(null); setEmailTo(''); }, 3000);
+      } else {
+        setEmailStatus('error');
+      }
+    } catch (err) { setEmailStatus('error'); toast.error('Falha ao enviar email. Verifique sua conexão.'); }
+  }
+
+  async function handleScheduleFollowUp() {
+    setFollowUpStatus('sending');
+    try {
+      const response = await fetch(BACKEND_URL, {
+        method: 'POST', redirect: 'follow', headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({
+          action: 'scheduleFollowUp',
+          empresa: cleanTitle(extractCompanyName(currentSession?.title)),
+          vendedor: user?.displayName || 'Vendedor', dias: followUpDias,
+          emailVendedor: emailTo, notas: followUpNotas,
+        }),
+      });
+      const text = await response.text();
+      let result;
+      try { result = JSON.parse(text); } catch { result = { success: true }; }
+      if (result.success || result.ok) {
+        setFollowUpStatus('sent');
+        setTimeout(() => { setShowFollowUpModal(false); setFollowUpStatus('idle'); setFollowUpNotas(''); }, 3000);
+      } else { setFollowUpStatus('error'); }
+    } catch { setFollowUpStatus('error'); }
+  }
+
+  const handleFeedback = (messageId: string, feedback: Feedback) => {
+    if (!currentSession) return;
+    updateCurrentSession(session => ({
+      ...session, messages: session.messages.map(m => m.id === messageId ? { ...m, feedback: m.feedback === feedback ? undefined : feedback } : m),
+    }));
+  };
+
+  const handleSendFeedback = async (messageId: string, feedback: Feedback, comment: string, content: string) => {
+    if (!currentSession) return;
+    const snapshotSessionId = currentSession.id;
+    updateSessionById(snapshotSessionId, session => ({
+      ...session, messages: session.messages.map(m => m.id === messageId ? { ...m, feedback } : m),
+    }));
+    try {
+      await sendFeedbackRemote({
+        feedbackId: uuidv4(), sessionId: snapshotSessionId, messageId,
+        sectionKey: null, sectionTitle: null,
+        type: feedback === 'up' ? 'like' : 'dislike', comment, aiContent: content,
+        userId, userName: user?.displayName, timestamp: new Date().toISOString(),
+      });
+    } catch (e) { console.error('Feedback error', e); }
+  };
+
+  const handleSectionFeedback = (messageId: string, sectionTitle: string, feedback: Feedback) => {
+    updateCurrentSession(session => ({
+      ...session, messages: session.messages.map(msg => {
+        if (msg.id !== messageId) return msg;
+        const currentSections = msg.sectionFeedback || {};
+        const newVal = currentSections[sectionTitle] === feedback ? undefined : feedback;
+        const newSections = { ...currentSections };
+        if (newVal === undefined) delete newSections[sectionTitle]; else newSections[sectionTitle] = newVal;
+        return { ...msg, sectionFeedback: newSections };
+      }),
+    }));
+  };
+
+  const handleToggleMessageSources = (messageId: string) => {
+    updateCurrentSession(session => ({
+      ...session, messages: session.messages.map(msg => msg.id === messageId ? { ...msg, isSourcesOpen: !msg.isSourcesOpen } : msg),
+    }));
+  };
+
+  const handleSaveToCRM = async (sessionId: string) => {
+    const session = sessions.find(s => s.id === sessionId);
+    if (!session) return;
+    const existingCard = cards.find(c => c.id === `crm_${sessionId}`);
+    if (existingCard) { setSelectedCRMCardId(existingCard.id); setActiveView('crm'); toast.success('Empresa já existe no CRM.'); return; }
+    const card = await createCardFromSession(session);
+    toast.success(`${card.companyName} adicionada ao CRM!`);
+    setSelectedCRMCardId(card.id);
+    setActiveView('crm');
+  };
+
+  const handleCreateManualCRMCard = async () => {
+    if (!newCrmName.trim()) return;
+    setIsCreatingCrmCard(true);
+    try {
+      const card = await createManualCard({
+        companyName: newCrmName.trim(), website: newCrmWebsite.trim() || undefined,
+        briefDescription: newCrmResumo.trim() || undefined, stage: 'prospeccao',
+      });
+      setNewCrmName(''); setNewCrmWebsite(''); setNewCrmResumo('');
+      setShowNewCrmForm(false);
+      setSelectedCRMCardId(card.id);
+    } catch (err) { console.error('Erro ao criar card:', err); }
+    finally { setIsCreatingCrmCard(false); }
+  };
+
+  const handleMoveCRMCard = async (cardId: string, toStage: CRMStage) => { await moveCardToStage(cardId, toStage); };
+  const handleSelectCRMCard = (cardId: string) => { setSelectedCRMCardId(cardId); };
+  const handleCloseCRMDetail = () => { setSelectedCRMCardId(null); };
+  const handleMoveStageFromDetail = async (stage: string) => { if (selectedCRMCardId) await moveCardToStage(selectedCRMCardId, stage as CRMStage); };
+
+  const handleSelectSessionFromDetail = async (sessionId: string) => {
+    await handleSelectSession(sessionId);
+    setActiveView('chat');
+    setSelectedCRMCardId(null);
+  };
+
+  const handleCreateSessionFromDetail = () => {
+    if (!selectedCRMCard) return;
+    const companyName = selectedCRMCard.companyName || 'Empresa';
+    setSelectedCRMCardId(null);
+    setActiveView('chat');
+    setTimeout(() => {
+      handleNewSession();
+      window.dispatchEvent(new CustomEvent('scout:prefill', { detail: { text: companyName } }));
+    }, 80);
+  };
+
+  const handleOpenKanban = () => { setActiveView('crm'); setSelectedCRMCardId(null); };
+
+  const renderUserHeader = () => {
+    if (!user) return null;
+    const displayName = typeof user.displayName === 'string' ? user.displayName : 'Usuário';
+    return (
+      <div className="hidden lg:flex items-center gap-2 mr-2 border-r border-slate-300 dark:border-slate-700 pr-3">
+        <span className="text-xs font-medium text-slate-500 dark:text-slate-400 truncate max-w-[120px]">
+          👤 {displayName}
+        </span>
+        <button onClick={logout} className="text-[10px] text-red-500 hover:text-red-600 font-medium hover:underline">Sair</button>
+      </div>
+    );
+  };
+
+  if (!isInitialized) {
+    return (
+      <div className={`flex h-screen w-full items-center justify-center ${isDarkMode ? 'bg-slate-950' : 'bg-slate-50'}`}>
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-10 h-10 border-4 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin" />
+          <p className={`text-sm font-medium ${isDarkMode ? 'text-slate-400' : 'text-slate-500'} animate-pulse`}>Preparando ambiente...</p>
+        </div>
+      </div>
+    );
+  }
+
+  const chatElement = (
+    <ChatInterface
+      currentSession={currentSession}
+      sessions={sessions}
+      onNewSession={handleNewSession}
+      onSelectSession={handleSelectSession}
+      onDeleteSession={handleDeleteSession}
+      onSaveToCRM={handleSaveToCRM}
+      onOpenKanban={handleOpenKanban}
+      isSidebarOpen={isSidebarOpen}
+      onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
+      messages={allMessages.slice(-visibleCount)}
+      isLoading={isLoading}
+      hasMore={allMessages.length > visibleCount}
+      onSendMessage={handleSendMessage}
+      onDeepDive={handleDeepDive}
+      onFeedback={handleFeedback}
+      onSendFeedback={handleSendFeedback}
+      onSectionFeedback={handleSectionFeedback}
+      onLoadMore={() => setVisibleCount(prev => prev + PAGE_SIZE)}
+      onExportConversation={handleExportConversation}
+      onExportPDF={handleExportPDF}
+      onExportMessage={() => { }}
+      onRetry={handleRetry}
+      onStop={handleStopGeneration}
+      onReportError={handleReportError}
+      onClearChat={handleClearChat}
+      onRegenerateSuggestions={handleRegenerateSuggestions}
+      isDarkMode={isDarkMode}
+      onToggleTheme={() => setIsDarkMode(!isDarkMode)}
+      onToggleMessageSources={handleToggleMessageSources}
+      exportStatus={exportStatus}
+      exportError={exportError}
+      pdfReportContent={pdfReportContent}
+      onOpenEmailModal={() => {
+        setEmailSubject('Dossiê de Inteligência — ' + cleanTitle(extractCompanyName(currentSession?.title)) + ' — Senior Scout 360');
+        setShowEmailModal(true);
+        setEmailStatus(null);
+      }}
+      onOpenFollowUpModal={() => { setShowFollowUpModal(true); setFollowUpStatus('idle'); }}
+      onSaveRemote={handleSaveRemote}
+      isSavingRemote={isSavingRemote}
+      remoteSaveStatus={remoteSaveStatus}
+      userHeaderNode={renderUserHeader()}
+      onLogout={logout}
+      lastUserQuery={lastQuery}
+      processing={{ stage: loadingStatus, completedStages: completedLoadingStatuses }}
+      onDeleteMessage={handleDeleteMessage}
+    />
+  );
+
+  const crmElement = (
+    <div className={`flex h-full w-full ${isDarkMode ? 'bg-slate-950' : 'bg-slate-50'}`}>
+      <div className="flex-1 p-4 md:p-6 overflow-y-auto">
+        <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Pipeline · Kanban</p>
+            <h1 className="text-sm md:text-base font-semibold text-slate-800 dark:text-slate-100">Mini CRM</h1>
+          </div>
+          <div className="flex items-center gap-2">
+            <button onClick={() => setShowNewCrmForm(prev => !prev)}
+              className="text-[11px] px-3 py-1.5 rounded-full bg-emerald-500 text-white hover:bg-emerald-600 font-medium transition-colors">
+              {showNewCrmForm ? '✕ Cancelar' : '+ Nova empresa'}
+            </button>
+            <button onClick={() => setActiveView('chat')}
+              className="text-[11px] px-3 py-1.5 rounded-full border border-slate-300/70 dark:border-slate-700 text-slate-600 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+              ← Voltar
+            </button>
+          </div>
+        </div>
+        {showNewCrmForm && (
+          <div className={`mb-5 rounded-xl border p-4 space-y-3 ${isDarkMode ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200'}`}>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <input type="text" value={newCrmName} onChange={e => setNewCrmName(e.target.value)} placeholder="Nome da empresa *" autoFocus
+                className={`rounded-lg border px-3 py-2 text-sm bg-transparent ${isDarkMode ? 'border-slate-700 text-slate-100' : 'border-slate-300 text-slate-900'}`} />
+              <input type="text" value={newCrmWebsite} onChange={e => setNewCrmWebsite(e.target.value)} placeholder="Website (opcional)"
+                className={`rounded-lg border px-3 py-2 text-sm bg-transparent ${isDarkMode ? 'border-slate-700 text-slate-100' : 'border-slate-300 text-slate-900'}`} />
+              <input type="text" value={newCrmResumo} onChange={e => setNewCrmResumo(e.target.value)} placeholder="Resumo breve (opcional)"
+                className={`rounded-lg border px-3 py-2 text-sm bg-transparent ${isDarkMode ? 'border-slate-700 text-slate-100' : 'border-slate-300 text-slate-900'}`} />
+            </div>
+            <div className="flex justify-end">
+              <button onClick={handleCreateManualCRMCard} disabled={!newCrmName.trim() || isCreatingCrmCard}
+                className="px-4 py-2 rounded-lg text-[12px] font-semibold bg-emerald-600 text-white hover:bg-emerald-500 disabled:bg-slate-400 disabled:cursor-not-allowed">
+                {isCreatingCrmCard ? 'Criando...' : 'Criar empresa'}
+              </button>
+            </div>
+          </div>
+        )}
+        <React.Suspense fallback={null}>
+          <CRMPipeline cards={cards} onMoveCard={handleMoveCRMCard} onSelectCard={handleSelectCRMCard} />
+        </React.Suspense>
+      </div>
+    </div>
+  );
+
+  return (
+    <>
+      <AuthModal />
+
+      {/* Banner offline */}
+      {!isOnline && (
+        <div className="fixed top-0 inset-x-0 z-[100] flex items-center justify-center gap-2 bg-amber-500 text-amber-950 text-xs font-semibold py-1.5 px-4 shadow-lg">
+          <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 5.636a9 9 0 010 12.728M15.536 8.464a5 5 0 010 7.072M8.464 8.464a5 5 0 000 7.072M5.636 5.636a9 9 0 000 12.728M12 12v.01" />
+          </svg>
+          Sem conexão — algumas funções ficam indisponíveis offline
+        </div>
+      )}
+
+      {/* Banner "voltou online" */}
+      {isOnline && wasOffline && (
+        <div
+          className="fixed top-0 inset-x-0 z-[100] flex items-center justify-center gap-2 bg-emerald-600 text-white text-xs font-semibold py-1.5 px-4 shadow-lg cursor-pointer"
+          onClick={clearWasOffline}
+        >
+          <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+          </svg>
+          Conexão restabelecida ✕
+        </div>
+      )}
+
+      <div className={`flex flex-col h-screen w-full ${isDarkMode ? 'bg-slate-950' : 'bg-slate-50'}`}>
+        <header className={`h-12 px-3 md:px-4 flex items-center justify-between border-b backdrop-blur-sm ${isDarkMode ? 'bg-slate-950/80 border-slate-800' : 'bg-white/80 border-slate-200'
+          }`}>
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold text-slate-800 dark:text-slate-100">Senior Scout 360</span>
+              <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
+                {MODE_LABELS[mode].icon} {MODE_LABELS[mode].label}
+              </span>
+            </div>
+
+          </div>
+          <div className="flex items-center gap-2">{renderUserHeader()}</div>
+        </header>
+        <div className="flex-1 min-h-0">{activeView === 'chat' ? chatElement : crmElement}</div>
+      </div>
+      {selectedCRMCard && (
+        <React.Suspense fallback={null}>
+          <CRMDetail
+            card={selectedCRMCard} sessions={sessions} onClose={handleCloseCRMDetail}
+            onSelectSession={handleSelectSessionFromDetail} onMoveStage={handleMoveStageFromDetail}
+            onCreateSessionFromCard={handleCreateSessionFromDetail} isDarkMode={isDarkMode}
+          />
+        </React.Suspense>
+      )}
+      {showEmailModal && (
+        <>
+          <div className="fixed inset-0 bg-black/50 z-50" onClick={() => setShowEmailModal(false)} />
+          <div className="fixed inset-0 flex items-center justify-center z-50 px-4 pointer-events-none">
+            <div className="bg-gray-800 border border-gray-700 rounded-2xl p-6 max-w-md w-full shadow-xl pointer-events-auto">
+              <h3 className="text-lg font-bold text-white mb-4">📧 Enviar Dossiê por Email</h3>
+              <div className="space-y-3 mb-4">
+                <input type="email" value={emailTo} onChange={(e) => setEmailTo(e.target.value)} placeholder="Email do destinatário"
+                  className="w-full px-3 py-2.5 rounded-lg bg-gray-900 border border-gray-700/50 text-white text-sm focus:outline-none focus:border-emerald-500" autoFocus />
+                <input type="text" value={emailSubject} onChange={(e) => setEmailSubject(e.target.value)} placeholder="Assunto"
+                  className="w-full px-3 py-2.5 rounded-lg bg-gray-900 border border-gray-700/50 text-white text-sm focus:outline-none focus:border-emerald-500" />
+              </div>
+              {emailStatus && (
+                <div className="text-sm mb-4 p-2 rounded-lg text-emerald-400 bg-emerald-500/10">
+                  {emailStatus === 'sending' && '⏳ Enviando...'}{emailStatus === 'sent' && '✅ Enviado!'}{emailStatus === 'error' && '❌ Erro ao enviar.'}
+                </div>
+              )}
+              <div className="flex gap-3">
+                <button onClick={() => setShowEmailModal(false)} className="flex-1 px-4 py-2.5 rounded-lg border border-gray-600 text-gray-300 hover:bg-gray-700 text-sm">Cancelar</button>
+                <button onClick={handleSendEmail} disabled={emailStatus === 'sending' || !emailTo.includes('@')} className="flex-1 px-4 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:bg-gray-600 text-white text-sm">{emailStatus === 'sending' ? 'Enviando...' : 'Enviar'}</button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+      {showFollowUpModal && (
+        <>
+          <div className="fixed inset-0 bg-black/50 z-50" onClick={() => setShowFollowUpModal(false)} />
+          <div className="fixed inset-0 flex items-center justify-center z-50 px-4 pointer-events-none">
+            <div className="bg-gray-800 border border-gray-700 rounded-2xl p-6 max-w-md w-full shadow-xl pointer-events-auto">
+              <h3 className="text-lg font-bold text-white mb-4">📅 Agendar Follow-up</h3>
+              <div className="grid grid-cols-4 gap-2 mb-4">
+                {[3, 7, 15, 30].map(d => (
+                  <button key={d} onClick={() => setFollowUpDias(d)}
+                    className={`p-3 rounded-xl border text-center transition-all ${followUpDias === d ? 'border-emerald-500 bg-emerald-500/10 text-white' : 'border-gray-700/30 bg-gray-800/50 text-gray-400'
+                      }`}>
+                    <p className="text-lg font-bold">{d}</p><p className="text-xs">dias</p>
+                  </button>
+                ))}
+              </div>
+              <input type="email" value={emailTo} onChange={(e) => setEmailTo(e.target.value)} placeholder="Seu email para lembrete"
+                className="w-full px-3 py-2.5 rounded-lg bg-gray-900 border border-gray-700/50 text-white text-sm mb-3 focus:outline-none focus:border-emerald-500" />
+              <input type="text" value={followUpNotas} onChange={(e) => setFollowUpNotas(e.target.value)} placeholder="Notas (opcional)"
+                className="w-full px-3 py-2.5 rounded-lg bg-gray-900 border border-gray-700/50 text-white text-sm mb-4 focus:outline-none focus:border-emerald-500" />
+              {followUpStatus === 'sent' && <div className="text-sm mb-4 p-2 rounded-lg text-emerald-400 bg-emerald-500/10">✅ Follow-up agendado!</div>}
+              {followUpStatus === 'error' && <div className="text-sm mb-4 p-2 rounded-lg text-red-400 bg-red-500/10">❌ Erro ao agendar.</div>}
+              <div className="flex gap-3">
+                <button onClick={() => setShowFollowUpModal(false)} className="flex-1 px-4 py-2.5 rounded-lg border border-gray-600 text-gray-300 hover:bg-gray-700 text-sm">Cancelar</button>
+                <button onClick={handleScheduleFollowUp} disabled={followUpStatus === 'sending'} className="flex-1 px-4 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:bg-gray-600 text-white text-sm">{followUpStatus === 'sending' ? 'Agendando...' : `Agendar (${followUpDias}d)`}</button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+      <ToastContainer toasts={toasts} onDismiss={dismissToast} />
+    </>
+  );
+};
+
+export default AppCore;
