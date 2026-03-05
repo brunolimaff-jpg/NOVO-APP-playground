@@ -5,6 +5,7 @@ import { APP_NAME } from '../constants';
 
 export function convertMarkdownToHTML(md: string, includeSources: boolean = true): string {
   const allLinks = extractValidLinks(md);
+  const markdownHttpLinkRegex = /\[([^\]]+)\]\((https?:\/\/(?:[^\s()]+|\([^\s()]*\))+)\)/g;
   let html = md
     .replace(
       /\[\[PORTA:(\d+):P(\d+):O(\d+):R(\d+):T(\d+):A(\d+)\]\]/g,
@@ -30,7 +31,7 @@ export function convertMarkdownToHTML(md: string, includeSources: boolean = true
     .replace(/\*\*\*(.*?)\*\*\*/g, '<strong><em>$1</em></strong>')
     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
     .replace(/\*(.*?)\*/g, '<em>$1</em>')
-    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_match, text, url) => {
+    .replace(markdownHttpLinkRegex, (_match, text, url) => {
       if (url.includes('ai.studio') || url.includes('google.com/search') || url.includes('vertexai')) {
         return `<strong style="color:#059669;">${text}</strong>`;
       }
