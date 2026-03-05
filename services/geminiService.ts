@@ -10,6 +10,7 @@ import { addInvestigation } from '../components/InvestigationDashboard';
 import { CompetitorDetection, getContextoConcorrentesRegionais } from './competitorService';
 import { buscarContextoPinecone, buscarContextoDocsPinecone } from './ragService';
 import { scanInput, sanitizeExternalContent, wrapUserInput, CANARY_TOKEN } from '../utils/promptGuard';
+import { isFakeUrl, isUnreliableUrl } from './apiConfig';
 
 export interface GeminiRequestOptions {
   useGrounding?: boolean;
@@ -399,20 +400,19 @@ Use os links do RAG [Texto](URL). NÃO inicie fluxos de investigação, NÃO pe�
     // Agora o nomeParaInjetar existe e não dará mais erro!
     let finalText = enforceOpeningWithSeller(finalParsed.text, nomeParaInjetar);
 
-    const { isFakeUrl: isFake, isUnreliableUrl: isUnreliable } = await import('../services/apiConfig');
     const inlineLinks: Array<{ title: string; url: string }> = [];
     const linkRegex = /\[([^\]\n]{1,120})\]\((https?:\/\/[^)\s]{4,})\)/g;
     let linkMatch;
     while ((linkMatch = linkRegex.exec(finalText)) !== null) {
       const linkUrl = linkMatch[2];
-      if (!isFake(linkUrl) && !isUnreliable(linkUrl) && !inlineLinks.some(l => l.url === linkUrl)) {
+      if (!isFakeUrl(linkUrl) && !isUnreliableUrl(linkUrl) && !inlineLinks.some(l => l.url === linkUrl)) {
         inlineLinks.push({ title: linkMatch[1].trim(), url: linkUrl });
       }
     }
     const sources = [
       ...groundingChunks.filter((c: Record<string, unknown>) => {
         const web = c.web as { uri?: string } | undefined;
-        return web?.uri && !isFake(web.uri) && !isUnreliable(web.uri);
+        return web?.uri && !isFakeUrl(web.uri) && !isUnreliableUrl(web.uri);
       }).map((c: Record<string, unknown>) => {
         const web = c.web as { title?: string; uri: string };
         return { title: web.title || web.uri, url: web.uri };
