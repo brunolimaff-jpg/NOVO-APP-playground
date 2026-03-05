@@ -34,7 +34,7 @@ export interface AppError {
   retryable: boolean;
   transient: boolean;
   source: ErrorSource;
-  details?: any;
+  details?: Record<string, unknown>;
 }
 
 // ===================================================================

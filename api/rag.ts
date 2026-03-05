@@ -1,25 +1,42 @@
 import { GoogleGenAI } from '@google/genai';
 import { Pinecone } from '@pinecone-database/pinecone';
+import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 export const config = {
-  runtime: 'nodejs', // ← trocado de 'edge' para 'nodejs'
+  runtime: 'nodejs',
 };
-export const maxDuration = 60; // 60 segundos para Vercel Serverless Function
+export const maxDuration = 60;
 
-export default async function handler(req: any, res: any) {
+function getRequiredEnv(name: string): string {
+  const value = process.env[name];
+  if (!value) throw new Error(`Missing required env var: ${name}`);
+  return value;
+}
+
+export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
-    return res.status(405).json({ context: '' });
+    return res.status(405).json({ error: 'Method not allowed' });
   }
 
   try {
-    const { query } = req.body;
-    if (!query) return res.status(200).json({ context: '' });
+    const body = req.body;
+    if (!body || typeof body !== 'object') {
+      return res.status(400).json({ error: 'Invalid request body' });
+    }
 
-    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
-    const pc = new Pinecone({ apiKey: process.env.PINECONE_API_KEY! });
+    const { query } = body;
+    if (!query || typeof query !== 'string') {
+      return res.status(400).json({ error: 'Missing or invalid "query" field (string required)' });
+    }
+
+    if (query.length > 10000) {
+      return res.status(400).json({ error: 'Query too long (max 10000 chars)' });
+    }
+
+    const ai = new GoogleGenAI({ apiKey: getRequiredEnv('GEMINI_API_KEY') });
+    const pc = new Pinecone({ apiKey: getRequiredEnv('PINECONE_API_KEY') });
     const index = pc.index('scout-arsenal');
 
-    // Gera embedding da query
     const embeddingResponse = await ai.models.embedContent({
       model: 'gemini-embedding-001',
       contents: query,
@@ -32,7 +49,6 @@ export default async function handler(req: any, res: any) {
       return res.status(200).json({ context: '' });
     }
 
-    // Busca no Pinecone
     const results = await index.query({
       vector: queryVector,
       topK: 8,
@@ -46,8 +62,9 @@ export default async function handler(req: any, res: any) {
 
     return res.status(200).json({ context });
 
-  } catch (error: any) {
-    console.error('RAG error:', error);
-    return res.status(200).json({ context: '' }); // falha silenciosa
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    console.error('RAG error:', message);
+    return res.status(500).json({ error: 'RAG processing failed', detail: message });
   }
 }

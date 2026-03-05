@@ -13,11 +13,10 @@ if (!rootElement) {
   throw new Error("Could not find root element to mount to");
 }
 
-// Chave Pública do Clerk (Development)
 const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY || 'pk_test_dG91Z2gta2l3aS05MS5jbGVyay5hY2NvdW50cy5kZXYk';
 
 if (!PUBLISHABLE_KEY) {
-  throw new Error("Missing Publishable Key")
+  throw new Error("Missing VITE_CLERK_PUBLISHABLE_KEY — configure it in your .env file")
 }
 
 const root = createRoot(rootElement);

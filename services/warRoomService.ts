@@ -25,8 +25,8 @@ const MODEL_ID = 'gemini-2.5-flash';
 let _ai: GoogleGenAI | null = null;
 const getAI = (): GoogleGenAI => {
     if (!_ai) {
-        const apiKey = process.env.API_KEY;
-        if (!apiKey) throw new Error('API_KEY environment variable is missing.');
+        const apiKey = process.env.GEMINI_API_KEY;
+        if (!apiKey) throw new Error('GEMINI_API_KEY environment variable is missing.');
         _ai = new GoogleGenAI({ apiKey });
     }
     return _ai;

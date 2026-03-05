@@ -161,7 +161,7 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const base: CRMCard = {
       id,
       companyName: extractCompanyNameFromSession(session),
-      cnpj: (cnpj as any) || undefined,
+      cnpj: cnpj || undefined,
       cnpjs: cnpj ? [String(cnpj)] : undefined,
       website: extractWebsiteFromSession(session),
       briefDescription: generateBriefDescriptionFromSession(session),
@@ -230,7 +230,7 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       await del(`crm_card_${cardId}`);
     } catch {
       // fallback: nao quebra o app se o del falhar
-      await set(`crm_card_${cardId}`, undefined as any);
+      await set(`crm_card_${cardId}`, null);
     }
   };
 

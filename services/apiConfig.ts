@@ -3,8 +3,11 @@
 // Centraliza TODAS as URLs de APIs externas e mapeamentos
 
 // === URLs do Backend ===
-export const BACKEND_URL = 'https://script.google.com/macros/s/AKfycbxvhFIWm6wOW0qDSrSB0lKA7UGkvxGltvZY9hghDpxv9r3diYcPoiPUq_n4WzJpkEY/exec';
-export const LOOKUP_URL = 'https://script.google.com/macros/s/AKfycbxscB2gSotAxrCdpRpyaqrPKlsPbRfe6fgjicbd69fG6sMM3vrbuGjDaRctWCTcE8d-/exec';
+const FALLBACK_BACKEND_URL = 'https://script.google.com/macros/s/AKfycbxvhFIWm6wOW0qDSrSB0lKA7UGkvxGltvZY9hghDpxv9r3diYcPoiPUq_n4WzJpkEY/exec';
+const FALLBACK_LOOKUP_URL = 'https://script.google.com/macros/s/AKfycbxscB2gSotAxrCdpRpyaqrPKlsPbRfe6fgjicbd69fG6sMM3vrbuGjDaRctWCTcE8d-/exec';
+
+export const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || FALLBACK_BACKEND_URL;
+export const LOOKUP_URL = import.meta.env.VITE_LOOKUP_URL || FALLBACK_LOOKUP_URL;
 
 // === Mapeamento de produtos Senior → URLs reais ===
 export const SENIOR_PRODUCT_URLS: Record<string, string> = {
@@ -98,9 +101,10 @@ export const SENIOR_PRODUCT_URLS: Record<string, string> = {
   'gestao de despesas': 'https://www.senior.com.br/solucoes/gestao-de-despesas',
 };
 
-// === Domínios falsos que o Gemini gera ===
+// === Domínios falsos / alucinados que o Gemini gera ===
 export const FAKE_DOMAINS = [
-  'ai.studio',              // CRITICAL
+  // AI / Google internos
+  'ai.studio',
   'aistudio.google.com',
   'ai.google.dev',
   'vertexai.google.com',
@@ -109,6 +113,17 @@ export const FAKE_DOMAINS = [
   'bard.google.com',
   'gemini.google.com',
   'g.co',
+];
+
+// Domínios que o Gemini cita mas cujos links são frequentemente alucinados
+// (a URL parece real mas não existe de fato)
+export const UNRELIABLE_LINK_DOMAINS = [
+  'pt.wikipedia.org',
+  'en.wikipedia.org',
+  'es.wikipedia.org',
+  'wikipedia.org',
+  'example.com',
+  'exemplo.com',
 ];
 
 // === Funções de busca de URL real ===
@@ -177,23 +192,40 @@ export function findSeniorProductUrl(text: string): string | null {
   return null;
 }
 
-// Verifica se URL é de domínio falso gerado pelo Gemini
+// Verifica se URL é de domínio completamente falso (AI interno do Gemini)
 export function isFakeUrl(url: string): boolean {
-  if (!url) return true; // Empty URL is considered fake
+  if (!url) return true;
   try {
     const parsed = new URL(url);
     const hostname = parsed.hostname.toLowerCase();
     
-    // Verificação direta por domínio (exato ou subdomínio)
     if (FAKE_DOMAINS.some(d => hostname === d || hostname.endsWith('.' + d))) return true;
-    
-    // Google Search check - explicitly block search results as "fake" sources in this context
     if (hostname.includes('google.com') && parsed.pathname.includes('/search')) return true;
     
     return false;
   } catch {
-    // URL malformada, verificar string raw para catch-all
     const lower = url.toLowerCase();
     return FAKE_DOMAINS.some(d => lower.includes(d)) || lower.includes('google.com/search');
   }
+}
+
+// Verifica se URL é de domínio não-confiável (Wikipedia, etc) cujos links
+// o Gemini frequentemente alucina — a URL parece real mas não existe
+export function isUnreliableUrl(url: string): boolean {
+  if (!url) return true;
+  if (isFakeUrl(url)) return true;
+  try {
+    const parsed = new URL(url);
+    const hostname = parsed.hostname.toLowerCase();
+    if (UNRELIABLE_LINK_DOMAINS.some(d => hostname === d || hostname.endsWith('.' + d))) return true;
+    return false;
+  } catch {
+    const lower = url.toLowerCase();
+    return UNRELIABLE_LINK_DOMAINS.some(d => lower.includes(d));
+  }
+}
+
+// Verifica se URL é "boa" — nem fake, nem não-confiável
+export function isReliableUrl(url: string): boolean {
+  return !isFakeUrl(url) && !isUnreliableUrl(url);
 }
