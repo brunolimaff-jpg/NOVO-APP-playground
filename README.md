@@ -5,6 +5,7 @@ Aplicação web de inteligência comercial com IA para prospecção e investiga�
 ## Sumário
 
 - [Visão geral](#visão-geral)
+- [Se você é iniciante](#se-você-é-iniciante)
 - [Principais funcionalidades](#principais-funcionalidades)
 - [Arquitetura](#arquitetura)
 - [Estrutura do projeto](#estrutura-do-projeto)
@@ -13,6 +14,7 @@ Aplicação web de inteligência comercial com IA para prospecção e investiga�
 - [Como rodar localmente](#como-rodar-localmente)
 - [Scripts disponíveis](#scripts-disponíveis)
 - [APIs internas (serverless)](#apis-internas-serverless)
+- [FAQ de segurança (resposta curta)](#faq-de-segurança-resposta-curta)
 - [Riscos técnicos conhecidos](#riscos-técnicos-conhecidos)
 - [Roadmap sugerido](#roadmap-sugerido)
 
@@ -26,6 +28,18 @@ O **Senior Scout 360** é um app React/TypeScript com:
 - Persistência local (IndexedDB/localStorage) e remota (Apps Script backend);
 - Exportação de análises (PDF/Markdown/DOC);
 - Mini CRM (pipeline kanban com estágios comerciais).
+
+## Se você é iniciante
+
+Se você começou agora (vibe coding), siga nesta ordem:
+
+1. Leia: [`docs/GUIA-INICIANTE.md`](./docs/GUIA-INICIANTE.md)
+2. Configure `.env` usando `.env.example`
+3. Rode:
+   - `npm install`
+   - `npm run dev`
+4. Se tiver erro de chave/API, veja:
+   - [`docs/SEGURANCA-API.md`](./docs/SEGURANCA-API.md)
 
 ## Principais funcionalidades
 
@@ -200,6 +214,27 @@ npm run typecheck   # tsc --noEmit
 - `POST /api/link-status`  
   Recebe `{ urls: string[] }`, valida links (HEAD/GET) e retorna status.
 
+## FAQ de segurança (resposta curta)
+
+### "Tem como esconder chave API sem backend?"
+
+**Não, de forma segura não tem.**
+
+Se o app roda no navegador e chama a IA direto do frontend, a chave sempre pode ser descoberta por alguém (DevTools, source map, requests etc.).
+
+### "Então o que eu faço sendo leigo?"
+
+Use um **backend mínimo** (pode ser serverless: Vercel Functions, Netlify Functions, Cloudflare Workers).  
+Este projeto já usa `api/*.ts`, então você já está a meio caminho.
+
+### "Não quero mexer em backend agora. Qual paliativo?"
+
+- Restrinja a chave no provedor (domínio/IP, se disponível);
+- Coloque limite de quota e alertas de uso;
+- Nunca commitar `.env` no Git.
+
+Isso **reduz risco**, mas **não protege totalmente**.
+
 ## Riscos técnicos conhecidos
 
 1. **Segurança de chave no frontend**  
@@ -229,6 +264,9 @@ npm run typecheck   # tsc --noEmit
 ## Documentos adicionais
 
 - [`ARQUITETURA.md`](./ARQUITETURA.md): visão técnica detalhada de módulos e fluxos.
+- [`docs/GUIA-INICIANTE.md`](./docs/GUIA-INICIANTE.md): passo a passo para quem está começando.
+- [`docs/SEGURANCA-API.md`](./docs/SEGURANCA-API.md): como proteger chave de API sem complicação.
+- [`docs/CHECKLIST-PRODUCAO.md`](./docs/CHECKLIST-PRODUCAO.md): checklist prático antes de publicar.
 
 ---
 
