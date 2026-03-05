@@ -7,7 +7,7 @@
  *   toast.success('Salvo com sucesso!');
  *   toast.info('Processando...');
  *
- * Renderização: montar <ToastContainer toasts={toasts} /> em AppCore ou ChatInterface.
+ * Renderização: montar <ToastContainer toasts={toasts} /> em App ou ChatInterface.
  */
 import { useState, useCallback } from 'react';
 
