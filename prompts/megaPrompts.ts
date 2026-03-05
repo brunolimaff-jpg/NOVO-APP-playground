@@ -44,7 +44,7 @@ Você operará com ceticismo absoluto e pensamento crítico. A informação deve
 ---
 ### 🗺️ MAPA DO CAOS OPERACIONAL 
 
-\```mermaid
+\`\`\`mermaid
 graph TD
     %% Estilos de Risco e Sistemas
     classDef backoffice fill:#1e40af,stroke:#fff,stroke-width:2px,color:#fff;
@@ -84,7 +84,7 @@ graph TD
     %% Nó de Risco Oculto
     Risco[Gargalo Oculto: Planilhas gerindo a Safra]:::danger
     Risco -.->|Sustenta a Operação| ERP
-\```
+\`\`\`
 
 ---
 ### 🩸 1. O MOTOR FÍSICO E O CLIMA (Terra, Água e Metal)
@@ -164,7 +164,7 @@ Você operará com ceticismo absoluto. A informação deve ser verdadeira e rast
 ---
 ### 🗺️ MAPA DA TORRE DE BABEL 
 
-\```mermaid
+\`\`\`mermaid
 graph TD
     %% Estilos de Risco e Sistemas
     classDef core fill:#1e40af,stroke:#fff,stroke-width:2px,color:#fff;
@@ -196,7 +196,7 @@ graph TD
     %% Nó de Risco Oculto
     Risco[Shadow IT: Excel Avançado e Analistas de Integração]:::danger
     Risco -.->|Sustenta a Operação| Core
-\```
+\`\`\`
 
 ### 🚨 1. AS HEMORRAGIAS DA FRAGMENTAÇÃO (O Custo da "Ilha")
 
@@ -358,7 +358,7 @@ PASSO 4 - HOLDINGS E OFFSHORES: Mapeie todas as empresas de investimento, holdin
 ---
 ### 📊 MAPA DE PODER SOCIETÁRIO E CONGLOMERADO 
 
-\```mermaid
+\`\`\`mermaid
 graph TD
     %% Use apenas texto simples dentro dos colchetes. Evite quebras de linha com HTML.
     
@@ -399,7 +399,7 @@ graph TD
     class S1,S2 person
     class H1,F1,F2,F3 company
     class P1,P2 parallel
-\```
+\`\`\`
 ---
 `;
 
