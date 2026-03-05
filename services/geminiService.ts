@@ -1,15 +1,14 @@
-import { GoogleGenAI, Chat, Content, Type } from "@google/genai";
 import { AppError, ReportType, Sender, ScorePortaData, ParsedContent } from '../types';
 import { ChatMode, NOME_VENDEDOR_PLACEHOLDER } from '../constants';
 import { normalizeAppError } from '../utils/errorHelpers';
 import { withAutoRetry } from '../utils/retry';
 import { Message } from '../types';
-import { stripMarkdown, cleanSuggestionText } from '../utils/textCleaners';
 import { lookupCliente, formatarParaPrompt, benchmarkClientes, formatarBenchmarkParaPrompt, isConcorrenteOuPropria } from './clientLookupService';
 import { addInvestigation } from '../components/InvestigationDashboard';
 import { CompetitorDetection, getContextoConcorrentesRegionais } from './competitorService';
 import { buscarContextoPinecone, buscarContextoDocsPinecone } from './ragService';
-import { scanInput, sanitizeExternalContent, wrapUserInput, CANARY_TOKEN } from '../utils/promptGuard';
+import { scanInput, sanitizeExternalContent, CANARY_TOKEN } from '../utils/promptGuard';
+import { proxyChatSendMessage, proxyGenerateContent } from './geminiProxy';
 
 export interface GeminiRequestOptions {
   useGrounding?: boolean;
@@ -166,34 +165,17 @@ export function extractSuggestionsFromResponse(content: string): string[] {
   return [];
 }
 
-let genAI: GoogleGenAI | null = null;
-const getGenAI = (): GoogleGenAI => {
-  if (!genAI) {
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) throw new Error("GEMINI_API_KEY not configured.");
-    genAI = new GoogleGenAI({ apiKey });
-  }
-  return genAI;
-};
-
-export const createChatSession = (systemInstruction: string, history: Message[], modelId: string, useGrounding: boolean = true, thinkingMode: boolean = false): Chat => {
-  const sdkHistory: Content[] = history.filter(msg => !msg.isError).map(msg => ({ role: msg.sender === Sender.User ? 'user' : 'model', parts: [{ text: msg.text }] }));
-  return getGenAI().chats.create({
-    model: modelId, history: sdkHistory,
-    config: {
-      systemInstruction: `${CANARY_TOKEN}\n${systemInstruction}\nMODO LIVE STATUS (OBRIGATÓRIO):\nEmita marcadores [[STATUS: Mensagem]] a cada etapa da análise. Use links markdown [texto](URL).`,
-      temperature: 0.15, maxOutputTokens: 65536, tools: useGrounding ? [{ googleSearch: {} }] : undefined,
-    }
-  });
-};
-
 export const resetChatSession = () => resetCompanyContext();
 
 const analyzeUserIntent = async (msg: string): Promise<{ empresa: string | null; benchmark: boolean; rota: 'tatica' | 'profunda' }> => {
   if (!msg || msg.trim().length < 5) return { empresa: null, benchmark: false, rota: 'tatica' };
   try {
     const prompt = `Analise a frase: "${msg}". Extraia (JSON): 1. "empresa": NOME DA EMPRESA (ou "NONE"). 2. "benchmark": boolean. 3. "rota": "profunda" ou "tatica".`;
-    const response = await getGenAI().models.generateContent({ model: ROUTER_MODEL_ID, contents: prompt, config: { temperature: 0, responseMimeType: 'application/json' } });
+    const response = await proxyGenerateContent({
+      model: ROUTER_MODEL_ID,
+      contents: prompt,
+      config: { temperature: 0, responseMimeType: 'application/json' }
+    });
     const parsed = JSON.parse((response.text || '{}').replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim());
     return {
       empresa: (!parsed.empresa || parsed.empresa === 'NONE' || parsed.empresa.length < 2) ? null : parsed.empresa,
@@ -205,7 +187,11 @@ const analyzeUserIntent = async (msg: string): Promise<{ empresa: string | null;
 
 const generateBenchmarkKeywords = async (empresaNome: string, contexto: string): Promise<string[]> => {
   try {
-    const resp = await getGenAI().models.generateContent({ model: ROUTER_MODEL_ID, contents: `Gere 5 palavras-chave do SETOR de "${empresaNome}". Contexto: "${contexto}". Separadas por vírgula.`, config: { temperature: 0.1 } });
+    const resp = await proxyGenerateContent({
+      model: ROUTER_MODEL_ID,
+      contents: `Gere 5 palavras-chave do SETOR de "${empresaNome}". Contexto: "${contexto}". Separadas por vírgula.`,
+      config: { temperature: 0.1 }
+    });
     return (resp.text || "").split(',').map(k => k.trim()).filter(k => k.length > 1);
   } catch { return []; }
 };
@@ -213,7 +199,7 @@ const generateBenchmarkKeywords = async (empresaNome: string, contexto: string):
 export const generateLoadingCuriosities = async (context: string): Promise<string[]> => {
   if (!context.trim()) return [];
   try {
-    const response = await getGenAI().models.generateContent({
+    const response = await proxyGenerateContent({
       model: ROUTER_MODEL_ID,
       contents: `Gere 6 curiosidades REAIS e VARIADAS sobre "${context}" (máx 120 chars cada).\n\nREGRAS:\n- VARIE o formato: NÃO comece todas com o mesmo nome. Alterne entre fatos da empresa, do setor e da região\n- Inclua dados específicos: números, anos, locais\n- Exemplo BOM: "Sapezal (MT) é um dos maiores municípios produtores de soja do Brasil"\n- Exemplo BOM: "O setor de grãos movimenta R$ 400 bi por ano no Brasil"\n- Exemplo RUIM: "Forte presença em mercados internacionais" (quem? onde? quanto?)\n- No máximo 2 das 6 podem citar o nome da empresa diretamente\n\nRetorne um JSON Array de strings.`,
       config: { responseMimeType: 'application/json', temperature: 0.8, maxOutputTokens: 1024 }
@@ -234,7 +220,7 @@ const generateFallbackSuggestions = async (lastUserText: string, botResponseText
       ? `O usuário executou uma análise profunda (Raio-X/Dossiê) sobre ${empresaNome}.` 
       : `O usuário, investigando ${empresaNome}, enviou a pergunta: "${lastUserText.substring(0, 500)}".`;
 
-    const response = await getGenAI().models.generateContent({
+    const response = await proxyGenerateContent({
       model: ROUTER_MODEL_ID,
       contents: `${effectiveUserContext}\n\nA IA respondeu com esta análise:\n"${botResponseText.substring(0, 1000)}..."\n\n**REGRA OBRIGATÓRIA**: Cada sugestão DEVE mencionar "${empresaNome}" ou usar pronomes que deixem clara a referência à empresa (ex: "dessa empresa", "deles", "lá").\n\nGere 3 sugestões CURTAS E DIRETAS de perguntas (follow-up) que o usuário pode fazer para se aprofundar nesta resposta. \n\nExemplos BONS:\n- "Como ${empresaNome} gerencia acesso e balanças hoje?"\n- "Quais concorrentes dessa empresa em MT já usam WMS Senior?"\n- "${empresaNome} tem planos de novas aquisições nos próximos 12 meses?"\n\nExemplos RUINS (NÃO FAZER):\n- "Quais concorrentes em MT já usam o WMS?" (falta o nome da empresa)\n- "Como gerenciam acesso?" (muito genérico)\n\nRetorne APENAS um JSON Array de strings.`,
       config: { systemInstruction: "Você é o assistente B2B que sugere os próximos passos da investigação. SEMPRE mencione o nome da empresa nas sugestões.", responseMimeType: 'application/json', temperature: 0.3 }
@@ -314,8 +300,6 @@ Use os links do RAG [Texto](URL). NÃO inicie fluxos de investigação, NÃO pe�
 
     const isDeepResearch = rota === 'profunda' || isMegaPromptMessage;
     if (isDeepResearch) onStatus?.("Deep Research ativado — varredura web iniciada...");
-
-    const chatSession = createChatSession(finalInstruction, history, isDeepResearch ? DEEP_CHAT_MODEL_ID : TACTICAL_MODEL_ID, useGrounding, thinkingMode);
     if (signal?.aborted) throw new Error("Request aborted");
 
     let enrichments: string[] = [];
@@ -352,49 +336,31 @@ Use os links do RAG [Texto](URL). NÃO inicie fluxos de investigação, NÃO pe�
     if (isTechnicalMode) messageToSend += `\n\nResponda diretamente como Especialista Senior.`;
 
     if (!isDeepResearch) onStatus?.("Gerando resposta...");
-    const STREAM_INACTIVITY_MS = isDeepResearch ? 120000 : 90000;
-    const streamPromise = chatSession.sendMessageStream({ message: messageToSend });
-    const timeoutPromise = new Promise<never>((_, rej) => setTimeout(() => rej(new Error(`Timeout (${STREAM_INACTIVITY_MS / 1000}s)`)), STREAM_INACTIVITY_MS));
-    const result = await Promise.race([streamPromise, timeoutPromise]);
+    const sdkHistory = history
+      .filter(msg => !msg.isError)
+      .map(msg => ({ role: msg.sender === Sender.User ? 'user' as const : 'model' as const, text: msg.text }));
 
-    let rawAccumulator = '', lastEmittedStatus = '', textMilestone = 0, streamTimedOut = false, chunkCount = 0;
-    let lastEmittedScore: ScorePortaData | null = null, lastEmittedCompetitor: CompetitorDetection | null = null;
-    let groundingChunks: any[] = [], inactivityTimer: ReturnType<typeof setTimeout> | null = null;
+    const response = await proxyChatSendMessage(
+      {
+        model: isDeepResearch ? DEEP_CHAT_MODEL_ID : TACTICAL_MODEL_ID,
+        history: sdkHistory,
+        systemInstruction: `${CANARY_TOKEN}\n${finalInstruction}\nMODO LIVE STATUS (OBRIGATÓRIO):\nEmita marcadores [[STATUS: Mensagem]] a cada etapa da análise. Use links markdown [texto](URL).`,
+        message: messageToSend,
+        useGrounding,
+        thinkingMode
+      },
+      signal
+    );
 
-    const resetInactivity = () => {
-      if (inactivityTimer) clearTimeout(inactivityTimer);
-      inactivityTimer = setTimeout(() => { streamTimedOut = true; }, STREAM_INACTIVITY_MS);
-    };
-    resetInactivity();
-
-    for await (const chunk of result) {
-      if (signal?.aborted || streamTimedOut) break;
-      resetInactivity();
-      rawAccumulator += chunk.text || "";
-      chunkCount++;
-      if (chunkCount === 1) onStatus?.("Recebendo dados...");
-
-      if (chunk.candidates?.[0]?.groundingMetadata?.groundingChunks) {
-        groundingChunks = [...groundingChunks, ...chunk.candidates[0].groundingMetadata.groundingChunks];
-      }
-
-      const len = rawAccumulator.length;
-      if (len > 12000 && textMilestone < 3) { onStatus?.("Finalizando dossiê..."); textMilestone = 3; }
-      else if (len > 6000 && textMilestone < 2) { onStatus?.("Compilando análise..."); textMilestone = 2; }
-      else if (len > 2000 && textMilestone < 1) { onStatus?.("Dossiê em construção..."); textMilestone = 1; }
-
-      const parsed = parseMarkers(rawAccumulator);
-      if (parsed.statuses.length > 0 && parsed.statuses[parsed.statuses.length - 1] !== lastEmittedStatus) {
-        onStatus?.(parsed.statuses[parsed.statuses.length - 1]); lastEmittedStatus = parsed.statuses[parsed.statuses.length - 1];
-      }
-      if (parsed.scorePorta && JSON.stringify(parsed.scorePorta) !== JSON.stringify(lastEmittedScore)) {
-        onScorePorta?.(parsed.scorePorta); lastEmittedScore = parsed.scorePorta;
-      }
-      onText?.(sanitizeStreamText(rawAccumulator));
-    }
-    if (inactivityTimer) clearTimeout(inactivityTimer);
+    const rawAccumulator = response.text || "";
+    const groundingChunks = Array.isArray(response.groundingChunks) ? response.groundingChunks : [];
+    onText?.(sanitizeStreamText(rawAccumulator));
 
     const finalParsed = parseMarkers(rawAccumulator);
+    finalParsed.statuses.forEach((status) => onStatus?.(status));
+    if (finalParsed.scorePorta) onScorePorta?.(finalParsed.scorePorta);
+    const competitorDetection = parseCompetitorMarker(rawAccumulator);
+    if (competitorDetection) onCompetitor?.(competitorDetection);
     
     // Agora o nomeParaInjetar existe e não dará mais erro!
     let finalText = enforceOpeningWithSeller(finalParsed.text, nomeParaInjetar);
@@ -411,7 +377,7 @@ Use os links do RAG [Texto](URL). NÃO inicie fluxos de investigação, NÃO pe�
       text: finalText, sources, suggestions: [],
       scorePorta: (!rawEmpresa || isConcorrenteOuPropria(rawEmpresa)) ? undefined : finalParsed.scorePorta,
       statuses: finalParsed.statuses, empresa,
-      ghostReason: (streamTimedOut && !rawAccumulator.trim()) ? "Timeout" : undefined
+      ghostReason: !rawAccumulator.trim() ? "Timeout" : undefined
     };
   };
 
@@ -443,7 +409,7 @@ Use os links do RAG [Texto](URL). NÃO inicie fluxos de investigação, NÃO pe�
 export const generateNewSuggestions = async (contextText: string, previousSuggestions: string[] = []): Promise<string[]> => {
   if (!contextText.trim()) return [];
   try {
-    const response = await getGenAI().models.generateContent({
+    const response = await proxyGenerateContent({
       model: ROUTER_MODEL_ID,
       contents: [{ role: "user", parts: [{ text: `CONTEXTO:\n${contextText}\n\nEVITAR: ${previousSuggestions.join(', ')}\nGere 3 perguntas JSON.` }] }],
       config: { systemInstruction: CONTINUITY_SYSTEM, responseMimeType: "application/json", temperature: 0.4 }
@@ -455,7 +421,7 @@ export const generateNewSuggestions = async (contextText: string, previousSugges
 
 export const generateConsolidatedDossier = async (history: Message[], systemInstruction: string, mode: ChatMode, reportType: ReportType = 'full'): Promise<string> => {
   try {
-    const response = await getGenAI().models.generateContent({
+    const response = await proxyGenerateContent({
       model: TACTICAL_MODEL_ID, contents: `Consolide este histórico: ${history.map(m => m.text).join('\n')}`,
       config: { systemInstruction, temperature: 0.2, maxOutputTokens: 65536 }
     });
@@ -473,7 +439,7 @@ Você é um analista SDR lendo uma ficha pública colada do ExactSpotter.
 TAREFA: Extrair APENAS os campos pedidos abaixo. Se um campo não aparecer, deixe como null ou lista vazia.
 FORMATO: Retorne EXCLUSIVAMENTE um JSON com as chaves: companyName, contactName, contactRole, contactEmail, contactPhone, segment, size, pains (array), currentSystems (array), summary.
 `;
-  const response = await getGenAI().models.generateContent({
+  const response = await proxyGenerateContent({
     model: ROUTER_MODEL_ID,
     contents: [{ role: 'user', parts: [{ text: `${systemInstruction}\n\nFICHA COPIADA DO SPOTTER:\n\n${sanitizeExternalContent(raw)}` }] }],
     config: { responseMimeType: 'application/json', temperature: 0.2, maxOutputTokens: 65536 },

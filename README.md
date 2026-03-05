@@ -237,9 +237,9 @@ Isso **reduz risco**, mas **não protege totalmente**.
 
 ## Riscos técnicos conhecidos
 
-1. **Segurança de chave no frontend**  
-   Hoje há uso de `GEMINI_API_KEY` no lado cliente (via `vite.config.ts`).  
-   Recomendação: mover chamadas do modelo para backend seguro.
+1. **Garantir uso do proxy em produção**  
+   O projeto agora usa `/api/gemini` para chamadas do modelo com chave no servidor.  
+   Recomendação: manter esse padrão e não reintroduzir chamadas diretas do frontend para Gemini.
 
 2. **Arquivo `App.tsx` muito extenso**  
    Alta concentração de responsabilidades (estado, fluxo, handlers, UI).

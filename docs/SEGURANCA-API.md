@@ -34,7 +34,7 @@ O frontend chama o backend, e o backend chama a IA com a chave guardada no servi
 1. **Não commitar `.env`**.
 2. Configurar variáveis no painel do deploy (ex.: Vercel).
 3. Tratar `GEMINI_API_KEY` como segredo de servidor.
-4. Planejar migração das chamadas Gemini para endpoint serverless dedicado (ex.: `POST /api/chat`).
+4. Usar o endpoint serverless dedicado já existente: `POST /api/gemini`.
 
 ---
 

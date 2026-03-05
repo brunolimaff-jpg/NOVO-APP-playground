@@ -3,14 +3,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const generateContentMock = vi.hoisted(() => vi.fn());
 const buscarDocsMock = vi.hoisted(() => vi.fn());
 
-vi.mock('@google/genai', () => ({
-  GoogleGenAI: vi.fn().mockImplementation(function GoogleGenAI() {
-    return {
-      models: {
-        generateContent: generateContentMock,
-      },
-    };
-  }),
+vi.mock('../../services/geminiProxy', () => ({
+  proxyGenerateContent: generateContentMock,
 }));
 
 vi.mock('../../services/ragService', () => ({
@@ -26,7 +20,6 @@ describe('warRoomService', () => {
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
-    process.env.GEMINI_API_KEY = 'test-key';
     buscarDocsMock.mockResolvedValue('');
   });
 
