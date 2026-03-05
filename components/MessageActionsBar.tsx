@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { Feedback } from '../types';
 import { PDFGenerator } from '../utils/PDFGenerator';
+import { normalizeMermaidBlocks } from '../utils/reportUtils';
 
 interface MessageActionsBarProps {
   content: string;
@@ -66,7 +67,7 @@ const MessageActionsBar: React.FC<MessageActionsBarProps> = ({
   // ============================================================
   // EXPORTAR PDF — renderização programática via jsPDF
   // ============================================================
-  const handleDownload = () => {
+  const handleDownload = async () => {
     try {
       const now = new Date();
       const dateStr = now.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
@@ -75,10 +76,11 @@ const MessageActionsBar: React.FC<MessageActionsBarProps> = ({
       // Extrai título da primeira linha de heading do conteúdo
       const titleMatch = content.match(/^#+ (.+)/m);
       const title = titleMatch ? titleMatch[1].trim() : 'Análise Scout 360';
+      const normalizedContent = normalizeMermaidBlocks(content);
 
       const pdf = new PDFGenerator();
       pdf.addHeader(title, `${dateStr} às ${timeStr}`);
-      pdf.renderMarkdown(content);
+      await pdf.renderMarkdown(normalizedContent);
 
       const filename = `scout360_${now.toISOString().slice(0, 10)}_${now.getTime()}.pdf`;
       pdf.save(filename);

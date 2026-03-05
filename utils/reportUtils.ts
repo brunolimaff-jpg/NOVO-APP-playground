@@ -33,38 +33,135 @@ export function collectFullReport(messages: Message[]): { text: string; sections
   return { text: sections.join('\n\n'), sections, allLinks };
 }
 
+const MERMAID_JSON_PATTERN = /\{"mermaid":"([\s\S]*?)"\}/g;
+
+export function normalizeMermaidBlocks(markdown: string): string {
+  if (!markdown) return '';
+  const fence = '`'.repeat(3);
+  return markdown.replace(MERMAID_JSON_PATTERN, (_m, raw: string) => {
+    const unescaped = raw.replace(/\\n/g, '\n').replace(/\\t/g, '\t');
+    return `\n${fence}mermaid\n${unescaped}\n${fence}\n`;
+  });
+}
+
+function normalizeComparableValue(value: string): string {
+  return value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function pickExecutiveContext(section: string): string {
+  const candidates = section
+    .split('\n')
+    .map(line => line.trim())
+    .filter(line => {
+      if (!line) return false;
+      if (/^#{1,6}\s/.test(line)) return false;
+      if (/^```/.test(line)) return false;
+      if (/^[-*]\s+/.test(line)) return false;
+      if (/^\d+\.\s+/.test(line)) return false;
+      return line.length >= 40;
+    });
+  return candidates[0] || 'Relatório consolidado a partir do dossiê e dos aprofundamentos da conversa.';
+}
+
+function collectMetricValues(text: string, regex: RegExp): string[] {
+  regex.lastIndex = 0;
+  const values: string[] = [];
+  let match: RegExpExecArray | null;
+  while ((match = regex.exec(text)) !== null) {
+    const raw = (match[1] || '').trim();
+    if (!raw) continue;
+    if (!values.find(v => normalizeComparableValue(v) === normalizeComparableValue(raw))) {
+      values.push(raw);
+    }
+  }
+  return values;
+}
+
+export function generateExecutiveSummary(fullText: string, sections: string[], inconsistenciesSection: string): string {
+  const sourceText = normalizeMermaidBlocks(fullText);
+  const mainSection = sections[0] || sourceText;
+  const context = pickExecutiveContext(mainSection);
+  const sectionCount = sections.length;
+  const aprofundamentos = Math.max(0, sectionCount - 1);
+
+  const metricPatterns = [
+    { label: 'Faturamento/Receita', regex: /(?:faturamento|receita)[^:\n]*:?\s*(R?\$?\s*\d[\d.,]*(?:\s*(?:mil|mi|milhão|milhões|bi|bilhão|bilhões|tri|trilhão|trilhões))?)/gi },
+    { label: 'Área (ha)', regex: /(\d[\d.,]*\s*(?:mil|mi|milhão|milhões)?\s*(?:hectares|ha)\b)/gi },
+    { label: 'Funcionários', regex: /(\d[\d.,]*\s*(?:mil|mi|milhão|milhões)?\s*(?:funcionários|colaboradores|empregados)\b)/gi },
+    { label: 'Unidades/Fábricas', regex: /(\d[\d.,]*\s*(?:unidades|filiais|fábricas|plantas|usinas)\b)/gi },
+  ] as const;
+
+  const metricLines = metricPatterns
+    .map(({ label, regex }) => {
+      const values = collectMetricValues(sourceText, regex);
+      if (!values.length) return null;
+      return `- **${label}:** ${values.slice(0, 2).join(' · ')}`;
+    })
+    .filter(Boolean)
+    .join('\n');
+
+  const mermaidBlocks =
+    (sourceText.match(/```mermaid[\s\S]*?```/gi) || []).length +
+    (fullText.match(MERMAID_JSON_PATTERN) || []).length;
+
+  const inconsistencyNote = inconsistenciesSection
+    ? '- **Validação obrigatória:** foram detectadas inconsistências entre seções; os pontos marcados como "precisa validar" devem ser confirmados antes de uso comercial.'
+    : '- **Validação obrigatória:** não foram encontradas inconsistências numéricas automáticas entre seções.';
+
+  return [
+    '## 📌 RESUMO EXECUTIVO',
+    '',
+    `- **Escopo compilado:** ${sectionCount} seção(ões), com ${aprofundamentos} aprofundamento(s).`,
+    `- **Síntese inicial:** ${context}`,
+    mermaidBlocks > 0
+      ? `- **Diagramas mermaid:** ${mermaidBlocks} bloco(s) incluído(s) no relatório para leitura visual dos fluxos.`
+      : '- **Diagramas mermaid:** nenhum bloco mermaid identificado no conteúdo consolidado.',
+    inconsistencyNote,
+    metricLines,
+    '',
+  ]
+    .filter(Boolean)
+    .join('\n');
+}
+
 export function detectInconsistencies(sections: string[]): string {
   if (sections.length < 2) return '';
-  const inconsistencies: string[] = [];
+  const inconsistencies = new Set<string>();
   const patterns = [
-    { label: 'Faturamento', regex: /faturamento[^:]*?:?\s*(?:R\$\s*)?(\d[\d.,]*\s*(?:mi|bi|mil|trilh)[a-záãõüê]*)/gi },
-    { label: 'Área/Hectares', regex: /(\d[\d.,]*)\s*(?:mil\s+)?(?:hectares|ha\b)/gi },
-    { label: 'Funcionários', regex: /(\d[\d.,]*)\s*(?:mil\s+)?(?:funcionários|colaboradores|empregados)/gi },
-    { label: 'Receita', regex: /receita[^:]*?:?\s*(?:R\$\s*)?(\d[\d.,]*\s*(?:mi|bi|mil|trilh)[a-záãõüê]*)/gi },
-    { label: 'Unidades', regex: /(\d[\d.,]*)\s*(?:unidades|filiais|fábricas|plantas|usinas)/gi },
+    { label: 'Faturamento/Receita', regex: /(?:faturamento|receita)[^:\n]*:?\s*(R?\$?\s*\d[\d.,]*(?:\s*(?:mil|mi|milhão|milhões|bi|bilhão|bilhões|tri|trilhão|trilhões))?)/gi },
+    { label: 'Área/Hectares', regex: /(\d[\d.,]*\s*(?:mil|mi|milhão|milhões)?\s*(?:hectares|ha)\b)/gi },
+    { label: 'Funcionários', regex: /(\d[\d.,]*\s*(?:mil|mi|milhão|milhões)?\s*(?:funcionários|colaboradores|empregados)\b)/gi },
+    { label: 'Unidades', regex: /(\d[\d.,]*\s*(?:unidades|filiais|fábricas|plantas|usinas)\b)/gi },
   ];
+
   const mainSection = sections[0];
+  const mainSectionNormalized = normalizeMermaidBlocks(mainSection);
+
   for (let i = 1; i < sections.length; i++) {
-    const drilldown = sections[i];
+    const drilldown = normalizeMermaidBlocks(sections[i]);
     for (const { label, regex } of patterns) {
-      regex.lastIndex = 0;
-      const mainMatches: string[] = [];
-      let match;
-      while ((match = regex.exec(mainSection)) !== null) mainMatches.push(match[0].trim());
-      regex.lastIndex = 0;
-      const drillMatches: string[] = [];
-      while ((match = regex.exec(drilldown)) !== null) drillMatches.push(match[0].trim());
+      const mainMatches = collectMetricValues(mainSectionNormalized, regex);
+      const drillMatches = collectMetricValues(drilldown, regex);
       if (mainMatches.length > 0 && drillMatches.length > 0) {
-        const mainVal = mainMatches[0].toLowerCase();
-        const drillVal = drillMatches[0].toLowerCase();
-        if (mainVal !== drillVal) {
-          inconsistencies.push(`**${label}:** Dossiê principal menciona *${mainMatches[0]}*, mas aprofundamento menciona *${drillMatches[0]}*. Verifique qual é o dado mais recente.`);
+        const overlap = drillMatches.some(dr =>
+          mainMatches.some(main => normalizeComparableValue(main) === normalizeComparableValue(dr))
+        );
+        if (!overlap) {
+          inconsistencies.add(
+            `**${label}:** dossiê principal traz *${mainMatches[0]}* e aprofundamento traz *${drillMatches[0]}* — **precisa validar** qual valor está correto e mais atualizado.`
+          );
         }
       }
     }
   }
-  if (inconsistencies.length === 0) return '';
+
+  if (inconsistencies.size === 0) return '';
   return '\n\n---\n\n## ⚠️ INCONSISTÊNCIAS DETECTADAS\n\n' +
-    '> Os dados abaixo apareceram com valores diferentes entre o dossiê principal e os aprofundamentos. Recomenda-se verificar a fonte mais confiável antes de usar em propostas.\n\n' +
-    inconsistencies.map((inc, i) => `${i + 1}. ${inc}`).join('\n') + '\n';
+    '> Os dados abaixo apareceram com valores diferentes entre o dossiê principal e os aprofundamentos. Todos os itens estão marcados com "**precisa validar**" e devem ser confirmados antes de uso em proposta comercial.\n\n' +
+    Array.from(inconsistencies).map((inc, i) => `${i + 1}. ${inc}`).join('\n') + '\n';
 }
