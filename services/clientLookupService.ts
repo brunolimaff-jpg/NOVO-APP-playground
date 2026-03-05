@@ -29,6 +29,7 @@ export function isConcorrenteOuPropria(empresa: string): boolean {
 const LOOKUP_API_URL = LOOKUP_URL;
 const TIMEOUT_MS = 15000; // 15 segundos (Apps Script cold start pode demorar)
 const MAX_RETRIES = 3;
+const shouldLogLookupDebug = import.meta.env?.VITE_VERBOSE_LOGS === 'true';
 
 export interface ClienteResult {
   grupo: string;
@@ -82,18 +83,26 @@ async function fetchWithRetry(url: string, retries: number = MAX_RETRIES): Promi
 
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
-      console.log(`[LOOKUP] Tentativa ${attempt}/${retries}: ${url.substring(0, 80)}...`);
+      if (shouldLogLookupDebug) {
+        console.log(`[LOOKUP] Tentativa ${attempt}/${retries}: ${url.substring(0, 80)}...`);
+      }
       const response = await fetchWithTimeout(url);
-      console.log(`[LOOKUP] Sucesso na tentativa ${attempt}`);
+      if (shouldLogLookupDebug) {
+        console.log(`[LOOKUP] Sucesso na tentativa ${attempt}`);
+      }
       return response;
     } catch (err: any) {
       lastError = err;
-      console.warn(`[LOOKUP] Tentativa ${attempt} falhou:`, err.message);
+      if (shouldLogLookupDebug) {
+        console.warn(`[LOOKUP] Tentativa ${attempt} falhou:`, err.message);
+      }
 
       if (attempt < retries) {
         // Backoff exponencial: 1s, 2s, 4s
         const wait = 1000 * Math.pow(2, attempt - 1);
-        console.log(`[LOOKUP] Aguardando ${wait / 1000}s antes de tentar novamente...`);
+        if (shouldLogLookupDebug) {
+          console.log(`[LOOKUP] Aguardando ${wait / 1000}s antes de tentar novamente...`);
+        }
         await new Promise(resolve => setTimeout(resolve, wait));
       }
     }
@@ -115,7 +124,9 @@ function normalizeCacheKey(name: string): string {
 }
 
 export async function lookupCliente(nomeEmpresa: string): Promise<LookupResponse> {
-  console.log("[LOOKUP] === INÍCIO ===");
+  if (shouldLogLookupDebug) {
+    console.log("[LOOKUP] === INÍCIO ===");
+  }
 
   const nomeLimpo = nomeEmpresa
     .replace(/^(grupo|empresa|fazenda|usina|cia)\s+/i, '')
@@ -129,11 +140,15 @@ export async function lookupCliente(nomeEmpresa: string): Promise<LookupResponse
 
   // Cache hit: retorna imediatamente sem novas chamadas HTTP
   if (_lookupCache.has(cacheKey)) {
-    console.log("[LOOKUP] Cache hit:", cacheKey);
+    if (shouldLogLookupDebug) {
+      console.log("[LOOKUP] Cache hit:", cacheKey);
+    }
     return _lookupCache.get(cacheKey)!;
   }
 
-  console.log("[LOOKUP] Query:", nomeLimpo);
+  if (shouldLogLookupDebug) {
+    console.log("[LOOKUP] Query:", nomeLimpo);
+  }
 
   try {
     // Monta variantes de busca únicas para disparo paralelo
@@ -164,11 +179,15 @@ export async function lookupCliente(nomeEmpresa: string): Promise<LookupResponse
         ? settled[0].value
         : { ok: false, query: nomeLimpo, encontrado: false, total: 0, results: [] };
 
-    console.log("[LOOKUP] Resultado:", data.encontrado ? "ENCONTRADO ✅" : "NÃO ENCONTRADO", "| Total:", data.total);
+    if (shouldLogLookupDebug) {
+      console.log("[LOOKUP] Resultado:", data.encontrado ? "ENCONTRADO ✅" : "NÃO ENCONTRADO", "| Total:", data.total);
+    }
     _lookupCache.set(cacheKey, data);
     return data;
   } catch (err: any) {
-    console.error("[LOOKUP] ERRO:", err.message);
+    if (shouldLogLookupDebug) {
+      console.error("[LOOKUP] ERRO:", err.message);
+    }
     return { ok: false, query: nomeEmpresa, encontrado: false, total: 0, results: [], error: String(err) };
   }
 }
@@ -181,7 +200,9 @@ async function fetchLookup(query: string): Promise<LookupResponse> {
     if (!resp.ok) return { ok: false, query, encontrado: false, total: 0, results: [], error: `HTTP ${resp.status}` };
 
     const text = await resp.text();
-    console.log("[LOOKUP] Response:", text.substring(0, 100));
+    if (shouldLogLookupDebug) {
+      console.log("[LOOKUP] Response:", text.substring(0, 100));
+    }
 
     try {
       return JSON.parse(text);
