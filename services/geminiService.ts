@@ -10,7 +10,6 @@ import { addInvestigation } from '../components/InvestigationDashboard';
 import { CompetitorDetection, getContextoConcorrentesRegionais } from './competitorService';
 import { buscarContextoPinecone, buscarContextoDocsPinecone } from './ragService';
 import { scanInput, sanitizeExternalContent, wrapUserInput, CANARY_TOKEN } from '../utils/promptGuard';
-import { isFakeUrl, isUnreliableUrl } from './apiConfig';
 
 export interface GeminiRequestOptions {
   useGrounding?: boolean;
@@ -404,21 +403,9 @@ Use os links do RAG [Texto](URL). NÃO inicie fluxos de investigação, NÃO pe�
     const linkRegex = /\[([^\]\n]{1,120})\]\((https?:\/\/[^)\s]{4,})\)/g;
     let linkMatch;
     while ((linkMatch = linkRegex.exec(finalText)) !== null) {
-      const linkUrl = linkMatch[2];
-      if (!isFakeUrl(linkUrl) && !isUnreliableUrl(linkUrl) && !inlineLinks.some(l => l.url === linkUrl)) {
-        inlineLinks.push({ title: linkMatch[1].trim(), url: linkUrl });
-      }
+      if (!inlineLinks.some(l => l.url === linkMatch[2])) inlineLinks.push({ title: linkMatch[1].trim(), url: linkMatch[2] });
     }
-    const sources = [
-      ...groundingChunks.filter((c: Record<string, unknown>) => {
-        const web = c.web as { uri?: string } | undefined;
-        return web?.uri && !isFakeUrl(web.uri) && !isUnreliableUrl(web.uri);
-      }).map((c: Record<string, unknown>) => {
-        const web = c.web as { title?: string; uri: string };
-        return { title: web.title || web.uri, url: web.uri };
-      }),
-      ...inlineLinks
-    ];
+    const sources = [...groundingChunks.filter(c => c.web?.uri).map(c => ({ title: c.web.title || c.web.uri, url: c.web.uri })), ...inlineLinks];
 
     return {
       text: finalText, sources, suggestions: [],

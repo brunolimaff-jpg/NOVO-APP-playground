@@ -101,7 +101,7 @@ export const SENIOR_PRODUCT_URLS: Record<string, string> = {
   'gestao de despesas': 'https://www.senior.com.br/solucoes/gestao-de-despesas',
 };
 
-// === Domínios falsos / alucinados que o Gemini gera ===
+// === Domínios falsos / não-confiáveis que o Gemini gera ou alucina ===
 export const FAKE_DOMAINS = [
   // AI / Google internos
   'ai.studio',
@@ -113,15 +113,12 @@ export const FAKE_DOMAINS = [
   'bard.google.com',
   'gemini.google.com',
   'g.co',
-];
-
-// Domínios que o Gemini cita mas cujos links são frequentemente alucinados
-// (a URL parece real mas não existe de fato)
-export const UNRELIABLE_LINK_DOMAINS = [
+  // Wikipedia (Gemini frequentemente alucina URLs que não existem)
   'pt.wikipedia.org',
   'en.wikipedia.org',
   'es.wikipedia.org',
   'wikipedia.org',
+  // Placeholders
   'example.com',
   'exemplo.com',
 ];
@@ -192,40 +189,23 @@ export function findSeniorProductUrl(text: string): string | null {
   return null;
 }
 
-// Verifica se URL é de domínio completamente falso (AI interno do Gemini)
+// Verifica se URL é de domínio falso gerado pelo Gemini
 export function isFakeUrl(url: string): boolean {
-  if (!url) return true;
+  if (!url) return true; // Empty URL is considered fake
   try {
     const parsed = new URL(url);
     const hostname = parsed.hostname.toLowerCase();
     
+    // Verificação direta por domínio (exato ou subdomínio)
     if (FAKE_DOMAINS.some(d => hostname === d || hostname.endsWith('.' + d))) return true;
+    
+    // Google Search check - explicitly block search results as "fake" sources in this context
     if (hostname.includes('google.com') && parsed.pathname.includes('/search')) return true;
     
     return false;
   } catch {
+    // URL malformada, verificar string raw para catch-all
     const lower = url.toLowerCase();
     return FAKE_DOMAINS.some(d => lower.includes(d)) || lower.includes('google.com/search');
   }
-}
-
-// Verifica se URL é de domínio não-confiável (Wikipedia, etc) cujos links
-// o Gemini frequentemente alucina — a URL parece real mas não existe
-export function isUnreliableUrl(url: string): boolean {
-  if (!url) return true;
-  if (isFakeUrl(url)) return true;
-  try {
-    const parsed = new URL(url);
-    const hostname = parsed.hostname.toLowerCase();
-    if (UNRELIABLE_LINK_DOMAINS.some(d => hostname === d || hostname.endsWith('.' + d))) return true;
-    return false;
-  } catch {
-    const lower = url.toLowerCase();
-    return UNRELIABLE_LINK_DOMAINS.some(d => lower.includes(d));
-  }
-}
-
-// Verifica se URL é "boa" — nem fake, nem não-confiável
-export function isReliableUrl(url: string): boolean {
-  return !isFakeUrl(url) && !isUnreliableUrl(url);
 }
