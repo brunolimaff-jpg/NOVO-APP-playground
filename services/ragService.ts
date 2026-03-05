@@ -1,4 +1,5 @@
 const RAG_FETCH_TIMEOUT_MS = 15000;
+const shouldLogRagDebug = import.meta.env?.VITE_VERBOSE_LOGS === 'true';
 
 async function fetchRagContext(endpoint: string, label: string, query: string): Promise<string> {
   const controller = new AbortController();
@@ -13,7 +14,9 @@ async function fetchRagContext(endpoint: string, label: string, query: string): 
     });
 
     if (!response.ok) {
-      console.warn(`[${label}] Server returned ${response.status}`);
+      if (shouldLogRagDebug) {
+        console.warn(`[${label}] Server returned ${response.status}`);
+      }
       return '';
     }
 
@@ -22,10 +25,14 @@ async function fetchRagContext(endpoint: string, label: string, query: string): 
 
   } catch (error: unknown) {
     if (error instanceof Error && error.name === 'AbortError') {
-      console.warn(`[${label}] Timeout de ${RAG_FETCH_TIMEOUT_MS / 1000}s — continuando sem RAG.`);
+      if (shouldLogRagDebug) {
+        console.warn(`[${label}] Timeout de ${RAG_FETCH_TIMEOUT_MS / 1000}s — continuando sem RAG.`);
+      }
     } else {
       const msg = error instanceof Error ? error.message : 'Unknown error';
-      console.error(`[${label}] Erro ao buscar contexto:`, msg);
+      if (shouldLogRagDebug) {
+        console.error(`[${label}] Erro ao buscar contexto:`, msg);
+      }
     }
     return '';
   } finally {

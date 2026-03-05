@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { ChatMode } from '../constants';
 import { generateLoadingCuriosities } from '../services/geminiService';
+import { buildLoadingCuriositiesFallback } from '../utils/loadingCuriosities';
 
 const FADE_DURATION = 400;
 const SOURCE_LINKS: Record<string, string> = {
@@ -97,20 +98,7 @@ const LoadingSmart: React.FC<LoadingSmartProps> = ({
   }, [normalizeSourceLabel]);
 
   const buildFallbackCuriosities = useCallback((context: string): string[] => {
-    if (!context) {
-      return [
-        "Mapeando sinais de mercado e concorrência...",
-        "Cruzando dados públicos e histórico comercial...",
-        "Buscando evidências para priorizar a abordagem..."
-      ];
-    }
-
-    return [
-      `Levantando investimentos recentes de ${context}...`,
-      `Estimando faturamento e porte econômico de ${context}...`,
-      `Mapeando estrutura operacional de ${context} (ex.: área/ha, unidades e escala)...`,
-      `Buscando aquisições, expansão e novos movimentos do grupo ${context}...`
-    ];
+    return buildLoadingCuriositiesFallback(context);
   }, []);
 
   // 1. Contador de Tempo

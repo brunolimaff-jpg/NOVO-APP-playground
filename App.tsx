@@ -27,6 +27,7 @@ import { normalizeAppError } from './utils/errorHelpers';
 import { downloadFile } from './utils/downloadHelpers';
 import { cleanTitle } from './utils/textCleaners';
 import { fixFakeLinksHTML } from './utils/linkFixer';
+import { normalizeLoadingStatus, statusKey } from './utils/loadingStatus';
 import { BACKEND_URL } from './services/apiConfig';
 import { extractCompanyName } from './utils/companyNameExtractor';
 import { convertMarkdownToHTML, simpleMarkdownToHtml } from './utils/markdownToHtml';
@@ -86,6 +87,7 @@ const App: React.FC = () => {
   const lastActionRef = useRef<LastAction | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const lastStatusRef = useRef<string | null>(null);
+  const lastStatusKeyRef = useRef<string | null>(null);
   const activeGenerationRef = useRef<Record<string, string>>({});
 
   useEffect(() => {
@@ -275,6 +277,8 @@ const App: React.FC = () => {
     setIsLoading(true);
     setLoadingStatus('Realizando pesquisa...');
     setCompletedLoadingStatuses([]);
+    lastStatusRef.current = null;
+    lastStatusKeyRef.current = null;
     setLastQuery(text);
     abortControllerRef.current = new AbortController();
     const signal = abortControllerRef.current.signal;
@@ -314,14 +318,27 @@ const App: React.FC = () => {
           signal,
           onText: () => {},
           onStatus: (newStatus) => {
+            const normalizedStatus = normalizeLoadingStatus(newStatus);
+            if (!normalizedStatus) return;
+            const newKey = statusKey(normalizedStatus);
             setLoadingStatus(prev => {
-              if (prev && prev !== newStatus) lastStatusRef.current = prev;
-              return newStatus;
+              const normalizedPrev = normalizeLoadingStatus(prev) || prev;
+              if (normalizedPrev && normalizedPrev !== normalizedStatus) {
+                lastStatusRef.current = normalizedPrev;
+                lastStatusKeyRef.current = statusKey(normalizedPrev);
+              }
+              return normalizedStatus;
             });
-            if (lastStatusRef.current && lastStatusRef.current !== newStatus) {
+            if (
+              lastStatusRef.current &&
+              lastStatusRef.current !== normalizedStatus &&
+              lastStatusKeyRef.current !== newKey
+            ) {
               const statusToAdd = lastStatusRef.current;
               setCompletedLoadingStatuses(completed =>
-                statusToAdd && !completed.includes(statusToAdd) ? [...completed, statusToAdd] : completed
+                statusToAdd && !completed.some(existing => statusKey(existing) === statusKey(statusToAdd))
+                  ? [...completed, statusToAdd]
+                  : completed
               );
             }
           },
