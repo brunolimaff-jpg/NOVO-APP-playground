@@ -5,6 +5,8 @@
 
 import { findSeniorProductUrl, isFakeUrl, FAKE_DOMAINS } from '../services/apiConfig';
 
+const MARKDOWN_HTTP_LINK_REGEX = /\[([^\]]+)\]\((https?:\/\/(?:[^\s()]+|\([^\s()]*\))+)\)/gi;
+
 /**
  * Corrige links no texto MARKDOWN (antes de renderizar)
  * MELHORADO: Só remove links REALMENTE falsos, preserva títulos
@@ -14,7 +16,7 @@ export function fixFakeLinks(markdownText: string): string {
 
   // 1. Links markdown: [texto](url_fake) → tenta recuperar ou mantém texto
   let clean = markdownText.replace(
-    /\[([^\]]+)\]\((https?:\/\/[^)]+)\)/gi,
+    MARKDOWN_HTTP_LINK_REGEX,
     (match, linkText, url) => {
       // Se for URL fake, tenta encontrar URL real
       if (isFakeUrl(url)) {
@@ -116,7 +118,7 @@ export function extractValidLinks(text: string): Array<{ title: string; url: str
   const links: Array<{ title: string; url: string }> = [];
   if (!text) return links;
   
-  const linkRegex = /\[([^\]]+)\]\((https?:\/\/[^)]+)\)/gi;
+  const linkRegex = /\[([^\]]+)\]\((https?:\/\/(?:[^\s()]+|\([^\s()]*\))+)\)/gi;
   let match;
   
   while ((match = linkRegex.exec(text)) !== null) {
@@ -143,7 +145,7 @@ export function extractAllSourceMentions(text: string): Array<{ title: string; u
   if (!text) return sources;
   
   // 1. Links markdown
-  const linkRegex = /\[([^\]]+)\]\((https?:\/\/[^)]+)\)/gi;
+  const linkRegex = /\[([^\]]+)\]\((https?:\/\/(?:[^\s()]+|\([^\s()]*\))+)\)/gi;
   let match;
   
   while ((match = linkRegex.exec(text)) !== null) {

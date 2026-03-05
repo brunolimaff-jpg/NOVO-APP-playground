@@ -23,6 +23,12 @@ describe('convertMarkdownToHTML', () => {
     expect(result).toContain('Senior');
   });
 
+  it('preserves full link with parentheses in URL', () => {
+    const url = 'https://example.com/docs/api(v2)/guia?ref=abc(def)';
+    const result = convertMarkdownToHTML(`[Documentacao](${url})`, false);
+    expect(result).toContain(`href="${url}"`);
+  });
+
   it('blocks AI studio links', () => {
     const result = convertMarkdownToHTML('[Text](https://ai.studio/something)', false);
     expect(result).not.toContain('href=');
