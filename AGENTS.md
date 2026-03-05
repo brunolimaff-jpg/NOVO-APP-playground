@@ -34,7 +34,11 @@ All standard scripts are in `package.json`: `dev`, `build`, `test`, `lint`, `typ
 
 ### API functions
 
-The `api/*.ts` files are Vercel serverless functions. They do **not** run with `npm run dev` (Vite only). Use `vercel dev` (Vercel CLI) or deploy to Vercel for `/api/*` endpoints.
+The `api/*.ts` files are Vercel serverless functions. They do **not** run with `npm run dev` (Vite only). The deployed production app at `scoutagro.vercel.app` serves these endpoints. For local development, the Gemini AI chat works via the deployed Vercel backend (the frontend calls the production API URLs).
+
+### Clerk authentication
+
+The app has a hardcoded fallback Clerk publishable key in `index.tsx` (line 16). The Clerk instance is in **development mode** and requires real email verification for sign-up -- there is no test-code bypass. To test the full app, you need a Clerk account with the configured instance, or the user must log in via the Desktop pane.
 
 ### Tests
 
