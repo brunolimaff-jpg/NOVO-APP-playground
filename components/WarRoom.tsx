@@ -6,11 +6,13 @@ interface WarRoomProps {
   isOpen: boolean;
   onClose: () => void;
   isDarkMode: boolean;
+  defaultCompetitorTarget?: string | null;
 }
 
 interface WRMessage {
   id: string;
   role: 'user' | 'model';
+  mode: WarRoomMode;
   text: string;
   sources?: Array<{ title: string; url: string }>;
   isLoading?: boolean;
@@ -36,19 +38,40 @@ const MODE_CONFIG: Record<WarRoomMode, { icon: string; label: string; subtitle: 
   },
 };
 
-export default function WarRoom({ isOpen, onClose, isDarkMode }: WarRoomProps) {
+const EMPTY_MODE_MESSAGES: Record<WarRoomMode, WRMessage[]> = {
+  tech: [],
+  killscript: [],
+  benchmark: [],
+  objections: [],
+};
+
+const extractCompetitorFromMessage = (message: string): string => {
+  const candidate = message.match(/(?:vs|contra)\s+([A-Za-zÀ-ÿ0-9][A-Za-zÀ-ÿ0-9 ._/-]{1,60})/i)?.[1] || '';
+  return candidate.trim().replace(/[.,;:!?]+$/, '');
+};
+
+export default function WarRoom({ isOpen, onClose, isDarkMode, defaultCompetitorTarget }: WarRoomProps) {
   const dk = isDarkMode;
 
   const [mode, setMode] = useState<WarRoomMode>('tech');
-  const [messages, setMessages] = useState<WRMessage[]>([]);
+  const [messagesByMode, setMessagesByMode] = useState<Record<WarRoomMode, WRMessage[]>>(EMPTY_MODE_MESSAGES);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [status, setStatus] = useState('');
   const [queryCount, setQueryCount] = useState(0);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
+  const [targetsByMode, setTargetsByMode] = useState<Record<'killscript' | 'benchmark' | 'objections', string>>({
+    killscript: defaultCompetitorTarget || '',
+    benchmark: defaultCompetitorTarget || '',
+    objections: defaultCompetitorTarget || '',
+  });
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const abortRef = useRef<AbortController | null>(null);
+
+  const messages = messagesByMode[mode];
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -62,52 +85,100 @@ export default function WarRoom({ isOpen, onClose, isDarkMode }: WarRoomProps) {
     try {
       await navigator.clipboard.writeText(text);
       setCopiedId(id);
+      setCopyFeedback('Conteúdo copiado.');
       setTimeout(() => setCopiedId(null), 2000);
-    } catch (err) {
-      console.error('Erro ao copiar:', err);
+      setTimeout(() => setCopyFeedback(null), 2200);
+    } catch {
+      setCopyFeedback('Não foi possível copiar. Copie manualmente.');
+      setTimeout(() => setCopyFeedback(null), 2600);
     }
+  }, []);
+
+  useEffect(() => {
+    if (!isOpen && abortRef.current) {
+      abortRef.current.abort();
+      abortRef.current = null;
+      setIsLoading(false);
+      setStatus('');
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    return () => {
+      if (abortRef.current) abortRef.current.abort();
+    };
   }, []);
 
   const handleSend = useCallback(async () => {
     const text = input.trim();
     if (!text || isLoading) return;
 
+    const activeMessages = messagesByMode[mode];
+    const inferredTarget = extractCompetitorFromMessage(text);
+    let target = '';
+
+    if (mode !== 'tech') {
+      const configuredTarget = targetsByMode[mode].trim();
+      target = configuredTarget || inferredTarget;
+      if (!configuredTarget && inferredTarget) {
+        setTargetsByMode(prev => ({ ...prev, [mode]: inferredTarget }));
+      }
+    }
+
     setInput('');
     setIsSidebarOpen(false);
-    const userMsg: WRMessage = { id: Date.now().toString(), role: 'user', text };
+    const userMsg: WRMessage = { id: Date.now().toString(), role: 'user', mode, text };
     const botId = (Date.now() + 1).toString();
-    const loadingMsg: WRMessage = { id: botId, role: 'model', text: '', isLoading: true };
+    const loadingMsg: WRMessage = { id: botId, role: 'model', mode, text: '', isLoading: true };
 
-    setMessages(prev => [...prev, userMsg, loadingMsg]);
+    setMessagesByMode(prev => ({ ...prev, [mode]: [...prev[mode], userMsg, loadingMsg] }));
     setIsLoading(true);
     setStatus('Preparando...');
+    const controller = new AbortController();
+    abortRef.current = controller;
 
     try {
-      const history = messages
+      const history = activeMessages
         .filter(m => !m.isLoading && !m.isError)
         .map(m => ({ role: m.role, text: m.text }));
 
-      const result = await queryWarRoom(mode, text, history, '', setStatus);
+      const result = await queryWarRoom(mode, text, history, target, setStatus, {
+        signal: controller.signal,
+        timeoutMs: 30000,
+      });
       setQueryCount(prev => prev + 1);
 
-      setMessages(prev => prev.map(m =>
-        m.id === botId ? { ...m, text: result.text, sources: result.sources, isLoading: false } : m
-      ));
+      setMessagesByMode(prev => ({
+        ...prev,
+        [mode]: prev[mode].map(m =>
+          m.id === botId ? { ...m, text: result.text, sources: result.sources, isLoading: false } : m
+        )
+      }));
     } catch (err: any) {
-      setMessages(prev => prev.map(m =>
-        m.id === botId ? { ...m, text: `⚠️ ${err.message || 'Erro de conexão'}`, isError: true, isLoading: false } : m
-      ));
+      setMessagesByMode(prev => ({
+        ...prev,
+        [mode]: prev[mode].map(m =>
+          m.id === botId ? { ...m, text: `⚠️ ${err.message || 'Erro de conexão'}`, isError: true, isLoading: false } : m
+        )
+      }));
     } finally {
       setIsLoading(false);
       setStatus('');
+      abortRef.current = null;
     }
-  }, [input, isLoading, messages, mode]);
+  }, [input, isLoading, messagesByMode, mode, targetsByMode]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
   };
 
   const handleModeSwitch = (newMode: WarRoomMode) => {
+    if (abortRef.current) {
+      abortRef.current.abort();
+      abortRef.current = null;
+      setIsLoading(false);
+      setStatus('');
+    }
     setMode(newMode);
     setIsSidebarOpen(false);
   };
@@ -258,13 +329,43 @@ export default function WarRoom({ isOpen, onClose, isDarkMode }: WarRoomProps) {
           </div>
           <div className="flex items-center gap-2">
             {messages.length > 0 && (
-              <button onClick={() => setMessages([])}
+              <button onClick={() => setMessagesByMode(prev => ({ ...prev, [mode]: [] }))}
                 className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider border transition-all ${t.btnClear}`}>
                 🗑️ <span className="hidden sm:inline">Limpar</span>
               </button>
             )}
+            {isLoading && (
+              <button
+                onClick={() => {
+                  if (abortRef.current) abortRef.current.abort();
+                }}
+                className="px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider border transition-all text-red-500 border-red-400/40 hover:bg-red-500/10"
+              >
+                ⏹ <span className="hidden sm:inline">Parar</span>
+              </button>
+            )}
           </div>
         </div>
+
+        {mode !== 'tech' && (
+          <div className={`px-3 sm:px-5 py-2 border-b ${t.terminalBdr} ${t.terminalHdr}`}>
+            <label className={`text-[10px] uppercase tracking-wider font-semibold ${t.labelTxt} mr-2`}>
+              Concorrente alvo
+            </label>
+            <input
+              value={targetsByMode[mode]}
+              onChange={(e) => setTargetsByMode(prev => ({ ...prev, [mode]: e.target.value }))}
+              placeholder="Ex: TOTVS"
+              className={`mt-1 w-full max-w-xs rounded-lg border px-2.5 py-1.5 text-xs ${dk ? 'bg-slate-900 border-slate-700 text-slate-100' : 'bg-white border-slate-300 text-slate-800'}`}
+            />
+          </div>
+        )}
+
+        {copyFeedback && (
+          <div className={`mx-3 sm:mx-5 mt-2 text-[11px] rounded-lg px-3 py-2 ${dk ? 'bg-slate-900 text-slate-300' : 'bg-slate-100 text-slate-700'}`}>
+            {copyFeedback}
+          </div>
+        )}
 
         <div className="flex-1 overflow-y-auto p-3 sm:p-5 space-y-4 custom-scrollbar">
           {messages.length === 0 && (
@@ -288,7 +389,7 @@ export default function WarRoom({ isOpen, onClose, isDarkMode }: WarRoomProps) {
           {messages.map(msg => (
             <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
               <div className={`max-w-[95%] sm:max-w-[85%] rounded-2xl px-3 sm:px-4 py-3 relative group ${msg.role === 'user'
-                ? `bg-gradient-to-br ${accentGrad[cfg.accent]} text-white shadow-lg`
+                ? `bg-gradient-to-br ${accentGrad[MODE_CONFIG[msg.mode].accent]} text-white shadow-lg`
                 : msg.isError ? t.msgBotErr : t.msgBotBg}`}>
                 {msg.isLoading ? (
                   <div className="flex items-center gap-2 py-1">
@@ -311,7 +412,7 @@ export default function WarRoom({ isOpen, onClose, isDarkMode }: WarRoomProps) {
                     >
                       {copiedId === msg.id ? '✓' : '📋'}
                     </button>
-                    <MarkdownRenderer content={msg.text} isDarkMode={dk} />
+                    <MarkdownRenderer content={msg.text} isDarkMode={dk} allowRawHtml={false} />
                     {msg.sources && msg.sources.length > 0 && (
                       <div className={`mt-3 pt-3 border-t ${t.srcBdr}`}>
                         <p className={`text-[9px] uppercase tracking-wider font-bold mb-1.5 ${t.srcLabel}`}>Fontes</p>

@@ -21,6 +21,7 @@ interface MarkdownRendererProps {
   isDarkMode?: boolean;
   groundingSources?: GroundingSource[];
   showCollapsibleSources?: boolean;
+  allowRawHtml?: boolean;
 }
 
 interface MermaidProps {
@@ -156,6 +157,7 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
   isDarkMode = false,
   groundingSources = [],
   showCollapsibleSources = false,
+  allowRawHtml = true,
 }) => {
   
   // Mapa que guarda a URL completa como chave e o índice numérico como valor
@@ -318,7 +320,7 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
 
   return (
     <div className="markdown-body">
-      <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]} components={components}>
+      <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={allowRawHtml ? [rehypeRaw] : []} components={components}>
         {processedContent}
       </ReactMarkdown>
     </div>

@@ -1,8 +1,9 @@
 // services/warRoomService.ts
-// Motor COMPLETAMENTE STANDALONE para o War Room — zero compartilhamento com o chat principal
-// Usa generateContent (stateless) ao invés de chat sessions para máxima confiabilidade
+// Motor standalone para o War Room com retry, timeout e controle de contexto
 
 import { GoogleGenAI } from '@google/genai';
+import { normalizeAppError } from '../utils/errorHelpers';
+import { withAutoRetry } from '../utils/retry';
 import { buscarContextoDocsPinecone } from './ragService';
 
 // ─── TIPOS ───────────────────────────────────────────
@@ -19,10 +20,30 @@ export interface WarRoomResult {
     outOfScope?: boolean; // true se a pergunta é fora do escopo do War Room
 }
 
+export interface WarRoomQueryOptions {
+    signal?: AbortSignal;
+    timeoutMs?: number;
+}
+
 // ─── CONFIG ───────────────────────────────────────
 const MODEL_ID = 'gemini-2.5-flash';
+const DEFAULT_COMPETITOR_TARGET = 'concorrente principal';
+const MODEL_TIMEOUT_MS = 30000;
+const MAX_HISTORY_TURNS = 8;
+const MAX_HISTORY_CHARS = 4000;
+const MAX_USER_QUESTION_CHARS = 1600;
+const MAX_DOCS_CHARS = 6000;
+const DOCS_CACHE_TTL_MS = 120000;
+
+type DocsCacheEntry = {
+    value: string;
+    expiresAt: number;
+};
 
 let _ai: GoogleGenAI | null = null;
+const _docsCache = new Map<string, DocsCacheEntry>();
+const _docsInflight = new Map<string, Promise<string>>();
+
 const getAI = (): GoogleGenAI => {
     if (!_ai) {
         const apiKey = process.env.GEMINI_API_KEY;
@@ -49,6 +70,138 @@ const OUT_OF_SCOPE_PATTERNS = [
 
 function isOutOfScope(message: string): boolean {
     return OUT_OF_SCOPE_PATTERNS.some(p => p.test(message));
+}
+
+function makeAbortError(): Error {
+    const err = new Error('Request aborted');
+    err.name = 'AbortError';
+    return err;
+}
+
+function runWithTimeoutAndSignal<T>(
+    task: () => Promise<T>,
+    timeoutMs: number,
+    signal?: AbortSignal
+): Promise<T> {
+    return new Promise<T>((resolve, reject) => {
+        if (signal?.aborted) {
+            reject(makeAbortError());
+            return;
+        }
+
+        const timer = setTimeout(() => {
+            reject(new Error(`Timeout after ${timeoutMs}ms`));
+        }, timeoutMs);
+
+        const onAbort = () => {
+            clearTimeout(timer);
+            reject(makeAbortError());
+        };
+
+        signal?.addEventListener('abort', onAbort, { once: true });
+
+        task()
+            .then((value) => {
+                clearTimeout(timer);
+                signal?.removeEventListener('abort', onAbort);
+                resolve(value);
+            })
+            .catch((error) => {
+                clearTimeout(timer);
+                signal?.removeEventListener('abort', onAbort);
+                reject(error);
+            });
+    });
+}
+
+function normalizeTarget(target: string, message: string): string {
+    const cleanTarget = (target || '').trim();
+    if (cleanTarget) return cleanTarget;
+
+    const inferred =
+        message.match(/(?:vs|contra)\s+([A-Za-z0-9À-ÿ][A-Za-z0-9À-ÿ\s._/-]{1,60})/i)?.[1]
+            ?.trim()
+            .replace(/[.,;:!?]+$/, '') || '';
+
+    return inferred || DEFAULT_COMPETITOR_TARGET;
+}
+
+function trimText(input: string, maxChars: number): string {
+    if (!input) return '';
+    const value = input.trim();
+    if (value.length <= maxChars) return value;
+    return value.slice(0, maxChars) + '...';
+}
+
+function buildHistorySnippet(history: WarRoomMessage[]): string {
+    if (!history.length) return '';
+
+    const recent = history.slice(-MAX_HISTORY_TURNS);
+    let budget = MAX_HISTORY_CHARS;
+    const chunks: string[] = [];
+
+    for (let i = recent.length - 1; i >= 0; i -= 1) {
+        const msg = recent[i];
+        const prefix = msg.role === 'user' ? '**Usuário:** ' : '**Assistente:** ';
+        const text = trimText(msg.text, 1200);
+        const block = `${prefix}${text}\n\n`;
+        if (block.length > budget) continue;
+        chunks.unshift(block);
+        budget -= block.length;
+    }
+
+    if (!chunks.length) return '';
+    return `## CONVERSA ANTERIOR\n${chunks.join('')}---\n\n`;
+}
+
+async function getDocsContextCached(query: string): Promise<string> {
+    const key = query.trim().toLowerCase();
+    if (!key) return '';
+
+    const now = Date.now();
+    const cached = _docsCache.get(key);
+    if (cached && cached.expiresAt > now) {
+        return cached.value;
+    }
+
+    const inflight = _docsInflight.get(key);
+    if (inflight) return inflight;
+
+    const fetchPromise = (async () => {
+        try {
+            const docs = await buscarContextoDocsPinecone(query);
+            const clean = trimText(docs || '', MAX_DOCS_CHARS);
+            _docsCache.set(key, { value: clean, expiresAt: Date.now() + DOCS_CACHE_TTL_MS });
+            return clean;
+        } finally {
+            _docsInflight.delete(key);
+        }
+    })();
+
+    _docsInflight.set(key, fetchPromise);
+    return fetchPromise;
+}
+
+function extractGroundingSources(response: any): Array<{ title: string; url: string }> {
+    const groundingChunks = response?.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+    const dedupe = new Set<string>();
+    const sources: Array<{ title: string; url: string }> = [];
+
+    for (const chunk of groundingChunks) {
+        const uri = chunk?.web?.uri;
+        if (!uri || dedupe.has(uri)) continue;
+
+        try {
+            const parsed = new URL(uri);
+            const title = chunk?.web?.title || parsed.hostname;
+            dedupe.add(uri);
+            sources.push({ title, url: uri });
+        } catch {
+            // ignora URI inválida sem quebrar a resposta inteira
+        }
+    }
+
+    return sources;
 }
 
 // ─── PROMPTS POR MODO ───────────────────────────────────
@@ -125,8 +278,15 @@ export async function queryWarRoom(
     message: string,
     history: WarRoomMessage[],
     target: string,
-    onStatus?: (status: string) => void
+    onStatus?: (status: string) => void,
+    options: WarRoomQueryOptions = {}
 ): Promise<WarRoomResult> {
+    const { signal, timeoutMs = MODEL_TIMEOUT_MS } = options;
+
+    if (signal?.aborted) {
+        return { text: '⚠️ **Erro**\n\nSolicitação cancelada pelo usuário.', sources: [] };
+    }
+
     // 1. Detecta escopo
     if (mode === 'tech' && isOutOfScope(message)) {
         return {
@@ -137,28 +297,31 @@ export async function queryWarRoom(
     }
 
     const ai = getAI();
-    const systemPrompt = SYSTEM_PROMPTS[mode](target);
+    const resolvedTarget = mode === 'tech' ? '' : normalizeTarget(target, message);
+    const systemPrompt = SYSTEM_PROMPTS[mode](resolvedTarget);
 
     // 2. Busca RAG docs (só para modo tech)
     let docsContext = '';
+    let docsUnavailable = false;
     if (mode === 'tech') {
         onStatus?.('📚 Consultando documentação...');
         try {
-            docsContext = await buscarContextoDocsPinecone(message);
-        } catch { /* falha silenciosa */ }
+            docsContext = await getDocsContextCached(message);
+            if (!docsContext) {
+                docsUnavailable = true;
+                onStatus?.('⚠️ Documentação indisponível — usando conhecimento complementar.');
+            }
+        } catch {
+            docsUnavailable = true;
+            onStatus?.('⚠️ Falha ao consultar docs — continuando sem RAG.');
+        }
     }
 
     // 3. Monta o payload completo como um único prompt (stateless, sem chat session)
     let fullPrompt = '';
 
     // Inclui histórico como contexto inline
-    if (history.length > 0) {
-        fullPrompt += '## CONVERSA ANTERIOR\n';
-        for (const msg of history) {
-            fullPrompt += msg.role === 'user' ? `**Usuário:** ${msg.text}\n\n` : `**Assistente:** ${msg.text}\n\n`;
-        }
-        fullPrompt += '---\n\n';
-    }
+    fullPrompt += buildHistorySnippet(history);
 
     // Para modo tech, injeta docs RAG
     if (mode === 'tech' && docsContext) {
@@ -167,53 +330,52 @@ export async function queryWarRoom(
     }
 
     // Pergunta atual
-    fullPrompt += `## PERGUNTA DO USUÁRIO\n"${message}"\n\nResponda agora.`;
+    fullPrompt += `## PERGUNTA DO USUÁRIO\n"${trimText(message, MAX_USER_QUESTION_CHARS)}"\n\nResponda agora.`;
 
     // 4. Chama o Gemini via generateContent (stateless, confiável)
-    onStatus?.(mode === 'tech' ? '🧠 Gerando resposta técnica...' : `⚔️ Forjando argumentos contra ${target}...`);
+    onStatus?.(mode === 'tech' ? '🧠 Gerando resposta técnica...' : `⚔️ Forjando argumentos contra ${resolvedTarget}...`);
 
     try {
         const useGrounding = mode !== 'tech'; // Google Search só para modos competitivos
-
-        const response = await ai.models.generateContent({
-            model: MODEL_ID,
-            contents: [
-                { role: 'user', parts: [{ text: fullPrompt }] }
-            ],
-            config: {
-                systemInstruction: systemPrompt,
-                temperature: mode === 'tech' ? 0.15 : 0.3,
-                maxOutputTokens: 65536, // AUMENTADO: limite máximo de tokens do Gemini 2.5 Flash
-                tools: useGrounding ? [{ googleSearch: {} }] : undefined,
-            }
-        });
+        const response = await withAutoRetry(
+            'war-room-generate',
+            () =>
+                runWithTimeoutAndSignal(
+                    () =>
+                        ai.models.generateContent({
+                            model: MODEL_ID,
+                            contents: [{ role: 'user', parts: [{ text: fullPrompt }] }],
+                            config: {
+                                systemInstruction: systemPrompt,
+                                temperature: mode === 'tech' ? 0.15 : 0.3,
+                                maxOutputTokens: 8192,
+                                tools: useGrounding ? [{ googleSearch: {} }] : undefined,
+                            }
+                        }),
+                    timeoutMs,
+                    signal
+                ),
+            { maxRetries: 2, baseDelayMs: 700, maxDelayMs: 3000 }
+        );
 
         const text = response.text || '';
 
         // 5. Coleta grounding sources
-        const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
-        const sources = groundingChunks
-            .filter((c: any) => c.web?.uri)
-            .map((c: any) => {
-                const web = c.web;
-                const title = web.title || new URL(web.uri).hostname;
-                return { title, url: web.uri };
-            });
+        const sources = extractGroundingSources(response);
 
         if (!text.trim()) {
             throw new Error('Resposta vazia do modelo');
         }
 
-        return { text: text.trim(), sources };
+        const disclaimer = docsUnavailable && mode === 'tech'
+            ? '\n\n_[Aviso: a documentação oficial não respondeu nesta tentativa; resposta baseada em conhecimento complementar.]_'
+            : '';
+
+        return { text: (text.trim() + disclaimer).trim(), sources };
     } catch (error: any) {
         console.error('[WarRoom] Erro:', error);
-
-        // Mensagem de erro amigável
-        const errorMsg = error.message?.includes('SAFETY')
-            ? 'A pergunta foi bloqueada pelo filtro de segurança. Reformule sua dúvida.'
-            : error.message?.includes('quota')
-                ? 'Limite de requisições atingido. Aguarde alguns segundos e tente novamente.'
-                : `Erro de comunicação: ${error.message || 'Falha na conexão'}. Tente novamente.`;
+        const appError = normalizeAppError(error, 'GEMINI', 'Falha ao consultar War Room.');
+        const errorMsg = appError.friendlyMessage || `Erro de comunicação: ${appError.message || 'Falha na conexão'}. Tente novamente.`;
 
         return {
             text: `⚠️ **Erro**\n\n${errorMsg}`,

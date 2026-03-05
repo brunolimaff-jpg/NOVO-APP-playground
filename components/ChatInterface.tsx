@@ -469,8 +469,19 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
         </div>
 
         {showWarRoom && (
-          <React.Suspense fallback={null}>
-            <WarRoom isOpen={showWarRoom} onClose={() => setShowWarRoom(false)} isDarkMode={isDarkMode} />
+          <React.Suspense fallback={
+            <div className={`fixed inset-0 z-50 flex items-center justify-center ${isDarkMode ? 'bg-slate-950/90' : 'bg-white/90'}`}>
+              <div className={`text-sm font-semibold ${isDarkMode ? 'text-slate-200' : 'text-slate-700'}`}>
+                Carregando War Room...
+              </div>
+            </div>
+          }>
+            <WarRoom
+              isOpen={showWarRoom}
+              onClose={() => setShowWarRoom(false)}
+              isDarkMode={isDarkMode}
+              defaultCompetitorTarget={null}
+            />
           </React.Suspense>
         )}
       </main>
