@@ -88,6 +88,18 @@ export interface SourceRef {
   url: string;
 }
 
+export type AuditableSourceType = 'inline_citation' | 'grounding_consulted' | 'inferred_without_url';
+
+export interface AuditableSource {
+  key: string;
+  citationIndex: number | null;
+  title: string;
+  url?: string;
+  sourceTypes: AuditableSourceType[];
+  contexts: string[];
+  requiresManualValidation: boolean;
+}
+
 /**
  * Extrai fontes do texto de forma estruturada.
  * NOTA: Para extração completa de links, use extractAllLinksFromMarkdown
@@ -182,6 +194,121 @@ export function extractAllLinksFromMarkdown(text: string): SourceRef[] {
   }
   
   return links;
+}
+
+const MARKDOWN_LINK_REGEX = /\[([^\]]+)\]\((https?:\/\/(?:[^\s()]+|\([^\s()]*\))+)\)/gi;
+
+export function normalizeSourceUrl(url: string): string {
+  return (url || '').trim().replace(/\/+$/, '');
+}
+
+function extractUsageContext(text: string, index: number): string {
+  if (!text) return '';
+  const start = Math.max(0, index - 80);
+  const end = Math.min(text.length, index + 80);
+  return text.slice(start, end).replace(/\s+/g, ' ').trim();
+}
+
+function pushUniqueContext(target: string[], context: string): void {
+  if (!context) return;
+  if (!target.includes(context)) target.push(context);
+}
+
+/**
+ * Consolida referências para auditoria:
+ * - links inline no markdown
+ * - links consultados via grounding (quando vierem separados)
+ * - menções inferidas sem URL explícita
+ */
+export function buildAuditableSources(
+  text: string,
+  groundingSources: Array<{ title: string; url: string }> = []
+): AuditableSource[] {
+  const items: AuditableSource[] = [];
+  const byUrl = new Map<string, AuditableSource>();
+  const byTitleNoUrl = new Map<string, AuditableSource>();
+  let citationIndex = 1;
+  let match: RegExpExecArray | null;
+
+  while ((match = MARKDOWN_LINK_REGEX.exec(text || '')) !== null) {
+    const rawTitle = (match[1] || '').trim();
+    const rawUrl = (match[2] || '').trim();
+    if (!rawUrl) continue;
+
+    const normalizedUrl = normalizeSourceUrl(rawUrl);
+    let source = byUrl.get(normalizedUrl);
+
+    if (!source) {
+      source = {
+        key: normalizedUrl || `inline-${citationIndex}`,
+        citationIndex: citationIndex++,
+        title: rawTitle || rawUrl,
+        url: rawUrl,
+        sourceTypes: ['inline_citation'],
+        contexts: [],
+        requiresManualValidation: false,
+      };
+      byUrl.set(normalizedUrl, source);
+      items.push(source);
+    } else {
+      if (!source.sourceTypes.includes('inline_citation')) {
+        source.sourceTypes.push('inline_citation');
+      }
+      if (!source.title && rawTitle) source.title = rawTitle;
+    }
+
+    pushUniqueContext(source.contexts, extractUsageContext(text, match.index));
+  }
+
+  for (const g of groundingSources || []) {
+    const title = (g?.title || '').trim();
+    const url = (g?.url || '').trim();
+    if (!url) continue;
+    const normalizedUrl = normalizeSourceUrl(url);
+
+    let source = byUrl.get(normalizedUrl);
+    if (!source) {
+      source = {
+        key: normalizedUrl || `grounding-${citationIndex}`,
+        citationIndex: citationIndex++,
+        title: title || url,
+        url,
+        sourceTypes: ['grounding_consulted'],
+        contexts: ['Fonte consultada pelo mecanismo de grounding.'],
+        requiresManualValidation: false,
+      };
+      byUrl.set(normalizedUrl, source);
+      items.push(source);
+      continue;
+    }
+
+    if (!source.sourceTypes.includes('grounding_consulted')) {
+      source.sourceTypes.push('grounding_consulted');
+    }
+    if (!source.title && title) source.title = title;
+    pushUniqueContext(source.contexts, 'Fonte consultada pelo mecanismo de grounding.');
+  }
+
+  const inferredRegex = /\*\*([^*]+)\*\*\s*\*\[\s*fonte não disponível\s*\]\*/gi;
+  while ((match = inferredRegex.exec(text || '')) !== null) {
+    const title = (match[1] || '').trim();
+    if (!title) continue;
+    const key = title.toLowerCase();
+    if (byTitleNoUrl.has(key)) continue;
+
+    const inferred: AuditableSource = {
+      key: `inferred-${key}`,
+      citationIndex: null,
+      title,
+      sourceTypes: ['inferred_without_url'],
+      contexts: [extractUsageContext(text, match.index) || 'Citação inferida sem URL explícita no texto.'],
+      requiresManualValidation: true,
+    };
+    byTitleNoUrl.set(key, inferred);
+    items.push(inferred);
+  }
+
+  return items;
 }
 
 /**

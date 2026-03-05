@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import MarkdownRenderer from '../../components/MarkdownRenderer';
+import { buildAuditableSources } from '../../utils/textCleaners';
 
 describe('MarkdownRenderer', () => {
   it('does not render raw HTML when allowRawHtml is false', () => {
@@ -19,5 +20,16 @@ describe('MarkdownRenderer', () => {
     render(<MarkdownRenderer content={'[Site](https://www.senior.com.br/)'} allowRawHtml={false} />);
     const link = screen.getByRole('link', { name: 'Site' });
     expect(link).toHaveAttribute('href', 'https://www.senior.com.br/');
+  });
+
+  it('keeps stable citation indices from auditable sources', () => {
+    const content = '[Fonte A](https://www.senior.com.br/a) e [Fonte B](https://www.senior.com.br/b)';
+    const auditableSources = buildAuditableSources(content, []);
+    const { container } = render(
+      <MarkdownRenderer content={content} allowRawHtml={false} auditableSources={auditableSources} />
+    );
+
+    expect(container.textContent).toContain('[1]');
+    expect(container.textContent).toContain('[2]');
   });
 });

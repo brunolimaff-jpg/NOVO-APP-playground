@@ -1,6 +1,8 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import MarkdownRenderer from './MarkdownRenderer';
 import { WarRoomMode, queryWarRoom } from '../services/warRoomService';
+import { buildAuditableSources, normalizeSourceUrl, type AuditableSource } from '../utils/textCleaners';
+import { fetchLinkStatuses, type LinkValidationResult } from '../utils/linkValidation';
 
 interface WarRoomProps {
   isOpen: boolean;
@@ -62,6 +64,7 @@ export default function WarRoom({ isOpen, onClose, isDarkMode, defaultCompetitor
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
+  const [linkStatuses, setLinkStatuses] = useState<Record<string, LinkValidationResult>>({});
   const [targetsByMode, setTargetsByMode] = useState<Record<'killscript' | 'benchmark' | 'objections', string>>({
     killscript: defaultCompetitorTarget || '',
     benchmark: defaultCompetitorTarget || '',
@@ -72,6 +75,14 @@ export default function WarRoom({ isOpen, onClose, isDarkMode, defaultCompetitor
   const abortRef = useRef<AbortController | null>(null);
 
   const messages = messagesByMode[mode];
+  const messageSourcesMap = useMemo<Record<string, AuditableSource[]>>(() => {
+    const map: Record<string, AuditableSource[]> = {};
+    for (const msg of messages) {
+      if (msg.role !== 'model' || msg.isLoading) continue;
+      map[msg.id] = buildAuditableSources(msg.text || '', msg.sources || []);
+    }
+    return map;
+  }, [messages]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -108,6 +119,24 @@ export default function WarRoom({ isOpen, onClose, isDarkMode, defaultCompetitor
       if (abortRef.current) abortRef.current.abort();
     };
   }, []);
+
+  useEffect(() => {
+    const urls = Array.from(
+      new Set(
+        Object.values(messageSourcesMap)
+          .flatMap((sources) => sources.map((s) => s.url).filter(Boolean) as string[])
+      )
+    );
+    if (urls.length === 0) return;
+
+    let cancelled = false;
+    fetchLinkStatuses(urls).then((results) => {
+      if (!cancelled) setLinkStatuses(results);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [messageSourcesMap]);
 
   const handleSend = useCallback(async () => {
     const text = input.trim();
@@ -386,7 +415,9 @@ export default function WarRoom({ isOpen, onClose, isDarkMode, defaultCompetitor
             </div>
           )}
 
-          {messages.map(msg => (
+          {messages.map(msg => {
+            const mergedSources = messageSourcesMap[msg.id] || [];
+            return (
             <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
               <div className={`max-w-[95%] sm:max-w-[85%] rounded-2xl px-3 sm:px-4 py-3 relative group ${msg.role === 'user'
                 ? `bg-gradient-to-br ${accentGrad[MODE_CONFIG[msg.mode].accent]} text-white shadow-lg`
@@ -412,25 +443,57 @@ export default function WarRoom({ isOpen, onClose, isDarkMode, defaultCompetitor
                     >
                       {copiedId === msg.id ? '✓' : '📋'}
                     </button>
-                    <MarkdownRenderer content={msg.text} isDarkMode={dk} allowRawHtml={false} />
-                    {msg.sources && msg.sources.length > 0 && (
+                    <MarkdownRenderer content={msg.text} isDarkMode={dk} allowRawHtml={false} auditableSources={mergedSources} />
+                    {mergedSources.length > 0 && (
                       <div className={`mt-3 pt-3 border-t ${t.srcBdr}`}>
                         <p className={`text-[9px] uppercase tracking-wider font-bold mb-1.5 ${t.srcLabel}`}>Fontes</p>
-                        <div className="flex flex-wrap gap-1.5">
-                          {msg.sources.slice(0, 5).map((s, i) => (
-                            <a key={i} href={s.url} target="_blank" rel="noopener noreferrer"
-                              className={`text-[10px] px-2 py-0.5 rounded-full ${t.srcBg} ${t.srcTxt} transition-colors truncate max-w-[200px]`}>
-                              {s.title}
-                            </a>
-                          ))}
-                        </div>
+                        <ul className="space-y-1.5">
+                          {mergedSources.map((s, i) => {
+                            const status = s.url ? linkStatuses[s.url] || linkStatuses[normalizeSourceUrl(s.url)] : undefined;
+                            const statusLabel = !s.url
+                              ? 'inferido - validar manualmente'
+                              : status?.status === 'valid'
+                                ? 'validado'
+                                : status?.status === 'broken'
+                                  ? status.note || 'indisponivel'
+                                  : 'validacao pendente';
+                            const context = s.contexts[0] || (s.url
+                              ? 'Referência usada para sustentar parte da resposta.'
+                              : 'Menção inferida sem URL explícita; valide manualmente.');
+
+                            return (
+                              <li key={s.key || i} className="text-[10px]">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="font-semibold opacity-80">
+                                    {s.citationIndex ? `[${s.citationIndex}]` : '[inferida]'}
+                                  </span>
+                                  {s.url ? (
+                                    <a href={s.url} target="_blank" rel="noopener noreferrer" className={`${t.srcTxt} hover:underline break-all`}>
+                                      {s.title || s.url}
+                                    </a>
+                                  ) : (
+                                    <span className={dk ? 'text-slate-300' : 'text-slate-700'}>{s.title}</span>
+                                  )}
+                                  <span className={`px-1.5 py-0.5 rounded-full ${
+                                    statusLabel.includes('validado')
+                                      ? (dk ? 'bg-emerald-900/50 text-emerald-300' : 'bg-emerald-100 text-emerald-700')
+                                      : (dk ? 'bg-amber-900/40 text-amber-300' : 'bg-amber-100 text-amber-700')
+                                  }`}>
+                                    {statusLabel}
+                                  </span>
+                                </div>
+                                <p className={`mt-0.5 ${dk ? 'text-slate-400' : 'text-slate-500'}`}>{context}</p>
+                              </li>
+                            );
+                          })}
+                        </ul>
                       </div>
                     )}
                   </div>
                 )}
               </div>
             </div>
-          ))}
+          )})}
           <div ref={messagesEndRef} />
         </div>
 

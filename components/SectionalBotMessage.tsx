@@ -5,6 +5,7 @@ import { parseMarkdownSections } from '../utils/sectionParser';
 import { useAuth } from '../contexts/AuthContext';
 import { ChatMode } from '../constants';
 import SmartOptions, { parseSmartOptions } from './SmartOptions';
+import type { AuditableSource } from '../utils/textCleaners';
 
 interface SectionalBotMessageProps {
   message: Message;
@@ -16,6 +17,7 @@ interface SectionalBotMessageProps {
   onRegenerateSuggestions?: (messageId: string) => void;
   hideSuggestions?: boolean;
   empresaAlvo?: string | null;
+  auditableSources?: AuditableSource[];
 }
 
 const SectionalBotMessage: React.FC<SectionalBotMessageProps> = ({
@@ -27,7 +29,8 @@ const SectionalBotMessage: React.FC<SectionalBotMessageProps> = ({
   onPreFillInput,
   onRegenerateSuggestions,
   hideSuggestions = false,
-  empresaAlvo
+  empresaAlvo,
+  auditableSources = []
 }) => {
   const content = message.text || "";
   const { user } = useAuth();
@@ -67,6 +70,7 @@ const SectionalBotMessage: React.FC<SectionalBotMessageProps> = ({
             content={cleanText} 
             isDarkMode={isDarkMode} 
             groundingSources={message.groundingSources}
+            auditableSources={auditableSources}
          />
          {processedOptions.length > 0 && onPreFillInput && !hideSuggestions && (
             <SmartOptions 
@@ -89,6 +93,7 @@ const SectionalBotMessage: React.FC<SectionalBotMessageProps> = ({
                 content={section.key === 'intro' ? section.content : `${'#'.repeat(section.level)} ${section.title}\n\n${section.content}`}
                 isDarkMode={isDarkMode}
                 groundingSources={message.groundingSources}
+                auditableSources={auditableSources}
                 showCollapsibleSources={idx === sections.length - 1}
              />
           </div>

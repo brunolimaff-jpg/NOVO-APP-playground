@@ -2,8 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
-import { useAuth } from '../contexts/AuthContext';
-import type { Feedback, ScorePortaData } from '../types';
+import { buildAuditableSources, normalizeSourceUrl, type AuditableSource } from '../utils/textCleaners';
 
 export interface GroundingSource {
   title: string;
@@ -20,6 +19,7 @@ interface MarkdownRendererProps {
   content: string;
   isDarkMode?: boolean;
   groundingSources?: GroundingSource[];
+  auditableSources?: AuditableSource[];
   showCollapsibleSources?: boolean;
   allowRawHtml?: boolean;
 }
@@ -156,18 +156,29 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
   content,
   isDarkMode = false,
   groundingSources = [],
+  auditableSources,
   showCollapsibleSources = false,
   allowRawHtml = true,
 }) => {
-  
-  // Mapa que guarda a URL completa como chave e o índice numérico como valor
-  let citationMap = new Map<string, number>();
+  const resolvedSources = useMemo(
+    () => (auditableSources && auditableSources.length > 0 ? auditableSources : buildAuditableSources(content, groundingSources)),
+    [auditableSources, content, groundingSources]
+  );
+
+  const citationMap = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const source of resolvedSources) {
+      if (source.url && source.citationIndex) {
+        map.set(normalizeSourceUrl(source.url), source.citationIndex);
+      }
+    }
+    return map;
+  }, [resolvedSources]);
 
   const processedContent = useMemo(() => {
     if (!content) return '';
 
     let text = content;
-    citationMap.clear();
 
     // 1) Converter {"mermaid":"..."} → bloco mermaid
     const FENCE = '`'.repeat(3);
@@ -185,30 +196,29 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
     // 3) LIMPEZA DE EMOJI BADGES mas mantendo a URL COMPLETA original para auditoria
     text = text.replace(
       /\[(🟢|🟡|🟠|🔴)\s*(?:Fonte oficial|Não confirmado|Evidência forte|Suspeito)?[\s-–:]*([^\]\n]+?)\]/gi,
-      (_, emoji, rawUrl) => {
+      (_, _emoji, rawUrl) => {
         let fullUrl = rawUrl.trim();
-        
+
         // Se não começar com http, adiciona https://
         if (!fullUrl.startsWith('http')) {
           fullUrl = 'https://' + fullUrl;
         }
-        
-        // Extrai o domínio apenas para o title/hover
-        let displayDomain = fullUrl.replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0];
 
-        // Usa a URL COMPLETA como chave única no mapa
-        if (!citationMap.has(fullUrl)) {
-           citationMap.set(fullUrl, citationMap.size + 1);
-        }
-        const citationIndex = citationMap.get(fullUrl);
+        // Extrai o domínio apenas para o title/hover
+        const displayDomain = fullUrl.replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0];
+
+        const citationIndex = citationMap.get(normalizeSourceUrl(fullUrl));
 
         // O href agora aponta para a URL completa que a IA usou
+        if (!citationIndex) {
+          return `<a href="${fullUrl}" target="_blank" rel="noopener noreferrer">${displayDomain}</a>`;
+        }
         return `<sup><a href="${fullUrl}" target="_blank" rel="noopener noreferrer" class="citation-link" title="${displayDomain}">[${citationIndex}]</a></sup>`;
       }
     );
 
     return text;
-  }, [content]);
+  }, [content, citationMap]);
 
   const components: any = {
     code: ({ inline, className, children, ...props }: any) => {
@@ -245,17 +255,13 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
       }
 
       const textContent = String(children || '');
-      
+
       // Se ainda sobrou algum link markdown com emoji da IA que não foi capturado
       const isBadgeMatch = textContent.match(/^(🟢|🟡|🟠|🔴)/);
+      const citationIndex = href ? citationMap.get(normalizeSourceUrl(href)) : undefined;
 
       if (isBadgeMatch) {
-        let displayDomain = href.replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0];
-        
-        if (!citationMap.has(href)) {
-           citationMap.set(href, citationMap.size + 1);
-        }
-        const citationIndex = citationMap.get(href);
+        const displayDomain = href.replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0];
 
         return (
           <sup className="ml-0.5">
@@ -267,7 +273,7 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
               title={displayDomain}
               {...props}
             >
-              [{citationIndex}]
+              [{citationIndex ?? '?'}]
             </a>
           </sup>
         );
@@ -275,9 +281,14 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
 
       // Link normal
       return (
-        <a href={href} target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 hover:underline break-words" {...props}>
-          {children}
-        </a>
+        <span>
+          <a href={href} target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 hover:underline break-words" {...props}>
+            {children}
+          </a>
+          {citationIndex ? (
+            <sup className="ml-1 text-[10px] text-blue-600 dark:text-blue-400">[{citationIndex}]</sup>
+          ) : null}
+        </span>
       );
     },
     
