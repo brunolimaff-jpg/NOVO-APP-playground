@@ -15,7 +15,6 @@ import {
   autoLinkSeniorTerms,
   cleanFakeSourcesBlock,
 } from '../utils/linkFixer';
-import { isFakeUrl, isUnreliableUrl } from '../services/apiConfig';
 
 interface MarkdownRendererProps {
   content: string;
@@ -181,33 +180,28 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
     text = autoLinkSeniorTerms(text);
     text = cleanFakeSourcesBlock(text);
 
-    // 3) LIMPEZA DE EMOJI BADGES — converte para citações clicáveis
-    //    Links fake/unreliable viram busca Google; links reais são preservados
+    // 3) LIMPEZA DE EMOJI BADGES mas mantendo a URL COMPLETA original para auditoria
     text = text.replace(
       /\[(🟢|🟡|🟠|🔴)\s*(?:Fonte oficial|Não confirmado|Evidência forte|Suspeito)?[\s-–:]*([^\]\n]+?)\]/gi,
-      (_, _emoji, rawUrl) => {
+      (_, emoji, rawUrl) => {
         let fullUrl = rawUrl.trim();
         
+        // Se não começar com http, adiciona https://
         if (!fullUrl.startsWith('http')) {
           fullUrl = 'https://' + fullUrl;
         }
         
+        // Extrai o domínio apenas para o title/hover
         let displayDomain = fullUrl.replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0];
-        let targetUrl = fullUrl;
 
-        // Se a URL é fake ou não-confiável, gera busca Google como fallback
-        if (isFakeUrl(fullUrl) || isUnreliableUrl(fullUrl)) {
-          const searchTerm = displayDomain + ' ' + fullUrl.split('/').slice(3).join(' ').replace(/[_-]/g, ' ').substring(0, 100);
-          targetUrl = `https://www.google.com/search?q=${encodeURIComponent(searchTerm.trim())}`;
-          displayDomain = `Buscar: ${displayDomain}`;
-        }
-
+        // Usa a URL COMPLETA como chave única no mapa
         if (!citationMap.has(fullUrl)) {
            citationMap.set(fullUrl, citationMap.size + 1);
         }
         const citationIndex = citationMap.get(fullUrl);
 
-        return `<sup><a href="${targetUrl}" target="_blank" rel="noopener noreferrer" class="citation-link" title="${displayDomain}">[${citationIndex}]</a></sup>`;
+        // O href agora aponta para a URL completa que a IA usou
+        return `<sup><a href="${fullUrl}" target="_blank" rel="noopener noreferrer" class="citation-link" title="${displayDomain}">[${citationIndex}]</a></sup>`;
       }
     );
 
@@ -277,23 +271,7 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
         );
       }
 
-      // Safety net: block fake links that slipped through
-      if (href && isFakeUrl(href)) {
-        return <strong className="text-emerald-600 dark:text-emerald-400">{children}</strong>;
-      }
-
-      // Safety net: convert unreliable links (Wikipedia, etc) to Google search
-      if (href && isUnreliableUrl(href)) {
-        const searchQuery = encodeURIComponent(textContent.trim() || href);
-        const searchUrl = `https://www.google.com/search?q=${searchQuery}`;
-        return (
-          <a href={searchUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 hover:underline break-words" title={`Buscar: ${textContent} (link original: Wikipedia)`} {...props}>
-            {children}
-          </a>
-        );
-      }
-
-      // Link confiável
+      // Link normal
       return (
         <a href={href} target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 hover:underline break-words" {...props}>
           {children}

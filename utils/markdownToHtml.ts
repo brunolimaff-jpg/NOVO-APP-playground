@@ -1,7 +1,6 @@
 import { extractValidLinks } from './linkFixer';
 import { formatSourcesForExport, SourceRef } from './textCleaners';
 import { fixFakeLinksHTML } from './linkFixer';
-import { isFakeUrl, isUnreliableUrl } from '../services/apiConfig';
 import { APP_NAME } from '../constants';
 
 export function convertMarkdownToHTML(md: string, includeSources: boolean = true): string {
@@ -32,12 +31,8 @@ export function convertMarkdownToHTML(md: string, includeSources: boolean = true
     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
     .replace(/\*(.*?)\*/g, '<em>$1</em>')
     .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_match, text, url) => {
-      if (isFakeUrl(url)) {
+      if (url.includes('ai.studio') || url.includes('google.com/search') || url.includes('vertexai')) {
         return `<strong style="color:#059669;">${text}</strong>`;
-      }
-      if (isUnreliableUrl(url)) {
-        const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(text.trim())}`;
-        return `<a href="${searchUrl}" target="_blank" style="color:#059669;text-decoration:underline;" title="Buscar: ${text}">${text}</a>`;
       }
       return `<a href="${url}" target="_blank" style="color:#059669;text-decoration:underline;">${text}</a>`;
     })

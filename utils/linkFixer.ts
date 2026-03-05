@@ -1,68 +1,37 @@
 /**
- * linkFixer.ts - Intercepta e corrige links falsos/alucinados gerados pelo Gemini
- *
- * Pipeline de tratamento:
- * 1. Links de domínios FAKE (ai.studio, gemini.google.com) → substituir por produto Senior ou remover
- * 2. Links de domínios NÃO-CONFIÁVEIS (Wikipedia, etc) → converter para busca Google verificável
- * 3. Links reais → preservar intactos
+ * linkFixer.ts - Intercepta e corrige links falsos gerados pelo Gemini
+ * VERSÃO MELHORADA: Menos agressivo, preserva mais fontes
  */
 
-import { findSeniorProductUrl, isFakeUrl, isUnreliableUrl, FAKE_DOMAINS, UNRELIABLE_LINK_DOMAINS } from '../services/apiConfig';
-
-/**
- * Gera um link de busca Google como fallback verificável
- * para quando a IA alucina uma URL de Wikipedia ou similar
- */
-function buildSearchFallback(linkText: string, originalUrl: string): string {
-  const searchQuery = encodeURIComponent(linkText.trim());
-  return `https://www.google.com/search?q=${searchQuery}`;
-}
-
-/**
- * Extrai um nome amigável do domínio para exibição
- */
-function domainLabel(url: string): string {
-  try {
-    const hostname = new URL(url).hostname.replace(/^www\./, '');
-    if (hostname.includes('wikipedia.org')) return 'Wikipedia';
-    return hostname;
-  } catch {
-    return 'fonte';
-  }
-}
+import { findSeniorProductUrl, isFakeUrl, FAKE_DOMAINS } from '../services/apiConfig';
 
 /**
  * Corrige links no texto MARKDOWN (antes de renderizar)
+ * MELHORADO: Só remove links REALMENTE falsos, preserva títulos
  */
 export function fixFakeLinks(markdownText: string): string {
   if (!markdownText) return markdownText;
 
+  // 1. Links markdown: [texto](url_fake) → tenta recuperar ou mantém texto
   let clean = markdownText.replace(
     /\[([^\]]+)\]\((https?:\/\/[^)]+)\)/gi,
     (match, linkText, url) => {
-      // 1) Link completamente falso (domínios AI internos)
+      // Se for URL fake, tenta encontrar URL real
       if (isFakeUrl(url)) {
         const realUrl = findSeniorProductUrl(linkText);
         if (realUrl) {
           return `[${linkText}](${realUrl})`;
         }
-        return `**${linkText}**`;
+        // NÃO remove o link - mantém como negrito com indicação
+        // Isso preserva a informação para o usuário
+        return `**${linkText}** *[fonte não disponível]*`;
       }
-
-      // 2) Link não-confiável (Wikipedia, etc) — substituir por busca verificável
-      if (isUnreliableUrl(url)) {
-        const label = domainLabel(url);
-        const searchUrl = buildSearchFallback(linkText, url);
-        return `[${linkText}](${searchUrl} "Buscar: ${linkText} (fonte original: ${label})")`;
-      }
-
       return match;
     }
   );
 
-  // 3) URLs soltas fake no texto
-  const allBlockedDomains = [...FAKE_DOMAINS, ...UNRELIABLE_LINK_DOMAINS];
-  const domainsRegexPart = allBlockedDomains.map(d => d.replace(/\./g, '\\.')).join('|');
+  // 2. URLs soltas fake no texto → remover
+  const domainsRegexPart = FAKE_DOMAINS.map(d => d.replace(/\./g, '\\.')).join('|');
   const fakeStandaloneRegex = new RegExp(`https?:\\/\\/(?:www\\.)?(?:${domainsRegexPart})[^\\s)>]*`, 'gi');
   
   clean = clean.replace(fakeStandaloneRegex, '');
@@ -71,7 +40,7 @@ export function fixFakeLinks(markdownText: string): string {
 }
 
 /**
- * Corrige links no HTML JÁ RENDERIZADO (para export de email/doc)
+ * Corrige links no HTML JÁ RENDERIZADO
  */
 export function fixFakeLinksHTML(html: string): string {
   if (!html) return html;
@@ -79,29 +48,21 @@ export function fixFakeLinksHTML(html: string): string {
   return html.replace(
     /<a\s+[^>]*href="(https?:\/\/[^"]+)"[^>]*>([^<]+)<\/a>/gi,
     (match, url, linkText) => {
-      // 1) Fake → remover ou substituir por produto Senior
-      if (isFakeUrl(url)) {
-        const realUrl = findSeniorProductUrl(linkText);
-        if (realUrl) {
-          return `<a href="${realUrl}" target="_blank" rel="noopener noreferrer" style="color:#059669;text-decoration:underline;">${linkText}</a>`;
-        }
-        return `<strong style="color:#059669;">${linkText}</strong>`;
+      if (!isFakeUrl(url)) return match;
+
+      const realUrl = findSeniorProductUrl(linkText);
+      if (realUrl) {
+        return `<a href="${realUrl}" target="_blank" rel="noopener noreferrer" style="color:#059669;text-decoration:underline;">${linkText}</a>`;
       }
 
-      // 2) Não-confiável → busca Google
-      if (isUnreliableUrl(url)) {
-        const label = domainLabel(url);
-        const searchUrl = buildSearchFallback(linkText, url);
-        return `<a href="${searchUrl}" target="_blank" rel="noopener noreferrer" style="color:#059669;text-decoration:underline;" title="Buscar: ${linkText} (fonte original: ${label})">${linkText}</a>`;
-      }
-
-      return match;
+      return `<strong style="color:#059669;">${linkText}</strong>`;
     }
   );
 }
 
 /**
- * Remove bloco de "Fontes" que contém apenas URLs fake/não-confiáveis
+ * Remove bloco de "Fontes" que contém apenas URLs fake do Gemini
+ * MELHORADO: Preserva linhas com título mesmo sem URL
  */
 export function cleanFakeSourcesBlock(text: string): string {
   if (!text) return text;
@@ -117,18 +78,18 @@ export function cleanFakeSourcesBlock(text: string): string {
   for (const line of lines) {
     const urlMatch = line.match(/(https?:\/\/[^\s)]+)/);
     
-    if (urlMatch && (isFakeUrl(urlMatch[1]) || isUnreliableUrl(urlMatch[1]))) {
+    if (urlMatch && isFakeUrl(urlMatch[1])) {
+      // Linha com URL fake → TENTAR RECUPERAR o título
       const titleMatch = line.match(/^\s*[\^]?\d*\s*[-–—:"]?\s*(.+?)(?:\s*\(|\s*https?:\/\/)/);
       if (titleMatch && titleMatch[1] && titleMatch[1].trim().length > 3) {
-        const cleanTitle = titleMatch[1].trim();
-        const searchUrl = buildSearchFallback(cleanTitle, urlMatch[1]);
-        cleanedLines.push(`- [${cleanTitle}](${searchUrl})`);
+        // Tem título válido → manter sem o link fake
+        cleanedLines.push(line.replace(urlMatch[1], '').replace(/[()]/g, '').trim());
         hasValidContent = true;
       }
       continue;
     }
     
-    if (urlMatch && !isFakeUrl(urlMatch[1]) && !isUnreliableUrl(urlMatch[1])) {
+    if (urlMatch && !isFakeUrl(urlMatch[1])) {
       hasValidContent = true;
     }
     
@@ -148,7 +109,8 @@ export function cleanFakeSourcesBlock(text: string): string {
 }
 
 /**
- * Extrai apenas links VÁLIDOS e confiáveis do texto (não-fake, não-unreliable).
+ * Extrai apenas links VÁLIDOS do texto (não-fake).
+ * Usado para gerar lista de fontes na exportação.
  */
 export function extractValidLinks(text: string): Array<{ title: string; url: string }> {
   const links: Array<{ title: string; url: string }> = [];
@@ -161,7 +123,8 @@ export function extractValidLinks(text: string): Array<{ title: string; url: str
     const title = match[1].trim();
     const url = match[2].trim();
     
-    if (!isFakeUrl(url) && !isUnreliableUrl(url)) {
+    // Só adiciona se NÃO for URL fake
+    if (!isFakeUrl(url)) {
       if (!links.find(l => l.url === url)) {
         links.push({ title, url });
       }
@@ -172,13 +135,14 @@ export function extractValidLinks(text: string): Array<{ title: string; url: str
 }
 
 /**
- * Extrai TODAS as menções de fontes, incluindo as de domínios não-confiáveis
- * (convertidas para busca Google)
+ * NOVO: Extrai TODAS as menções de fontes, mesmo sem URL
+ * Para exibição completa na seção de fontes
  */
 export function extractAllSourceMentions(text: string): Array<{ title: string; url?: string }> {
   const sources: Array<{ title: string; url?: string }> = [];
   if (!text) return sources;
   
+  // 1. Links markdown
   const linkRegex = /\[([^\]]+)\]\((https?:\/\/[^)]+)\)/gi;
   let match;
   
@@ -186,22 +150,19 @@ export function extractAllSourceMentions(text: string): Array<{ title: string; u
     const title = match[1].trim();
     const url = match[2].trim();
     
-    if (isFakeUrl(url)) {
-      if (!sources.find(s => s.title === title)) {
-        sources.push({ title });
-      }
-    } else if (isUnreliableUrl(url)) {
-      const searchUrl = buildSearchFallback(title, url);
-      if (!sources.find(s => s.title === title)) {
-        sources.push({ title, url: searchUrl });
-      }
-    } else {
+    if (!isFakeUrl(url)) {
       if (!sources.find(s => s.url === url)) {
         sources.push({ title, url });
+      }
+    } else {
+      // URL fake mas título válido
+      if (!sources.find(s => s.title === title)) {
+        sources.push({ title });
       }
     }
   }
   
+  // 2. Menções de fontes no texto (ex: "segundo Valor Econômico", "conforme IBGE")
   const mentionPatterns = [
     /(?:segundo|conforme|de acordo com|fonte:?)\s+([A-Z][A-Za-zÀ-ÿ\s]+?)(?:\s*[,.\[]|\s*$)/gi,
     /(?:citado em|mencionado em|relatado por)\s+([A-Z][A-Za-zÀ-ÿ\s]+?)(?:\s*[,.\[]|\s*$)/gi,
@@ -219,7 +180,8 @@ export function extractAllSourceMentions(text: string): Array<{ title: string; u
   return sources;
 }
 
-// Stubs para compatibilidade
+// Stubs seguros para manter compatibilidade com o MarkdownRenderer
+// Podem ser evoluídos depois para reescrever links e auto-linkar produtos Senior
 export function rewriteMarkdownLinksToGoogle(markdownText: string): string {
   if (!markdownText) return markdownText;
   return markdownText;
