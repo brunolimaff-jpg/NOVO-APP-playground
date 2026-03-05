@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { GoogleGenAI } from '@google/genai';
 import { buscarContextoPinecone, buscarContextoDocsPinecone } from '../services/ragService';
 import { lookupCliente } from '../services/clientLookupService';
 import { BACKEND_URL } from '../services/apiConfig';
+import { proxyGeminiHealth } from '../services/geminiProxy';
 
 interface TestResult {
   name: string;
@@ -49,20 +49,10 @@ const SystemHealthCheck: React.FC<SystemHealthCheckProps> = ({ isDarkMode, onClo
     try {
       updateTest('🤖 Gemini API', { status: 'running' });
       const start = Date.now();
-      
-      if (!process.env.GEMINI_API_KEY) {
-        throw new Error('GEMINI_API_KEY não configurada');
-      }
-      
-      const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-      const response = await genAI.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: 'Responda apenas: OK',
-        config: { temperature: 0, maxOutputTokens: 10 }
-      });
+      const response = await proxyGeminiHealth();
       const duration = Date.now() - start;
       
-      if (response.text && response.text.includes('OK')) {
+      if (response.ok) {
         updateTest('🤖 Gemini API', { 
           status: 'success', 
           message: `Conectado (${duration}ms)`,

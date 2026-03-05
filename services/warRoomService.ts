@@ -1,10 +1,10 @@
 // services/warRoomService.ts
 // Motor standalone para o War Room com retry, timeout e controle de contexto
 
-import { GoogleGenAI } from '@google/genai';
 import { normalizeAppError } from '../utils/errorHelpers';
 import { withAutoRetry } from '../utils/retry';
 import { buscarContextoDocsPinecone } from './ragService';
+import { proxyGenerateContent } from './geminiProxy';
 
 // ─── TIPOS ───────────────────────────────────────────
 export type WarRoomMode = 'tech' | 'killscript' | 'benchmark' | 'objections';
@@ -40,18 +40,8 @@ type DocsCacheEntry = {
     expiresAt: number;
 };
 
-let _ai: GoogleGenAI | null = null;
 const _docsCache = new Map<string, DocsCacheEntry>();
 const _docsInflight = new Map<string, Promise<string>>();
-
-const getAI = (): GoogleGenAI => {
-    if (!_ai) {
-        const apiKey = process.env.GEMINI_API_KEY;
-        if (!apiKey) throw new Error('GEMINI_API_KEY environment variable is missing.');
-        _ai = new GoogleGenAI({ apiKey });
-    }
-    return _ai;
-};
 
 // ─── DETECTOR DE ESCOPO ──────────────────────────────────
 const OUT_OF_SCOPE_PATTERNS = [
@@ -296,7 +286,6 @@ export async function queryWarRoom(
         };
     }
 
-    const ai = getAI();
     const resolvedTarget = mode === 'tech' ? '' : normalizeTarget(target, message);
     const systemPrompt = SYSTEM_PROMPTS[mode](resolvedTarget);
 
@@ -342,16 +331,19 @@ export async function queryWarRoom(
             () =>
                 runWithTimeoutAndSignal(
                     () =>
-                        ai.models.generateContent({
-                            model: MODEL_ID,
-                            contents: [{ role: 'user', parts: [{ text: fullPrompt }] }],
-                            config: {
-                                systemInstruction: systemPrompt,
-                                temperature: mode === 'tech' ? 0.15 : 0.3,
-                                maxOutputTokens: 8192,
-                                tools: useGrounding ? [{ googleSearch: {} }] : undefined,
-                            }
-                        }),
+                        proxyGenerateContent(
+                            {
+                                model: MODEL_ID,
+                                contents: [{ role: 'user', parts: [{ text: fullPrompt }] }],
+                                config: {
+                                    systemInstruction: systemPrompt,
+                                    temperature: mode === 'tech' ? 0.15 : 0.3,
+                                    maxOutputTokens: 8192,
+                                    tools: useGrounding ? [{ googleSearch: {} }] : undefined,
+                                }
+                            },
+                            signal
+                        ),
                     timeoutMs,
                     signal
                 ),
