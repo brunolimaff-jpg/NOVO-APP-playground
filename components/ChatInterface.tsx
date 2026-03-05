@@ -9,7 +9,6 @@ const InvestigationDashboard = React.lazy(() => import('./InvestigationDashboard
 const SettingsDrawer = React.lazy(() => import('./SettingsDrawer'));
 const WarRoom = React.lazy(() => import('./WarRoom'));
 import { cleanTitle } from '../utils/textCleaners';
-import ConfirmPopover from './ConfirmPopover';
 import { parseSmartOptions } from './SmartOptions'; // <-- ADICIONADO AQUI
 
 const QUICK_ACTIONS = [
@@ -258,17 +257,6 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
               }`}
               title="War Room: Inteligência Competitiva"
             >⚔️</button>
-            <ConfirmPopover message="Limpar conversa?" onConfirm={onClearChat} isDarkMode={isDarkMode}>
-              {({ onClick }) => (
-                <button
-                  onClick={onClick}
-                  className={`p-2 rounded-lg transition-all ${
-                    isDarkMode ? 'text-gray-500 hover:text-red-400 hover:bg-gray-800' : 'text-gray-400 hover:text-red-500 hover:bg-gray-100'
-                  }`}
-                  title="Limpar conversa"
-                >🗑️</button>
-              )}
-            </ConfirmPopover>
             <button
               onClick={() => setShowSettings(true)}
               className={`p-2 rounded-lg transition-all ${

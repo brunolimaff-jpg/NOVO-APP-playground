@@ -231,7 +231,7 @@ const SessionsSidebar: React.FC<SessionsSidebarProps> = ({
 
             <div className={`p-4 border-t flex-none ${isDarkMode ? 'border-slate-800' : 'border-slate-200'}`}>
                 <p className={`text-[10px] text-center ${theme.textSecondary}`}>
-                  Senior Scout 360 · v4.3
+                  Senior Scout 360
                 </p>
             </div>
         </div>
