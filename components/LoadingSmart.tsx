@@ -3,6 +3,13 @@ import { ChatMode } from '../constants';
 import { generateLoadingCuriosities } from '../services/geminiService';
 
 const FADE_DURATION = 400;
+const SOURCE_LINKS: Record<string, string> = {
+  ibge: 'https://www.ibge.gov.br/',
+  conab: 'https://www.conab.gov.br/',
+  embrapa: 'https://www.embrapa.br/',
+  senior: 'https://www.senior.com.br/',
+  gatec: 'https://www.gatec.com.br/'
+};
 
 interface LoadingSmartProps {
   isLoading: boolean;
@@ -11,6 +18,7 @@ interface LoadingSmartProps {
   onStop?: () => void;
   processing?: { stage?: string; completedStages?: string[] };
   searchQuery?: string;
+  empresaAlvo?: string | null;
 }
 
 const LoadingSmart: React.FC<LoadingSmartProps> = ({
@@ -19,7 +27,8 @@ const LoadingSmart: React.FC<LoadingSmartProps> = ({
   isDarkMode,
   onStop,
   processing,
-  searchQuery
+  searchQuery,
+  empresaAlvo
 }) => {
   const [currentInsight, setCurrentInsight] = useState<string>("Preparando investigação...");
   const [isVisible, setIsVisible] = useState(false);
@@ -29,6 +38,60 @@ const LoadingSmart: React.FC<LoadingSmartProps> = ({
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const curiositiesRef = useRef<string[]>([]);
   const curiosityIndexRef = useRef<number>(0);
+  const loadingContext = (empresaAlvo || searchQuery || '').trim();
+  const normalizeSourceLabel = useCallback((label: string): string => {
+    return label
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^\w\s]/g, '')
+      .trim();
+  }, []);
+
+  const renderInsight = useCallback((insight: string): React.ReactNode => {
+    const sourceMatch = insight.match(/^(.*?)(?:\s+[—-]\s*Fonte:\s*)(.+)$/i);
+    if (!sourceMatch) return insight;
+
+    const prefix = sourceMatch[1].trim();
+    const sourceLabel = sourceMatch[2].trim().replace(/[.)]+$/, '');
+    const sourceKey = normalizeSourceLabel(sourceLabel);
+    const sourceUrl = SOURCE_LINKS[sourceKey];
+
+    if (!sourceUrl) {
+      return insight;
+    }
+
+    return (
+      <>
+        {prefix} {' — '}Fonte:{' '}
+        <a
+          href={sourceUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline hover:opacity-80 transition-opacity"
+        >
+          {sourceLabel}
+        </a>
+      </>
+    );
+  }, [normalizeSourceLabel]);
+
+  const buildFallbackCuriosities = useCallback((context: string): string[] => {
+    if (!context) {
+      return [
+        "Mapeando sinais de mercado e concorrência...",
+        "Cruzando dados públicos e histórico comercial...",
+        "Buscando evidências para priorizar a abordagem..."
+      ];
+    }
+
+    return [
+      `Mapeando sinais de mercado de ${context}...`,
+      `Cruzando evidências comerciais e digitais de ${context}...`,
+      `Validando concorrentes e movimentações recentes de ${context}...`,
+      `Priorizando oportunidades de abordagem para ${context}...`
+    ];
+  }, []);
 
   // 1. Contador de Tempo
   useEffect(() => {
@@ -45,33 +108,31 @@ const LoadingSmart: React.FC<LoadingSmartProps> = ({
 
   // 2. Busca curiosidades quando inicia nova investigação
   useEffect(() => {
-    if (isLoading && searchQuery && searchQuery.length > 3) {
+    if (isLoading) {
       curiosityIndexRef.current = 0;
       curiositiesRef.current = [];
+      setCurrentInsight(loadingContext ? `Investigando ${loadingContext}...` : "Preparando investigação...");
 
-      generateLoadingCuriosities(searchQuery).then(facts => {
+      if (!loadingContext || loadingContext.length < 2) {
+        curiositiesRef.current = buildFallbackCuriosities('');
+        setCurrentInsight(curiositiesRef.current[0]);
+        return;
+      }
+
+      generateLoadingCuriosities(loadingContext).then(facts => {
         if (facts && facts.length > 0) {
           curiositiesRef.current = facts;
           setCurrentInsight(facts[0]);
         } else {
-          curiositiesRef.current = [
-            "O Mato Grosso lidera a produção de soja do Brasil — Fonte: IBGE",
-            "A Senior atende mais de 13.000 grupos econômicos — Fonte: Senior",
-            "O Brasil é o maior exportador de soja do mundo — Fonte: CONAB",
-            "O agronegócio representa 25% do PIB brasileiro — Fonte: IBGE"
-          ];
+          curiositiesRef.current = buildFallbackCuriosities(loadingContext);
           setCurrentInsight(curiositiesRef.current[0]);
         }
       }).catch(() => {
-        curiositiesRef.current = [
-          "O Mato Grosso lidera a produção de soja do Brasil — Fonte: IBGE",
-          "A Senior atende mais de 13.000 grupos econômicos — Fonte: Senior",
-          "O Brasil é o maior exportador de soja do mundo — Fonte: CONAB"
-        ];
+        curiositiesRef.current = buildFallbackCuriosities(loadingContext);
         setCurrentInsight(curiositiesRef.current[0]);
       });
     }
-  }, [isLoading, searchQuery]);
+  }, [isLoading, loadingContext, buildFallbackCuriosities]);
 
   // 3. Ciclo de rotação de curiosidades (SEMPRE ATIVO)
   const cycleCuriosity = useCallback(() => {
@@ -113,7 +174,7 @@ const LoadingSmart: React.FC<LoadingSmartProps> = ({
 
   if (!isVisible) return null;
 
-  const displayStage = processing?.stage || "Investigando...";
+  const displayStage = processing?.stage || (loadingContext ? `Investigando ${loadingContext}...` : "Investigando...");
   const completedStages = processing?.completedStages || [];
   const totalSteps = completedStages.length + 1;
 
@@ -189,18 +250,6 @@ const LoadingSmart: React.FC<LoadingSmartProps> = ({
         </div>
       </div>
 
-      {/* PROGRESS BAR */}
-      <div className={`w-full h-1 rounded-full overflow-hidden mb-4 ${
-        isDarkMode ? 'bg-slate-800' : 'bg-emerald-100'
-      }`}>
-        <div
-          className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-emerald-400 transition-all duration-700 ease-out relative overflow-hidden"
-          style={{ width: `${Math.min(Math.max(totalSteps * 14, 8), 100)}%` }}
-        >
-          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" />
-        </div>
-      </div>
-
       {/* CURIOSIDADES PERSONALIZADAS (SEMPRE VISÍVEL) */}
       <div className={`pt-3 border-t ${
         isDarkMode ? 'border-emerald-500/10' : 'border-emerald-200'
@@ -210,7 +259,7 @@ const LoadingSmart: React.FC<LoadingSmartProps> = ({
         <p className={`text-sm leading-relaxed ${
           isDarkMode ? 'text-slate-400' : 'text-slate-600'
         }`}>
-          💡 {currentInsight}
+          💡 {renderInsight(currentInsight)}
         </p>
       </div>
     </div>

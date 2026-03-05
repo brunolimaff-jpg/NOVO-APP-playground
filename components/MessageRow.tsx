@@ -67,8 +67,15 @@ const MessageRow = memo(({ index, data }: MessageRowProps) => {
             <span>{mode === 'operacao' ? '😺 Operação' : '✈️ Diretoria'}</span>
             <span>{msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
           </div>
-          <LoadingSmart isLoading={isLoading} mode={mode} isDarkMode={isDarkMode} onStop={isLoading ? onStop : undefined} processing={processing} searchQuery={lastUserQuery} />
-          <div className={`mt-2 text-xs font-mono ${isDarkMode ? 'text-emerald-600' : 'text-emerald-400'} animate-pulse select-none`}>▋</div>
+          <LoadingSmart
+            isLoading={isLoading}
+            mode={mode}
+            isDarkMode={isDarkMode}
+            onStop={isLoading ? onStop : undefined}
+            processing={processing}
+            searchQuery={lastUserQuery}
+            empresaAlvo={empresaAlvo}
+          />
         </div>
       </div>
     );
