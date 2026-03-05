@@ -260,11 +260,162 @@ export class PDFGenerator {
 
   // ─── Renderer principal de markdown ──────────────────────────────────────
 
-  renderMarkdown(md: string) {
+  private sanitizeMermaidCode(input: string): string {
+    if (!input) return '';
+    let code = input
+      .replace(new RegExp('<br\\s*/?>\\s*', 'gi'), '\n')
+      .replace(new RegExp('&lt;br\\s*/?&gt;\\s*', 'gi'), '\n')
+      .replace(new RegExp('<' + '!--[\\s\\S]*?--' + '>', 'g'), '')
+      .replace(/[\u{1F000}-\u{1FFFF}]/gu, '')
+      .replace(/[\u2600-\u27BF]/gu, '')
+      .replace(/[\u2013\u2014]/g, '-')
+      .replace(/^[^a-zA-Z0-9]+/, '')
+      .trim();
+
+    const mermaidStart =
+      /(graph\s+(?:TB|TD|LR|RL|BT)?|flowchart\s+(?:TB|TD|LR|RL|BT)?|sequenceDiagram|gantt|classDiagram|stateDiagram-v2?|erDiagram|journey|pie|quadrantChart|gitGraph)/i;
+    const match = code.match(mermaidStart);
+    if (!match) return '';
+
+    code = code.slice(match.index ?? 0).trim();
+    const firstWord = code.split(/\s+/)[0]?.toLowerCase() || '';
+    if (
+      !/^(graph|flowchart|sequencediagram|gantt|classdiagram|statediagram-v2?|erdiagram|journey|pie|quadrantchart|gitgraph)$/.test(
+        firstWord
+      )
+    ) {
+      return '';
+    }
+    return code;
+  }
+
+  private renderCodeBlock(lines: string[]) {
+    const text = lines.join('\n').trimEnd() || '(bloco de código vazio)';
+    const wrapped = this.doc.splitTextToSize(text, this.CW - 6);
+    const blockHeight = Math.max(8, wrapped.length * 4.2 + 4);
+
+    this.ensureSpace(blockHeight + 4);
+    this.fc(C.codeGray);
+    this.dc(C.subtle);
+    this.doc.roundedRect(this.ML, this.y - 3, this.CW, blockHeight, 1.5, 1.5, 'FD');
+
+    this.doc.setFont('courier', 'normal');
+    this.doc.setFontSize(8);
+    this.tc(C.body);
+    this.doc.text(wrapped, this.ML + 3, this.y + 1);
+    this.y += blockHeight + 2;
+  }
+
+  private async svgToPngDataUrl(svg: string): Promise<{ dataUrl: string; width: number; height: number }> {
+    const svgBlob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
+    const url = URL.createObjectURL(svgBlob);
+
+    try {
+      const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const image = new Image();
+        image.onload = () => resolve(image);
+        image.onerror = () => reject(new Error('Falha ao converter SVG do Mermaid para imagem.'));
+        image.src = url;
+      });
+
+      const width = img.naturalWidth || img.width || 1200;
+      const height = img.naturalHeight || img.height || 700;
+      const scale = 2;
+
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(width * scale);
+      canvas.height = Math.round(height * scale);
+
+      const ctx = canvas.getContext('2d');
+      if (!ctx) throw new Error('Falha ao criar contexto canvas para Mermaid.');
+
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+      return {
+        dataUrl: canvas.toDataURL('image/png', 0.95),
+        width: canvas.width,
+        height: canvas.height,
+      };
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  }
+
+  private async renderMermaidBlock(code: string) {
+    const cleanCode = this.sanitizeMermaidCode(code);
+    if (!cleanCode) {
+      this.renderCodeBlock(['[Bloco mermaid inválido: revise a sintaxe.]', code]);
+      return;
+    }
+
+    try {
+      if (typeof window === 'undefined' || typeof document === 'undefined') {
+        throw new Error('Ambiente sem DOM para renderização do Mermaid.');
+      }
+
+      const mermaid = (await import('mermaid')).default;
+      mermaid.initialize({
+        startOnLoad: false,
+        theme: 'default',
+        securityLevel: 'loose',
+      });
+
+      const id = `pdf-mermaid-${Math.random().toString(36).slice(2, 9)}`;
+      const { svg } = await mermaid.render(id, cleanCode);
+      const { dataUrl, width, height } = await this.svgToPngDataUrl(svg);
+
+      this.ensureSpace(8);
+      this.doc.setFont('helvetica', 'bold');
+      this.doc.setFontSize(9);
+      this.tc(C.primaryDark);
+      this.doc.text('Diagrama mermaid', this.ML, this.y);
+      this.y += 4.5;
+
+      let renderWidth = this.CW;
+      let renderHeight = renderWidth * (height / width);
+      const maxRenderHeight = this.PH - this.MT - this.MB - 12;
+      if (renderHeight > maxRenderHeight) {
+        renderHeight = maxRenderHeight;
+        renderWidth = renderHeight * (width / height);
+      }
+
+      this.ensureSpace(renderHeight + 4);
+      this.doc.addImage(dataUrl, 'PNG', this.ML, this.y, renderWidth, renderHeight, undefined, 'FAST');
+      this.y += renderHeight + 4;
+    } catch {
+      this.renderCodeBlock([
+        '[Diagrama mermaid não pôde ser renderizado automaticamente. Código incluído para revisão.]',
+        cleanCode,
+      ]);
+    }
+  }
+
+  async renderMarkdown(md: string) {
     const lines = md.split('\n');
 
-    for (const raw of lines) {
+    for (let i = 0; i < lines.length; i++) {
+      const raw = lines[i];
       const line = raw.trimEnd();
+
+      // Blocos de código fenced ```lang ... ```
+      const fence = line.match(/^```(\w+)?\s*$/);
+      if (fence) {
+        const lang = (fence[1] || '').toLowerCase();
+        const blockLines: string[] = [];
+        i += 1;
+        while (i < lines.length && !/^```/.test(lines[i].trim())) {
+          blockLines.push(lines[i]);
+          i += 1;
+        }
+        if (lang === 'mermaid') {
+          await this.renderMermaidBlock(blockLines.join('\n'));
+        } else {
+          this.renderCodeBlock(blockLines);
+        }
+        continue;
+      }
 
       // Ignora marcadores de sistema
       if (/^\[\[PORTA:/.test(line)) continue;

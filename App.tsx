@@ -30,7 +30,7 @@ import { fixFakeLinksHTML } from './utils/linkFixer';
 import { BACKEND_URL } from './services/apiConfig';
 import { extractCompanyName } from './utils/companyNameExtractor';
 import { convertMarkdownToHTML, simpleMarkdownToHtml } from './utils/markdownToHtml';
-import { collectFullReport, detectInconsistencies } from './utils/reportUtils';
+import { collectFullReport, detectInconsistencies, generateExecutiveSummary, normalizeMermaidBlocks } from './utils/reportUtils';
 
 const PAGE_SIZE = 20;
 
@@ -553,7 +553,9 @@ const App: React.FC = () => {
       if (!fullText || fullText.length < 100) { alert('Nenhum dossiê para exportar.'); return; }
 
       const inconsistenciesSection = detectInconsistencies(sections);
-      const finalText = fullText + inconsistenciesSection;
+      const normalizedFullText = normalizeMermaidBlocks(fullText);
+      const executiveSummary = generateExecutiveSummary(normalizedFullText, sections, inconsistenciesSection);
+      const finalText = `${executiveSummary}\n\n---\n\n${normalizedFullText}${inconsistenciesSection}`;
       const empresa = cleanTitle(extractCompanyName(currentSession?.title));
       const now = new Date();
       const dataStr = now.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
@@ -563,7 +565,7 @@ const App: React.FC = () => {
       const { PDFGenerator } = await import('./utils/PDFGenerator');
       const pdf = new PDFGenerator();
       pdf.addHeader(empresa, metaLine);
-      pdf.renderMarkdown(finalText);
+      await pdf.renderMarkdown(finalText);
       pdf.addSources(allLinks.map(l => ({ text: l.title || l.url, url: l.url })));
 
       const safeTitle = empresa.replace(/[^a-z0-9]/gi, '_').substring(0, 50);
