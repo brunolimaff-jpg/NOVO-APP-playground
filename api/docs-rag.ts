@@ -53,7 +53,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             return res.status(200).json({ context: '' });
         }
 
-        const results = await index.namespace('senior-erp-docs').query({
+        const docsNamespace = process.env.PINECONE_DOCS_NAMESPACE || process.env.PINECONE_NAMESPACE || 'senior-erp-docs';
+        const results = await index.namespace(docsNamespace).query({
             vector: queryVector,
             topK: 5,
             includeMetadata: true

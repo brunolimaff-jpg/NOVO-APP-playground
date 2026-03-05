@@ -34,8 +34,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const ai = new GoogleGenAI({ apiKey: getRequiredEnv('GEMINI_API_KEY') });
-    const pc = new Pinecone({ apiKey: getRequiredEnv('PINECONE_API_KEY') });
-    const index = pc.index('scout-arsenal');
+
+    const pineconeKey = process.env.PINECONE_API_KEY || process.env.PINECONE_DOCS_KEY;
+    if (!pineconeKey) {
+      throw new Error('Missing required env var: PINECONE_API_KEY or PINECONE_DOCS_KEY');
+    }
+
+    const pineconeIndexName = process.env.PINECONE_DOCS_INDEX || 'scout-arsenal';
+    const namespace = process.env.PINECONE_NAMESPACE?.trim();
+    const pc = new Pinecone({ apiKey: pineconeKey });
+    const index = pc.index(pineconeIndexName);
+    const queryTarget = namespace ? index.namespace(namespace) : index;
 
     const embeddingResponse = await ai.models.embedContent({
       model: 'gemini-embedding-001',
@@ -49,7 +58,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(200).json({ context: '' });
     }
 
-    const results = await index.query({
+    const results = await queryTarget.query({
       vector: queryVector,
       topK: 8,
       includeMetadata: true
