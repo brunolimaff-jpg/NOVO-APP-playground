@@ -38,7 +38,27 @@ const LoadingSmart: React.FC<LoadingSmartProps> = ({
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const curiositiesRef = useRef<string[]>([]);
   const curiosityIndexRef = useRef<number>(0);
-  const loadingContext = (empresaAlvo || searchQuery || '').trim();
+  const extractCompanyFromQuery = useCallback((query?: string): string => {
+    if (!query) return '';
+    const cleanQuery = query.trim().replace(/[.]{2,}$/g, '').replace(/\s+/g, ' ');
+
+    const patterns = [
+      /\b(?:do|da|de)\s+((?:grupo|empresa|fazenda|usina)?\s*[a-z0-9À-ÿ][a-z0-9À-ÿ&.\- ]{2,60})$/i,
+      /\b(?:sobre|empresa|grupo)\s+((?:grupo|empresa)?\s*[a-z0-9À-ÿ][a-z0-9À-ÿ&.\- ]{2,60})$/i,
+    ];
+
+    for (const pattern of patterns) {
+      const match = cleanQuery.match(pattern);
+      if (match?.[1]) {
+        return match[1].trim().replace(/[.,;:!?]+$/g, '');
+      }
+    }
+
+    return '';
+  }, []);
+
+  const companyFocus = (empresaAlvo || extractCompanyFromQuery(searchQuery)).trim();
+  const loadingContext = (companyFocus || searchQuery || '').trim();
   const normalizeSourceLabel = useCallback((label: string): string => {
     return label
       .toLowerCase()
@@ -86,10 +106,10 @@ const LoadingSmart: React.FC<LoadingSmartProps> = ({
     }
 
     return [
-      `Mapeando sinais de mercado de ${context}...`,
-      `Cruzando evidências comerciais e digitais de ${context}...`,
-      `Validando concorrentes e movimentações recentes de ${context}...`,
-      `Priorizando oportunidades de abordagem para ${context}...`
+      `Levantando investimentos recentes de ${context}...`,
+      `Estimando faturamento e porte econômico de ${context}...`,
+      `Mapeando estrutura operacional de ${context} (ex.: área/ha, unidades e escala)...`,
+      `Buscando aquisições, expansão e novos movimentos do grupo ${context}...`
     ];
   }, []);
 
@@ -111,7 +131,7 @@ const LoadingSmart: React.FC<LoadingSmartProps> = ({
     if (isLoading) {
       curiosityIndexRef.current = 0;
       curiositiesRef.current = [];
-      setCurrentInsight(loadingContext ? `Investigando ${loadingContext}...` : "Preparando investigação...");
+      setCurrentInsight(companyFocus ? `Investigando ${companyFocus}...` : loadingContext ? `Investigando ${loadingContext}...` : "Preparando investigação...");
 
       if (!loadingContext || loadingContext.length < 2) {
         curiositiesRef.current = buildFallbackCuriosities('');
@@ -119,20 +139,20 @@ const LoadingSmart: React.FC<LoadingSmartProps> = ({
         return;
       }
 
-      generateLoadingCuriosities(loadingContext).then(facts => {
+      generateLoadingCuriosities(companyFocus || loadingContext).then(facts => {
         if (facts && facts.length > 0) {
           curiositiesRef.current = facts;
           setCurrentInsight(facts[0]);
         } else {
-          curiositiesRef.current = buildFallbackCuriosities(loadingContext);
+          curiositiesRef.current = buildFallbackCuriosities(companyFocus || loadingContext);
           setCurrentInsight(curiositiesRef.current[0]);
         }
       }).catch(() => {
-        curiositiesRef.current = buildFallbackCuriosities(loadingContext);
+        curiositiesRef.current = buildFallbackCuriosities(companyFocus || loadingContext);
         setCurrentInsight(curiositiesRef.current[0]);
       });
     }
-  }, [isLoading, loadingContext, buildFallbackCuriosities]);
+  }, [isLoading, loadingContext, companyFocus, buildFallbackCuriosities]);
 
   // 3. Ciclo de rotação de curiosidades (SEMPRE ATIVO)
   const cycleCuriosity = useCallback(() => {
@@ -174,7 +194,7 @@ const LoadingSmart: React.FC<LoadingSmartProps> = ({
 
   if (!isVisible) return null;
 
-  const displayStage = processing?.stage || (loadingContext ? `Investigando ${loadingContext}...` : "Investigando...");
+  const displayStage = processing?.stage || (companyFocus ? `Investigando ${companyFocus}...` : loadingContext ? `Investigando ${loadingContext}...` : "Investigando...");
   const completedStages = processing?.completedStages || [];
   const totalSteps = completedStages.length + 1;
 
