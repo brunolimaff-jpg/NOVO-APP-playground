@@ -15,6 +15,7 @@ interface SessionsSidebarProps {
   isOpen: boolean;
   onCloseMobile: () => void;
   isDarkMode: boolean;
+  showCRMTools?: boolean;
 }
 
 const SessionsSidebar: React.FC<SessionsSidebarProps> = ({
@@ -27,7 +28,8 @@ const SessionsSidebar: React.FC<SessionsSidebarProps> = ({
   onOpenKanban,
   isOpen,
   onCloseMobile,
-  isDarkMode
+  isDarkMode,
+  showCRMTools = true,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -112,17 +114,19 @@ const SessionsSidebar: React.FC<SessionsSidebarProps> = ({
                       <span>Nova</span>
                     </button>
 
-                    <button
-                      onClick={() => {
-                          onOpenKanban();
-                          if (window.innerWidth < 768) onCloseMobile();
-                      }}
-                      className={`py-2.5 px-3 rounded-lg flex items-center justify-center gap-1.5 font-medium transition-colors shadow-md ${theme.crmBtn}`}
-                      title="Abrir Kanban CRM"
-                    >
-                      <span>📋</span>
-                      <span className="text-sm">CRM</span>
-                    </button>
+                    {showCRMTools && (
+                      <button
+                        onClick={() => {
+                            onOpenKanban();
+                            if (window.innerWidth < 768) onCloseMobile();
+                        }}
+                        className={`py-2.5 px-3 rounded-lg flex items-center justify-center gap-1.5 font-medium transition-colors shadow-md ${theme.crmBtn}`}
+                        title="Abrir Kanban CRM"
+                      >
+                        <span>📋</span>
+                        <span className="text-sm">CRM</span>
+                      </button>
+                    )}
                 </div>
                 
                 <div className="relative">
@@ -191,20 +195,22 @@ const SessionsSidebar: React.FC<SessionsSidebarProps> = ({
 
                           {/* Botões de ação (CRM e Delete) */}
                           <div className="absolute right-2 top-1/2 transform -translate-y-1/2 flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity z-10">
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                  e.stopPropagation();
-                                  onSaveToCRM(session.id);
-                                  if (window.innerWidth < 768) onCloseMobile();
-                              }}
-                              className={`
-                                p-1.5 rounded bg-blue-100 dark:bg-blue-900/30 hover:bg-blue-200 dark:hover:bg-blue-800/50 text-blue-600 dark:text-blue-400 transition-all shadow-sm
-                              `}
-                              title="Enviar para CRM"
-                            >
-                              📋
-                            </button>
+                            {showCRMTools && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    onSaveToCRM(session.id);
+                                    if (window.innerWidth < 768) onCloseMobile();
+                                }}
+                                className={`
+                                  p-1.5 rounded bg-blue-100 dark:bg-blue-900/30 hover:bg-blue-200 dark:hover:bg-blue-800/50 text-blue-600 dark:text-blue-400 transition-all shadow-sm
+                                `}
+                                title="Enviar para CRM"
+                              >
+                                📋
+                              </button>
+                            )}
 
                             <ConfirmPopover
                               message="Excluir dossiê?"
