@@ -44,10 +44,29 @@ interface MessageRowProps {
 
 const MessageRow = memo(({ index, data }: MessageRowProps) => {
   const {
-    messages, isLoading, isDarkMode, mode, onRetry, onDeleteMessage, onReportError,
-    onFeedback, onSendFeedback, onToggleMessageSources, onDeepDive, onRegenerateSuggestions,
-    handleDeleteWithUndo, pendingDeleteId, hideSuggestionsForMessageId,
-    setInput, sessionId, userId, processing, lastUserQuery, onStop, onSendMessage, empresaAlvo
+    messages,
+    isLoading,
+    isDarkMode,
+    mode,
+    onRetry,
+    onDeleteMessage,
+    onReportError,
+    onFeedback,
+    onSendFeedback,
+    onToggleMessageSources,
+    onDeepDive,
+    onRegenerateSuggestions,
+    handleDeleteWithUndo,
+    pendingDeleteId,
+    hideSuggestionsForMessageId,
+    setInput,
+    sessionId,
+    userId,
+    processing,
+    lastUserQuery,
+    onStop,
+    onSendMessage,
+    empresaAlvo,
   } = data;
 
   const msg = messages[index];
@@ -57,7 +76,7 @@ const MessageRow = memo(({ index, data }: MessageRowProps) => {
   const isLast = index === messages.length - 1;
   const auditableSources = useMemo<AuditableSource[]>(
     () => buildAuditableSources(msg.text || '', msg.groundingSources || []),
-    [msg.text, msg.groundingSources]
+    [msg.text, msg.groundingSources],
   );
   const [linkStatuses, setLinkStatuses] = useState<Record<string, LinkValidationResult>>({});
 
@@ -65,11 +84,11 @@ const MessageRow = memo(({ index, data }: MessageRowProps) => {
 
   useEffect(() => {
     if (!msg.isSourcesOpen) return;
-    const urls = auditableSources.filter((s) => !!s.url).map((s) => s.url as string);
+    const urls = auditableSources.filter(s => !!s.url).map(s => s.url as string);
     if (urls.length === 0) return;
 
     let cancelled = false;
-    fetchLinkStatuses(urls).then((results) => {
+    fetchLinkStatuses(urls).then(results => {
       if (!cancelled) setLinkStatuses(results);
     });
     return () => {
@@ -80,8 +99,11 @@ const MessageRow = memo(({ index, data }: MessageRowProps) => {
   if (msg.isThinking) {
     content = (
       <div className="flex justify-start animate-fade-in">
-        <div className={`rounded-2xl p-4 shadow-sm w-full ${isDarkMode ? 'bg-slate-900 border border-gray-700/30' : 'bg-white border border-gray-200'
-          } px-3 md:px-5 py-3 md:py-4`}>
+        <div
+          className={`rounded-2xl p-4 shadow-sm w-full ${
+            isDarkMode ? 'bg-slate-900 border border-gray-700/30' : 'bg-white border border-gray-200'
+          } px-3 md:px-5 py-3 md:py-4`}
+        >
           <div className="flex items-center justify-between mb-2 opacity-70 text-[10px] uppercase font-bold tracking-wider select-none">
             <span>{mode === 'operacao' ? '😺 Operação' : '✈️ Diretoria'}</span>
             <span>{msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
@@ -101,8 +123,11 @@ const MessageRow = memo(({ index, data }: MessageRowProps) => {
   } else if (msg.isError && msg.errorDetails) {
     content = (
       <ErrorMessageCard
-        error={msg.errorDetails} onRetry={onRetry || (() => { })} isLoadingRetry={isLoading}
-        isDarkMode={isDarkMode} mode={mode}
+        error={msg.errorDetails}
+        onRetry={onRetry || (() => {})}
+        isLoadingRetry={isLoading}
+        isDarkMode={isDarkMode}
+        mode={mode}
         onReportError={onReportError ? () => onReportError(msg.id, msg.errorDetails!) : undefined}
       />
     );
@@ -116,58 +141,76 @@ const MessageRow = memo(({ index, data }: MessageRowProps) => {
     const sourcesCount = auditableSources.length;
 
     content = (
-      <div className={`flex ${isBot ? 'justify-start' : 'justify-end'
+      <div
+        className={`flex ${
+          isBot ? 'justify-start' : 'justify-end'
         } animate-fade-in group/msg items-start gap-1.5 transition-opacity duration-300 ${
           pendingDeleteId === msg.id ? 'opacity-30 pointer-events-none' : ''
-        }`}>
+        }`}
+      >
         {!isBot && onDeleteMessage && (
           <button
             onClick={() => handleDeleteWithUndo(msg.id)}
             className={`self-start mt-[38px] flex-shrink-0 opacity-0 group-hover/msg:opacity-100 transition-opacity duration-150 p-1.5 rounded-lg text-sm ${
-              isDarkMode ? 'text-slate-600 hover:text-red-400 hover:bg-slate-800' : 'text-slate-300 hover:text-red-500 hover:bg-red-50'
+              isDarkMode
+                ? 'text-slate-600 hover:text-red-400 hover:bg-slate-800'
+                : 'text-slate-300 hover:text-red-500 hover:bg-red-50'
             }`}
             title="Excluir esta mensagem"
-          >🗑️</button>
+          >
+            🗑️
+          </button>
         )}
-        <div className={`rounded-2xl p-4 shadow-sm relative ${isBot
-          ? `${isDarkMode ? 'bg-slate-900' : 'bg-white'} border ${isDarkMode ? 'border-gray-700/30' : 'border-gray-200'} px-3 md:px-5 py-3 md:py-4 w-full`
-          : `${isDarkMode ? 'bg-emerald-900/20 border border-emerald-900/30 text-emerald-100' : 'bg-emerald-50 border border-emerald-100 text-slate-800'} max-w-[90%] md:max-w-[75%] lg:max-w-[60%]`
-          }`}>
+        <div
+          className={`rounded-2xl p-4 shadow-sm relative ${
+            isBot
+              ? `${isDarkMode ? 'bg-slate-900' : 'bg-white'} border ${isDarkMode ? 'border-gray-700/30' : 'border-gray-200'} px-3 md:px-5 py-3 md:py-4 w-full`
+              : `${isDarkMode ? 'bg-emerald-900/20 border border-emerald-900/30 text-emerald-100' : 'bg-emerald-50 border border-emerald-100 text-slate-800'} max-w-[90%] md:max-w-[75%] lg:max-w-[60%]`
+          }`}
+        >
           <div className="flex items-center justify-between mb-2 opacity-70 text-[10px] uppercase font-bold tracking-wider select-none">
             <span>{isBot ? (mode === 'operacao' ? '😺 Operação' : '✈️ Diretoria') : '👤 Você'}</span>
             <span>{msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
           </div>
           {isBot ? (
             <>
-              {msg.scorePorta && (
-                <ScorePorta score={msg.scorePorta.score} p={msg.scorePorta.p} o={msg.scorePorta.o} r={msg.scorePorta.r} t={msg.scorePorta.t} a={msg.scorePorta.a} isDarkMode={isDarkMode} />
-              )}
+              {msg.scorePorta && <ScorePorta {...msg.scorePorta} isDarkMode={isDarkMode} />}
               <SectionalBotMessage
                 message={{ ...msg, groundingSources: msg.groundingSources || [] }}
-                sessionId={sessionId} userId={userId} isDarkMode={isDarkMode} mode={mode}
+                sessionId={sessionId}
+                userId={userId}
+                isDarkMode={isDarkMode}
+                mode={mode}
                 empresaAlvo={empresaAlvo}
                 auditableSources={auditableSources}
-                onPreFillInput={(text) => {
+                onPreFillInput={text => {
                   if (onSendMessage) {
                     onSendMessage(text);
                   } else {
                     setInput(text);
                   }
-                }} 
+                }}
                 onRegenerateSuggestions={onRegenerateSuggestions}
                 hideSuggestions={msg.id === hideSuggestionsForMessageId}
               />
               {isLast && !isLoading && onDeepDive && <DeepDiveTopics onSelectTopic={onDeepDive} />}
               <MessageActionsBar
-                content={msg.text} sourcesCount={sourcesCount} currentFeedback={msg.feedback}
-                onFeedback={(fb) => onFeedback(msg.id, fb)}
+                content={msg.text}
+                sourcesCount={sourcesCount}
+                currentFeedback={msg.feedback}
+                onFeedback={fb => onFeedback(msg.id, fb)}
                 onSubmitFeedback={(fb, comment, content) => onSendFeedback(msg.id, fb, comment, content)}
                 onToggleSources={() => onToggleMessageSources(msg.id)}
-                isSourcesVisible={!!msg.isSourcesOpen} isDarkMode={isDarkMode}
+                isSourcesVisible={!!msg.isSourcesOpen}
+                isDarkMode={isDarkMode}
               />
               {msg.isSourcesOpen && auditableSources.length > 0 && (
                 <div className={`mt-3 pt-3 border-t ${isDarkMode ? 'border-gray-700' : 'border-gray-200'}`}>
-                  <p className={`text-xs font-semibold uppercase tracking-wide mb-2 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>📚 Fontes</p>
+                  <p
+                    className={`text-xs font-semibold uppercase tracking-wide mb-2 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}
+                  >
+                    📚 Fontes
+                  </p>
                   <ul className="space-y-1.5">
                     {auditableSources.map((s, i) => {
                       const status = s.url ? linkStatuses[s.url] || linkStatuses[normalizeSourceUrl(s.url)] : undefined;
@@ -178,36 +221,52 @@ const MessageRow = memo(({ index, data }: MessageRowProps) => {
                           : status?.status === 'broken'
                             ? status.note || 'indisponivel'
                             : 'validacao pendente';
-                      const context = s.contexts[0] || (s.url
-                        ? 'Referência usada para embasar parte da resposta; valide aderência ao contexto.'
-                        : 'Menção inferida sem URL explícita; validação manual necessária.');
+                      const context =
+                        s.contexts[0] ||
+                        (s.url
+                          ? 'Referência usada para embasar parte da resposta; valide aderência ao contexto.'
+                          : 'Menção inferida sem URL explícita; validação manual necessária.');
 
                       return (
-                      <li key={s.key || i} className="text-xs">
-                        <div className="flex items-center gap-1 flex-wrap">
-                          <span className="font-semibold text-[10px] opacity-80">
-                            {s.citationIndex ? `[${s.citationIndex}]` : '[inferida]'}
-                          </span>
-                          {s.url ? (
-                            <a href={s.url} target="_blank" rel="noopener noreferrer" className="text-emerald-600 hover:underline break-all">
-                              {s.title || s.url}
-                            </a>
-                          ) : (
-                            <span className={`${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>{s.title}</span>
-                          )}
-                          <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
-                            statusLabel.includes('validado')
-                              ? (isDarkMode ? 'bg-emerald-900/50 text-emerald-300' : 'bg-emerald-100 text-emerald-700')
-                              : (isDarkMode ? 'bg-amber-900/40 text-amber-300' : 'bg-amber-100 text-amber-700')
-                          }`}>
-                            {statusLabel}
-                          </span>
-                        </div>
-                        <p className={`mt-1 text-[10px] leading-snug ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
-                          {context}
-                        </p>
-                      </li>
-                    )})}
+                        <li key={s.key || i} className="text-xs">
+                          <div className="flex items-center gap-1 flex-wrap">
+                            <span className="font-semibold text-[10px] opacity-80">
+                              {s.citationIndex ? `[${s.citationIndex}]` : '[inferida]'}
+                            </span>
+                            {s.url ? (
+                              <a
+                                href={s.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-emerald-600 hover:underline break-all"
+                              >
+                                {s.title || s.url}
+                              </a>
+                            ) : (
+                              <span className={`${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>{s.title}</span>
+                            )}
+                            <span
+                              className={`text-[10px] px-1.5 py-0.5 rounded-full ${
+                                statusLabel.includes('validado')
+                                  ? isDarkMode
+                                    ? 'bg-emerald-900/50 text-emerald-300'
+                                    : 'bg-emerald-100 text-emerald-700'
+                                  : isDarkMode
+                                    ? 'bg-amber-900/40 text-amber-300'
+                                    : 'bg-amber-100 text-amber-700'
+                              }`}
+                            >
+                              {statusLabel}
+                            </span>
+                          </div>
+                          <p
+                            className={`mt-1 text-[10px] leading-snug ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}
+                          >
+                            {context}
+                          </p>
+                        </li>
+                      );
+                    })}
                   </ul>
                 </div>
               )}
@@ -220,11 +279,7 @@ const MessageRow = memo(({ index, data }: MessageRowProps) => {
     );
   }
 
-  return (
-    <div className="pb-3 px-2 md:px-6 lg:px-8">
-      {content}
-    </div>
-  );
+  return <div className="pb-3 px-2 md:px-6 lg:px-8">{content}</div>;
 });
 
 MessageRow.displayName = 'MessageRow';

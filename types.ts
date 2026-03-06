@@ -2,7 +2,7 @@ import React from 'react';
 
 export enum Sender {
   User = 'user',
-  Bot = 'bot'
+  Bot = 'bot',
 }
 
 export type Feedback = 'up' | 'down';
@@ -38,16 +38,35 @@ export interface AppError {
 }
 
 // ===================================================================
-// NOVO: Score PORTA
+// SCORE PORTA v2
 // ===================================================================
+export type PortaSegmento = 'PRD' | 'AGI' | 'COP';
+
+export type PortaFlag = 'TRAD' | 'LOCK' | 'NOFIT';
+
 export interface ScorePortaData {
-  score: number;
-  p: number;
-  o: number;
-  r: number;
-  t: number;
-  a: number;
+  score: number; // 0-100, score final com penalizacoes
+  p: number; // 0-10
+  o: number; // 0-10
+  r: number; // 0-10
+  t: number; // 0-10
+  a: number; // 0-10
+  segmento: PortaSegmento;
+  flags: PortaFlag[];
+  scoreBruto?: number; // 0-100, antes das penalizacoes
 }
+
+export const PORTA_WEIGHTS: Record<PortaSegmento, { p: number; o: number; r: number; t: number; a: number }> = {
+  PRD: { p: 0.1, o: 0.25, r: 0.1, t: 0.3, a: 0.25 },
+  AGI: { p: 0.15, o: 0.3, r: 0.2, t: 0.2, a: 0.15 },
+  COP: { p: 0.15, o: 0.2, r: 0.25, t: 0.2, a: 0.2 },
+};
+
+export const PORTA_FLAG_PENALTIES: Record<PortaFlag, number> = {
+  TRAD: 0.6,
+  LOCK: 0.5,
+  NOFIT: 0.3,
+};
 
 export interface ParsedContent {
   text: string;
@@ -159,12 +178,7 @@ export interface ChatInterfaceProps {
 // MINI CRM - Kanban
 // ===================================================================
 
-export type CRMStage =
-  | 'prospeccao'
-  | 'primeira_reuniao'
-  | 'levantamento'
-  | 'defesa_tecnica'
-  | 'dossie_final';
+export type CRMStage = 'prospeccao' | 'primeira_reuniao' | 'levantamento' | 'defesa_tecnica' | 'dossie_final';
 
 export const CRM_STAGE_LABELS: Record<CRMStage, string> = {
   prospeccao: 'Prospecção',

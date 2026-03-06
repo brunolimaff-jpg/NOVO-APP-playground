@@ -12,10 +12,10 @@ import { cleanTitle } from '../utils/textCleaners';
 import { parseSmartOptions } from './SmartOptions'; // <-- ADICIONADO AQUI
 
 const QUICK_ACTIONS = [
-  { icon: "🎯", label: "Comparar", prompt: "Compare com o principal concorrente dessa empresa" },
-  { icon: "💰", label: "Budget", prompt: "Qual o budget estimado para implementação completa com ERP, HCM e GAtec?" },
-  { icon: "💡", label: "Abordagem", prompt: "Me sugira a melhor abordagem para esse decisor" },
-  { icon: "✨", label: "Senior", prompt: "Como os produtos Senior resolveriam as dores dessa empresa?" },
+  { icon: '🎯', label: 'Comparar', prompt: 'Compare com o principal concorrente dessa empresa' },
+  { icon: '💰', label: 'Budget', prompt: 'Qual o budget estimado para implementação completa com ERP, HCM e GAtec?' },
+  { icon: '💡', label: 'Abordagem', prompt: 'Me sugira a melhor abordagem para esse decisor' },
+  { icon: '✨', label: 'Senior', prompt: 'Como os produtos Senior resolveriam as dores dessa empresa?' },
 ];
 
 function extractDisplayedSuggestions(content?: string): string[] {
@@ -47,16 +47,51 @@ type ExtendedChatInterfaceProps = ChatInterfaceProps & {
 };
 
 const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
-  currentSession, sessions, onNewSession, onSelectSession, onDeleteSession,
-  isSidebarOpen, onToggleSidebar, messages, isLoading, hasMore,
-  onSendMessage, onFeedback, onSendFeedback, onSectionFeedback, onLoadMore,
-  onExportConversation, onExportPDF, onExportMessage, onRetry, onClearChat,
-  onRegenerateSuggestions, onStop, onReportError, onSaveRemote, isSavingRemote,
-  remoteSaveStatus, isDarkMode, onToggleTheme, onToggleMessageSources,
-  exportStatus, exportError, pdfReportContent, onOpenEmailModal,
-  onOpenFollowUpModal, userHeaderNode, onLogout, lastUserQuery, processing,
-  onDeepDive, onDeleteMessage, onSaveToCRM, onOpenKanban,
-  canAccessMiniCRM = true, canAccessDashboard = true, canAccessIntegrityCheck = true,
+  currentSession,
+  sessions,
+  onNewSession,
+  onSelectSession,
+  onDeleteSession,
+  isSidebarOpen,
+  onToggleSidebar,
+  messages,
+  isLoading,
+  hasMore,
+  onSendMessage,
+  onFeedback,
+  onSendFeedback,
+  onSectionFeedback,
+  onLoadMore,
+  onExportConversation,
+  onExportPDF,
+  onExportMessage,
+  onRetry,
+  onClearChat,
+  onRegenerateSuggestions,
+  onStop,
+  onReportError,
+  onSaveRemote,
+  isSavingRemote,
+  remoteSaveStatus,
+  isDarkMode,
+  onToggleTheme,
+  onToggleMessageSources,
+  exportStatus,
+  exportError,
+  pdfReportContent,
+  onOpenEmailModal,
+  onOpenFollowUpModal,
+  userHeaderNode,
+  onLogout,
+  lastUserQuery,
+  processing,
+  onDeepDive,
+  onDeleteMessage,
+  onSaveToCRM,
+  onOpenKanban,
+  canAccessMiniCRM = true,
+  canAccessDashboard = true,
+  canAccessIntegrityCheck = true,
 }) => {
   const { mode, setMode } = useMode();
   const { user, userId, updateName } = useAuth();
@@ -94,7 +129,10 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
   useEffect(() => {
     const handlePrefill = (e: Event) => {
       const detail = (e as CustomEvent<{ text: string }>).detail;
-      if (detail?.text) { setInput(detail.text); setTimeout(() => textareaRef.current?.focus(), 100); }
+      if (detail?.text) {
+        setInput(detail.text);
+        setTimeout(() => textareaRef.current?.focus(), 100);
+      }
     };
     window.addEventListener('scout:prefill', handlePrefill);
     return () => window.removeEventListener('scout:prefill', handlePrefill);
@@ -115,8 +153,7 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (actionsMenuRef.current && !actionsMenuRef.current.contains(event.target as Node))
-        setShowActionsMenu(false);
+      if (actionsMenuRef.current && !actionsMenuRef.current.contains(event.target as Node)) setShowActionsMenu(false);
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
@@ -127,37 +164,59 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
       if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
       toastTimerRef.current = setTimeout(() => setShowRetryToast(false), 8000);
     }
-    return () => { if (toastTimerRef.current) clearTimeout(toastTimerRef.current); };
+    return () => {
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    };
   }, [showRetryToast]);
 
-  const lastBotWithSuggestionsIndex = useMemo(() =>
-    [...messages]
-      .map((m, i) => ({ m, i }))
-      .filter(({ m }) => m.sender === Sender.Bot && ((m.suggestions && m.suggestions.length > 0) || parseSmartOptions(m.text).options.length > 0)) // <-- CORREÇÃO AQUI
-      .map(({ i }) => i)
-      .pop(),
-    [messages]);
-    
-  const lastUserIndex = useMemo(() =>
-    [...messages].map((m, i) => ({ m, i })).filter(({ m }) => m.sender === Sender.User).map(({ i }) => i).pop(),
-    [messages]);
-    
+  const lastBotWithSuggestionsIndex = useMemo(
+    () =>
+      [...messages]
+        .map((m, i) => ({ m, i }))
+        .filter(
+          ({ m }) =>
+            m.sender === Sender.Bot &&
+            ((m.suggestions && m.suggestions.length > 0) || parseSmartOptions(m.text).options.length > 0),
+        ) // <-- CORREÇÃO AQUI
+        .map(({ i }) => i)
+        .pop(),
+    [messages],
+  );
+
+  const lastUserIndex = useMemo(
+    () =>
+      [...messages]
+        .map((m, i) => ({ m, i }))
+        .filter(({ m }) => m.sender === Sender.User)
+        .map(({ i }) => i)
+        .pop(),
+    [messages],
+  );
+
   const hideSuggestionsForMessageId =
     lastBotWithSuggestionsIndex !== undefined &&
-      lastUserIndex !== undefined &&
-      lastUserIndex > lastBotWithSuggestionsIndex
+    lastUserIndex !== undefined &&
+    lastUserIndex > lastBotWithSuggestionsIndex
       ? messages[lastBotWithSuggestionsIndex].id
       : null;
 
   const handleSend = () => {
     if (!input.trim() || isLoading) return;
-    onSendMessage(input); setInput(''); setShowActionsMenu(false);
+    onSendMessage(input);
+    setInput('');
+    setShowActionsMenu(false);
     if (textareaRef.current) textareaRef.current.style.height = 'auto';
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
-    if (e.key === 'Enter' && e.ctrlKey) { e.preventDefault(); handleSend(); }
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+    if (e.key === 'Enter' && e.ctrlKey) {
+      e.preventDefault();
+      handleSend();
+    }
   };
 
   const handleActionClick = (prompt: string) => {
@@ -167,9 +226,11 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
   };
 
   const handleCopyMarkdown = useCallback(() => {
-    const text = messages.filter(m => !m.isError && !m.isThinking)
-      .map(m => `**${m.sender === Sender.User ? 'Você' : 'Scout 360'}:**\n${m.text}`).join('\n\n---\n\n')
-      .replace(/\[\[PORTA:\d+:P\d+:O\d+:R\d+:T\d+:A\d+\]\]/g, '');
+    const text = messages
+      .filter(m => !m.isError && !m.isThinking)
+      .map(m => `**${m.sender === Sender.User ? 'Você' : 'Scout 360'}:**\n${m.text}`)
+      .join('\n\n---\n\n')
+      .replace(/\[\[PORTA:[^\]]+\]\]/g, '');
     navigator.clipboard.writeText(text).then(() => alert('Copiado!'));
   }, [messages]);
 
@@ -185,25 +246,60 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
 
   const headerTitle = cleanTitle(currentSession?.title || 'Nova Investigação');
   const displayTitle = headerTitle.length > 35 ? headerTitle.substring(0, 32) + '...' : headerTitle;
-  const hasReport = messages.some(m => m.sender === Sender.Bot && !m.isThinking && !m.isError && (m.text?.length || 0) > 100);
+  const hasReport = messages.some(
+    m => m.sender === Sender.Bot && !m.isThinking && !m.isError && (m.text?.length || 0) > 100,
+  );
 
-  const itemData = useMemo<MessageRowData>(() => ({
-    messages, isLoading, isDarkMode, mode, onRetry, onDeleteMessage, onReportError,
-    onFeedback, onSendFeedback, onToggleMessageSources, onDeepDive, onRegenerateSuggestions,
-    handleDeleteWithUndo,
-    pendingDeleteId,
-    hideSuggestionsForMessageId, setInput,
-    sessionId: currentSession?.id, userId, processing, lastUserQuery,
-    onStop: handleStopWithToast,
-    onSendMessage, // <-- CORREÇÃO AQUI (Para as sugestões clicáveis enviarem sozinhas)
-    empresaAlvo: currentSession?.empresaAlvo || null, // <-- NOVO: passar o nome da empresa
-  }), [
-    messages, isLoading, isDarkMode, mode, onRetry, onDeleteMessage, onReportError,
-    onFeedback, onSendFeedback, onToggleMessageSources, onDeepDive, onRegenerateSuggestions,
-    pendingDeleteId, hideSuggestionsForMessageId,
-    currentSession?.id, currentSession?.empresaAlvo, userId, processing, lastUserQuery, handleStopWithToast,
-    onSendMessage, // <-- CORREÇÃO AQUI NAS DEPENDÊNCIAS
-  ]);
+  const itemData = useMemo<MessageRowData>(
+    () => ({
+      messages,
+      isLoading,
+      isDarkMode,
+      mode,
+      onRetry,
+      onDeleteMessage,
+      onReportError,
+      onFeedback,
+      onSendFeedback,
+      onToggleMessageSources,
+      onDeepDive,
+      onRegenerateSuggestions,
+      handleDeleteWithUndo,
+      pendingDeleteId,
+      hideSuggestionsForMessageId,
+      setInput,
+      sessionId: currentSession?.id,
+      userId,
+      processing,
+      lastUserQuery,
+      onStop: handleStopWithToast,
+      onSendMessage, // <-- CORREÇÃO AQUI (Para as sugestões clicáveis enviarem sozinhas)
+      empresaAlvo: currentSession?.empresaAlvo || null, // <-- NOVO: passar o nome da empresa
+    }),
+    [
+      messages,
+      isLoading,
+      isDarkMode,
+      mode,
+      onRetry,
+      onDeleteMessage,
+      onReportError,
+      onFeedback,
+      onSendFeedback,
+      onToggleMessageSources,
+      onDeepDive,
+      onRegenerateSuggestions,
+      pendingDeleteId,
+      hideSuggestionsForMessageId,
+      currentSession?.id,
+      currentSession?.empresaAlvo,
+      userId,
+      processing,
+      lastUserQuery,
+      handleStopWithToast,
+      onSendMessage, // <-- CORREÇÃO AQUI NAS DEPENDÊNCIAS
+    ],
+  );
 
   return (
     <div className={`flex h-full w-full overflow-hidden ${isDarkMode ? 'bg-slate-950' : 'bg-white'}`}>
@@ -222,17 +318,22 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
       />
 
       <main className="flex-1 flex flex-col h-full min-h-0 relative w-full transition-all duration-300">
-
-        <header className={`h-14 flex-shrink-0 flex items-center justify-between px-3 py-2 border-b backdrop-blur-md z-10 ${
-          isDarkMode ? 'bg-gray-900/80 border-gray-800' : 'bg-white/80 border-gray-200'
-        }`}>
+        <header
+          className={`h-14 flex-shrink-0 flex items-center justify-between px-3 py-2 border-b backdrop-blur-md z-10 ${
+            isDarkMode ? 'bg-gray-900/80 border-gray-800' : 'bg-white/80 border-gray-200'
+          }`}
+        >
           <div className="flex items-center gap-3 min-w-0 overflow-hidden">
             <button
               onClick={onToggleSidebar}
               className={`p-2 rounded-lg transition-colors flex-shrink-0 ${
-                isDarkMode ? 'text-gray-400 hover:text-white hover:bg-gray-800' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'
+                isDarkMode
+                  ? 'text-gray-400 hover:text-white hover:bg-gray-800'
+                  : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'
               }`}
-            >☰</button>
+            >
+              ☰
+            </button>
             <h1 className={`text-sm font-bold truncate ${isDarkMode ? 'text-white' : 'text-slate-900'}`}>
               {displayTitle}
             </h1>
@@ -240,43 +341,78 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
           <div className="flex items-center gap-1 flex-shrink-0">
             {hasReport && !isLoading && (
               <>
-                <button onClick={onExportPDF} className={`p-1.5 text-sm transition-colors ${
-                  isDarkMode ? 'text-gray-400 hover:text-emerald-400' : 'text-gray-500 hover:text-emerald-500'
-                }`} title="Exportar PDF">📄</button>
-                <button onClick={onOpenEmailModal} className={`p-1.5 text-sm transition-colors ${
-                  isDarkMode ? 'text-gray-400 hover:text-emerald-400' : 'text-gray-500 hover:text-emerald-500'
-                }`} title="Enviar por email">📧</button>
-                <button onClick={onOpenFollowUpModal} className={`p-1.5 text-sm transition-colors ${
-                  isDarkMode ? 'text-gray-400 hover:text-emerald-400' : 'text-gray-500 hover:text-emerald-500'
-                }`} title="Agendar follow-up">📅</button>
+                <button
+                  onClick={onExportPDF}
+                  className={`p-1.5 text-sm transition-colors ${
+                    isDarkMode ? 'text-gray-400 hover:text-emerald-400' : 'text-gray-500 hover:text-emerald-500'
+                  }`}
+                  title="Exportar PDF"
+                >
+                  📄
+                </button>
+                <button
+                  onClick={onOpenEmailModal}
+                  className={`p-1.5 text-sm transition-colors ${
+                    isDarkMode ? 'text-gray-400 hover:text-emerald-400' : 'text-gray-500 hover:text-emerald-500'
+                  }`}
+                  title="Enviar por email"
+                >
+                  📧
+                </button>
+                <button
+                  onClick={onOpenFollowUpModal}
+                  className={`p-1.5 text-sm transition-colors ${
+                    isDarkMode ? 'text-gray-400 hover:text-emerald-400' : 'text-gray-500 hover:text-emerald-500'
+                  }`}
+                  title="Agendar follow-up"
+                >
+                  📅
+                </button>
                 <div className={`w-px h-4 mx-1 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-300'}`} />
               </>
             )}
             <button
               onClick={() => setShowWarRoom(true)}
               className={`p-2 rounded-lg transition-all ${
-                isDarkMode ? 'text-gray-500 hover:text-red-400 hover:bg-gray-800' : 'text-gray-400 hover:text-red-500 hover:bg-gray-100'
+                isDarkMode
+                  ? 'text-gray-500 hover:text-red-400 hover:bg-gray-800'
+                  : 'text-gray-400 hover:text-red-500 hover:bg-gray-100'
               }`}
               title="War Room: Inteligência Competitiva"
-            >⚔️</button>
+            >
+              ⚔️
+            </button>
             <button
               onClick={() => setShowSettings(true)}
               className={`p-2 rounded-lg transition-all ${
-                isDarkMode ? 'text-gray-500 hover:text-emerald-400 hover:bg-gray-800' : 'text-gray-400 hover:text-emerald-500 hover:bg-gray-100'
+                isDarkMode
+                  ? 'text-gray-500 hover:text-emerald-400 hover:bg-gray-800'
+                  : 'text-gray-400 hover:text-emerald-500 hover:bg-gray-100'
               }`}
               title="Configurações"
-            >⚙️</button>
+            >
+              ⚙️
+            </button>
           </div>
         </header>
 
         {showSettings && (
           <React.Suspense fallback={null}>
             <SettingsDrawer
-              isOpen={showSettings} onClose={() => setShowSettings(false)} userName={user?.displayName || ''}
-              onUpdateName={updateName} mode={mode} onSetMode={setMode} isDarkMode={isDarkMode}
-              onToggleTheme={onToggleTheme} onOpenDashboard={() => canAccessDashboard && setShowDashboard(true)}
-              onExportPDF={onExportPDF} onCopyMarkdown={handleCopyMarkdown}
-              onSendEmail={onOpenEmailModal} onScheduleFollowUp={onOpenFollowUpModal} exportStatus={exportStatus}
+              isOpen={showSettings}
+              onClose={() => setShowSettings(false)}
+              userName={user?.displayName || ''}
+              onUpdateName={updateName}
+              mode={mode}
+              onSetMode={setMode}
+              isDarkMode={isDarkMode}
+              onToggleTheme={onToggleTheme}
+              onOpenDashboard={() => canAccessDashboard && setShowDashboard(true)}
+              onExportPDF={onExportPDF}
+              onCopyMarkdown={handleCopyMarkdown}
+              onSendEmail={onOpenEmailModal}
+              onScheduleFollowUp={onOpenFollowUpModal}
+              exportStatus={exportStatus}
               canAccessDashboard={canAccessDashboard}
               canAccessIntegrityCheck={canAccessIntegrityCheck}
             />
@@ -287,7 +423,10 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
           <React.Suspense fallback={null}>
             <InvestigationDashboard
               onClose={() => setShowDashboard(false)}
-              onSelectEmpresa={(empresa) => { onSendMessage(`Investigar ${empresa}`); setShowDashboard(false); }}
+              onSelectEmpresa={empresa => {
+                onSendMessage(`Investigar ${empresa}`);
+                setShowDashboard(false);
+              }}
             />
           </React.Suspense>
         )}
@@ -295,13 +434,21 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
         <div ref={scrollContainerRef} className="flex-1 min-h-0 overflow-y-auto custom-scrollbar">
           {messages.length === 0 ? (
             <div className="h-full p-4 md:p-6">
-              <EmptyStateHome mode={mode} onSendMessage={onSendMessage} onPreFill={(text) => setInput(text)} isDarkMode={isDarkMode} />
+              <EmptyStateHome
+                mode={mode}
+                onSendMessage={onSendMessage}
+                onPreFill={text => setInput(text)}
+                isDarkMode={isDarkMode}
+              />
             </div>
           ) : (
             <div className="py-4">
               {hasMore && (
                 <div className="flex justify-center mb-2">
-                  <button onClick={onLoadMore} className="text-xs text-slate-500 hover:text-emerald-500 bg-white/80 dark:bg-slate-900/80 backdrop-blur px-3 py-1 rounded-full shadow">
+                  <button
+                    onClick={onLoadMore}
+                    className="text-xs text-slate-500 hover:text-emerald-500 bg-white/80 dark:bg-slate-900/80 backdrop-blur px-3 py-1 rounded-full shadow"
+                  >
                     Carregar anteriores
                   </button>
                 </div>
@@ -316,9 +463,11 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
 
         {showRetryToast && (
           <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 animate-fade-in">
-            <div className={`rounded-xl shadow-2xl border px-4 py-3 min-w-[320px] max-w-md ${
-              isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'
-            }`}>
+            <div
+              className={`rounded-xl shadow-2xl border px-4 py-3 min-w-[320px] max-w-md ${
+                isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'
+              }`}
+            >
               <div className="flex items-start gap-3">
                 <span className="text-xl mt-0.5">⚠️</span>
                 <div className="flex-1">
@@ -328,7 +477,9 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
                   <button
                     onClick={handleRetryNormal}
                     className={`w-full px-3 py-2 rounded-lg text-xs font-semibold transition-all ${
-                      isDarkMode ? 'bg-emerald-600 hover:bg-emerald-500 text-white' : 'bg-emerald-500 hover:bg-emerald-600 text-white'
+                      isDarkMode
+                        ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                        : 'bg-emerald-500 hover:bg-emerald-600 text-white'
                     }`}
                   >
                     🔄 Tentar novamente
@@ -339,7 +490,9 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
                   className={`text-xl opacity-50 hover:opacity-100 transition-opacity ${
                     isDarkMode ? 'text-slate-400' : 'text-slate-500'
                   }`}
-                >×</button>
+                >
+                  ×
+                </button>
               </div>
             </div>
           </div>
@@ -347,21 +500,27 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
 
         {pendingDeleteId && (
           <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 animate-fade-in">
-            <div className={`flex items-center gap-3 rounded-xl shadow-xl border px-4 py-2.5 ${
-              isDarkMode ? 'bg-slate-800 border-slate-700 text-slate-200' : 'bg-white border-slate-200 text-slate-800'
-            }`}>
+            <div
+              className={`flex items-center gap-3 rounded-xl shadow-xl border px-4 py-2.5 ${
+                isDarkMode ? 'bg-slate-800 border-slate-700 text-slate-200' : 'bg-white border-slate-200 text-slate-800'
+              }`}
+            >
               <span className="text-sm">Mensagem excluída</span>
               <button
                 onClick={handleUndoDelete}
                 className="text-sm font-bold text-emerald-500 hover:text-emerald-400 transition-colors"
-              >Desfazer</button>
+              >
+                Desfazer
+              </button>
             </div>
           </div>
         )}
 
-        <div className={`flex-shrink-0 p-3 pb-4 md:p-6 border-t ${
-          isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-white border-slate-200'
-        } z-20`}>
+        <div
+          className={`flex-shrink-0 p-3 pb-4 md:p-6 border-t ${
+            isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-white border-slate-200'
+          } z-20`}
+        >
           <div className="w-full max-w-5xl xl:max-w-6xl mx-auto px-1 md:px-6 lg:px-8 relative">
             {showActionsMenu && (
               <div
@@ -370,13 +529,15 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
                   isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'
                 }`}
               >
-                <div className={`px-4 py-3 border-b text-xs font-bold uppercase tracking-wider flex items-center gap-2 ${
-                  isDarkMode ? 'border-slate-700 text-emerald-400' : 'border-slate-100 text-emerald-600'
-                }`}>
+                <div
+                  className={`px-4 py-3 border-b text-xs font-bold uppercase tracking-wider flex items-center gap-2 ${
+                    isDarkMode ? 'border-slate-700 text-emerald-400' : 'border-slate-100 text-emerald-600'
+                  }`}
+                >
                   <span>⚡</span> Ações Rápidas
                 </div>
                 <div className="flex flex-col py-1 max-h-[40vh] overflow-y-auto">
-                  {QUICK_ACTIONS.map((qa) => (
+                  {QUICK_ACTIONS.map(qa => (
                     <button
                       key={qa.label}
                       onClick={() => handleActionClick(qa.prompt)}
@@ -392,9 +553,11 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
               </div>
             )}
 
-            <div className={`relative flex items-end w-full rounded-2xl border pl-2 pr-12 py-2 shadow-sm ${
-              isDarkMode ? 'border-gray-700/50 bg-gray-800/80' : 'border-gray-300 bg-white'
-            }`}>
+            <div
+              className={`relative flex items-end w-full rounded-2xl border pl-2 pr-12 py-2 shadow-sm ${
+                isDarkMode ? 'border-gray-700/50 bg-gray-800/80' : 'border-gray-300 bg-white'
+              }`}
+            >
               {!isLoading && messages.length > 0 && (
                 <button
                   onClick={() => setShowActionsMenu(!showActionsMenu)}
@@ -402,16 +565,25 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
                     isDarkMode ? 'text-emerald-400 hover:bg-slate-700' : 'text-emerald-600 hover:bg-emerald-50'
                   }`}
                   title="Ações Rápidas"
-                >⚡</button>
+                >
+                  ⚡
+                </button>
               )}
 
               {!isLoading && messages.length > 0 && messages[messages.length - 1].sender === Sender.User && (
                 <div className="absolute bottom-full left-0 mb-3 w-full flex justify-center animate-fade-in">
-                  <div className={`flex items-center gap-3 px-4 py-2 rounded-full shadow-md border text-xs font-semibold ${
-                    isDarkMode ? 'bg-slate-800 border-red-900/50 text-slate-200' : 'bg-red-50 border-red-200 text-red-700'
-                  }`}>
+                  <div
+                    className={`flex items-center gap-3 px-4 py-2 rounded-full shadow-md border text-xs font-semibold ${
+                      isDarkMode
+                        ? 'bg-slate-800 border-red-900/50 text-slate-200'
+                        : 'bg-red-50 border-red-200 text-red-700'
+                    }`}
+                  >
                     <span>⚠️ A resposta falhou ou foi perdida no reload.</span>
-                    <button onClick={handleRetryNormal} className="px-3 py-1 rounded-full bg-red-600 hover:bg-red-500 text-white shadow-sm transition-all flex items-center gap-1">
+                    <button
+                      onClick={handleRetryNormal}
+                      className="px-3 py-1 rounded-full bg-red-600 hover:bg-red-500 text-white shadow-sm transition-all flex items-center gap-1"
+                    >
                       <span className="text-sm">🔄</span> Gerar Resposta
                     </button>
                   </div>
@@ -421,9 +593,11 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
               <textarea
                 ref={textareaRef}
                 value={input}
-                onChange={(e) => setInput(e.target.value)}
+                onChange={e => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder={isLoading ? 'Gerando resposta...' : 'Investigar empresa, CNPJ ou colar ficha do Spotter...'}
+                placeholder={
+                  isLoading ? 'Gerando resposta...' : 'Investigar empresa, CNPJ ou colar ficha do Spotter...'
+                }
                 disabled={isLoading}
                 rows={1}
                 className={`flex-1 bg-transparent text-sm outline-none resize-none min-h-[36px] max-h-[100px] mb-1 px-2 custom-scrollbar ${
@@ -449,7 +623,9 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
                   disabled={!input.trim()}
                   className={`absolute right-2 bottom-2 w-10 h-10 flex items-center justify-center rounded-xl transition-all shadow-md ${
                     !input.trim()
-                      ? (isDarkMode ? 'bg-slate-700 text-slate-500' : 'bg-slate-200 text-slate-400')
+                      ? isDarkMode
+                        ? 'bg-slate-700 text-slate-500'
+                        : 'bg-slate-200 text-slate-400'
                       : 'bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-white hover:scale-105 active:scale-95 shadow-emerald-500/30'
                   }`}
                 >
@@ -461,13 +637,17 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
         </div>
 
         {showWarRoom && (
-          <React.Suspense fallback={
-            <div className={`fixed inset-0 z-50 flex items-center justify-center ${isDarkMode ? 'bg-slate-950/90' : 'bg-white/90'}`}>
-              <div className={`text-sm font-semibold ${isDarkMode ? 'text-slate-200' : 'text-slate-700'}`}>
-                Carregando War Room...
+          <React.Suspense
+            fallback={
+              <div
+                className={`fixed inset-0 z-50 flex items-center justify-center ${isDarkMode ? 'bg-slate-950/90' : 'bg-white/90'}`}
+              >
+                <div className={`text-sm font-semibold ${isDarkMode ? 'text-slate-200' : 'text-slate-700'}`}>
+                  Carregando War Room...
+                </div>
               </div>
-            </div>
-          }>
+            }
+          >
             <WarRoom
               isOpen={showWarRoom}
               onClose={() => setShowWarRoom(false)}
