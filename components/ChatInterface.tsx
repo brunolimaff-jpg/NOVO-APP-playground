@@ -169,7 +169,7 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
   const handleCopyMarkdown = useCallback(() => {
     const text = messages.filter(m => !m.isError && !m.isThinking)
       .map(m => `**${m.sender === Sender.User ? 'Você' : 'Scout 360'}:**\n${m.text}`).join('\n\n---\n\n')
-      .replace(/\[\[PORTA:\d+:P\d+:O\d+:R\d+:T\d+:A\d+\]\]/g, '');
+      .replace(/\[\[PORTA:[^\]]*\]\]/g, '');
     navigator.clipboard.writeText(text).then(() => alert('Copiado!'));
   }, [messages]);
 
