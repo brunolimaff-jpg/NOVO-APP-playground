@@ -1,15 +1,17 @@
-import { AppError, ReportType, Sender, ScorePortaData, ParsedContent } from '../types';
+import { AppError, Message, ParsedContent, ReportType, ScorePortaData, Sender } from '../types';
 import { ChatMode, NOME_VENDEDOR_PLACEHOLDER } from '../constants';
 import { normalizeAppError } from '../utils/errorHelpers';
 import { withAutoRetry } from '../utils/retry';
-import { Message } from '../types';
 import { lookupCliente, formatarParaPrompt, benchmarkClientes, formatarBenchmarkParaPrompt, isConcorrenteOuPropria } from './clientLookupService';
 import { addInvestigation } from '../components/InvestigationDashboard';
 import { CompetitorDetection, getContextoConcorrentesRegionais } from './competitorService';
 import { buscarContextoPinecone, buscarContextoDocsPinecone } from './ragService';
 import { scanInput, sanitizeExternalContent, CANARY_TOKEN } from '../utils/promptGuard';
 import { parseLoadingCuriosities } from '../utils/loadingCuriosities';
+import { parsePortaMarkerV2 } from '../utils/porta';
 import { proxyChatSendMessage, proxyGenerateContent } from './geminiProxy';
+
+export { parsePortaMarkerV2 } from '../utils/porta';
 
 export interface GeminiRequestOptions {
   useGrounding?: boolean;
@@ -115,13 +117,9 @@ export function parseMarkers(content: string): ParsedContent {
     text = text.replace(statusMatch[0], '');
   }
 
-  const portaMatch = text.match(/\[\[PORTA:(\d+):P(\d+):O(\d+):R(\d+):T(\d+):A(\d+)\]\]/);
-  if (portaMatch) {
-    scorePorta = {
-      score: parseInt(portaMatch[1]), p: parseInt(portaMatch[2]), o: parseInt(portaMatch[3]),
-      r: parseInt(portaMatch[4]), t: parseInt(portaMatch[5]), a: parseInt(portaMatch[6]),
-    };
-    text = text.replace(portaMatch[0], '');
+  scorePorta = parsePortaMarkerV2(text);
+  if (scorePorta) {
+    text = text.replace(/\[\[PORTA:[^\]]+\]\]/, '');
   }
 
   text = text.replace(/\[\[COMPETITOR:[^\]]*\]\]/g, '').replace(/\[\[[A-Z_]+:[^\n]*?\]\]/g, '');

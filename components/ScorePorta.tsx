@@ -1,20 +1,21 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { ScorePortaData } from '../types';
+import { PORTA_FLAG_META } from '../utils/porta';
 
 interface ScorePortaProps extends ScorePortaData {
   isDarkMode?: boolean;
 }
 
 const pillars = [
-  { key: 'p', letter: 'P', label: 'Porte Financeiro' },
-  { key: 'o', letter: 'O', label: 'Operação (escala)' },
-  { key: 'r', letter: 'R', label: 'Retorno esperado' },
-  { key: 't', letter: 'T', label: 'Tecnologia (maturidade)' },
-  { key: 'a', letter: 'A', label: 'Adoção / Cultura' },
+  { key: 'p', letter: 'P', label: 'Porte (massa critica)' },
+  { key: 'o', letter: 'O', label: 'Operacao (cadeia de valor)' },
+  { key: 'r', letter: 'R', label: 'Retorno (pressao externa)' },
+  { key: 't', letter: 'T', label: 'Tecnologia (stack + dor)' },
+  { key: 'a', letter: 'A', label: 'Adocao (cultura + timing)' },
 ];
 
-const ScorePorta: React.FC<ScorePortaProps> = ({ score, p, o, r, t, a, isDarkMode = true }) => {
+const ScorePorta: React.FC<ScorePortaProps> = ({ score, p, o, r, t, a, segmento, flags, scoreBruto, isDarkMode = true }) => {
   const isAlta  = score >= 71;
   const isMedia = score >= 41 && score < 71;
 
@@ -28,8 +29,12 @@ const ScorePorta: React.FC<ScorePortaProps> = ({ score, p, o, r, t, a, isDarkMod
   const labelColor  = isDarkMode ? '#94a3b8' : '#64748b';
   const valueColor  = isDarkMode ? '#e2e8f0' : '#334155';
   const subColor    = isDarkMode ? '#475569' : '#94a3b8';
+  const badgeBg     = isDarkMode ? '#111827' : '#e2e8f0';
 
   const values: Record<string, number> = { p, o, r, t, a };
+  const scoreDetail = typeof scoreBruto === 'number'
+    ? `Score: ${score} (bruto: ${scoreBruto}${flags.length ? ` - penalizado por ${flags.join(', ')}` : ' - sem penalizacoes'})`
+    : null;
 
   return (
     <motion.div
@@ -49,7 +54,7 @@ const ScorePorta: React.FC<ScorePortaProps> = ({ score, p, o, r, t, a, isDarkMod
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <span style={{ fontSize: '16px' }}>🎯</span>
           <span
-            title="P = Porte · O = Operação · R = Retorno · T = Tecnologia · A = Adoção"
+            title="P = Porte · O = Operacao · R = Retorno · T = Tecnologia · A = Adocao"
             style={{ fontSize: '12px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: labelColor, cursor: 'help' }}
           >
             PORTA
@@ -68,6 +73,60 @@ const ScorePorta: React.FC<ScorePortaProps> = ({ score, p, o, r, t, a, isDarkMod
         </div>
       </div>
 
+      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '10px' }}>
+        <span
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px',
+            padding: '4px 10px',
+            borderRadius: '999px',
+            background: badgeBg,
+            color: valueColor,
+            fontSize: '11px',
+            fontWeight: 700,
+          }}
+        >
+          SEG {segmento}
+        </span>
+        {flags.length > 0 ? (
+          flags.map((flag) => (
+            <span
+              key={flag}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '4px 10px',
+                borderRadius: '999px',
+                background: badgeBg,
+                color: valueColor,
+                fontSize: '11px',
+                fontWeight: 700,
+              }}
+            >
+              {PORTA_FLAG_META[flag].icon} {PORTA_FLAG_META[flag].label}
+            </span>
+          ))
+        ) : (
+          <span
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '4px 10px',
+              borderRadius: '999px',
+              background: badgeBg,
+              color: labelColor,
+              fontSize: '11px',
+              fontWeight: 700,
+            }}
+          >
+            Sem flags
+          </span>
+        )}
+      </div>
+
       {/* Progress bar */}
       <div style={{ width: '100%', height: '8px', borderRadius: '4px', background: barBg, marginBottom: '10px', overflow: 'hidden' }}>
         <motion.div
@@ -84,6 +143,12 @@ const ScorePorta: React.FC<ScorePortaProps> = ({ score, p, o, r, t, a, isDarkMod
           {emoji} {label}
         </span>
       </div>
+
+      {scoreDetail && (
+        <div style={{ marginBottom: '12px', fontSize: '12px', color: subColor }}>
+          {scoreDetail}
+        </div>
+      )}
 
       {/* Pillar pills */}
       <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>

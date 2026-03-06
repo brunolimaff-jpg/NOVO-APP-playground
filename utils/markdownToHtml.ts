@@ -2,24 +2,38 @@ import { extractValidLinks } from './linkFixer';
 import { formatSourcesForExport, SourceRef } from './textCleaners';
 import { fixFakeLinksHTML } from './linkFixer';
 import { APP_NAME } from '../constants';
+import { PORTA_FLAG_META, parsePortaMarkerV2 } from './porta';
 
 export function convertMarkdownToHTML(md: string, includeSources: boolean = true): string {
   const allLinks = extractValidLinks(md);
   const markdownHttpLinkRegex = /\[([^\]]+)\]\((https?:\/\/(?:[^\s()]+|\([^\s()]*\))+)\)/g;
   let html = md
     .replace(
-      /\[\[PORTA:(\d+):P(\d+):O(\d+):R(\d+):T(\d+):A(\d+)\]\]/g,
-      (_, score, p, o, r, t, a) => {
-        const s = parseInt(score);
+      /\[\[PORTA:[^\]]+\]\]/g,
+      (marker) => {
+        const porta = parsePortaMarkerV2(marker);
+        if (!porta) return marker;
+
+        const { score, p, o, r, t, a, segmento, flags, scoreBruto } = porta;
+        const s = score;
         const color = s >= 71 ? '#059669' : s >= 41 ? '#eab308' : '#ef4444';
         const bgColor = s >= 71 ? '#f0fdf4' : s >= 41 ? '#fefce8' : '#fef2f2';
         const borderColor = s >= 71 ? '#059669' : s >= 41 ? '#eab308' : '#ef4444';
         const label = s >= 71 ? '🟢 Alta Compatibilidade' : s >= 41 ? '🟡 Média Compatibilidade' : '🔴 Baixa Compatibilidade';
+        const flagsHtml = flags.length > 0
+          ? flags.map((flag) => `<span class="pill">${PORTA_FLAG_META[flag].icon} ${PORTA_FLAG_META[flag].label}</span>`).join('')
+          : '<span class="pill">Sem flags</span>';
+        const detailHtml = typeof scoreBruto === 'number'
+          ? `<div class="score-detail">Score: ${score} (bruto: ${scoreBruto}${flags.length ? ` - penalizado por ${flags.join(', ')}` : ' - sem penalizacoes'})</div>`
+          : '';
+
         return `<div class="porta-score" style="border:2px solid ${borderColor};background:${bgColor};">
           <div class="header"><span class="label-porta">🎯 PORTA</span><span><span class="score-num" style="color:${color};">${score}</span><span class="score-max">/100</span></span></div>
           <div class="bar-bg" style="background:${color}20;"><div class="bar-fill" style="width:${Math.min(s, 100)}%;background:${color};"></div></div>
           <div class="compat" style="color:${color};">${label}</div>
           <div class="pillars"><span class="pill"><b>P</b> ${p}</span><span class="pill"><b>O</b> ${o}</span><span class="pill"><b>R</b> ${r}</span><span class="pill"><b>T</b> ${t}</span><span class="pill"><b>A</b> ${a}</span></div>
+          <div class="pillars"><span class="pill"><b>SEG</b> ${segmento}</span>${flagsHtml}</div>
+          ${detailHtml}
         </div>`;
       }
     )

@@ -42,14 +42,24 @@ describe('convertMarkdownToHTML', () => {
   });
 
   it('converts PORTA score markers', () => {
-    const result = convertMarkdownToHTML('[[PORTA:75:P80:O70:R80:T75:A70]]', false);
+    const result = convertMarkdownToHTML('[[PORTA:75:P8:O7:R8:T7:A7:AGI:NONE]]', false);
     expect(result).toContain('porta-score');
     expect(result).toContain('75');
     expect(result).toContain('Alta Compatibilidade');
+    expect(result).toContain('SEG');
+    expect(result).toContain('AGI');
   });
 
-  it('handles PORTA score with low value', () => {
-    const result = convertMarkdownToHTML('[[PORTA:30:P20:O30:R40:T30:A30]]', false);
+  it('handles penalized PORTA score markers', () => {
+    const result = convertMarkdownToHTML('[[PORTA:30:P6:O7:R5:T5:A6:PRD:TRAD,LOCK]]', false);
     expect(result).toContain('Baixa Compatibilidade');
+    expect(result).toContain('TRAD');
+    expect(result).toContain('LOCK');
+  });
+
+  it('keeps backward compatibility with PORTA v1 markers', () => {
+    const result = convertMarkdownToHTML('[[PORTA:62:P5:O7:R6:T5:A6]]', false);
+    expect(result).toContain('62');
+    expect(result).toContain('PRD');
   });
 });
