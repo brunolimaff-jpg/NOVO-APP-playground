@@ -1,5 +1,3 @@
-import React from 'react';
-
 export enum Sender {
   User = 'user',
   Bot = 'bot',
@@ -162,8 +160,6 @@ export interface ChatInterfaceProps {
   canAccessMiniCRM?: boolean;
   canAccessDashboard?: boolean;
   canAccessIntegrityCheck?: boolean;
-  // Renomeado de userId para deixar claro que é um nó React, não uma string
-  userHeaderNode: React.ReactNode;
   onLogout: () => void;
   lastUserQuery?: string;
   processing?: {
