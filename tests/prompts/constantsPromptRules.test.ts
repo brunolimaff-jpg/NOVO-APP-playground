@@ -36,5 +36,6 @@ describe('BASE_SYSTEM_PROMPT critical investigation rules', () => {
     expect(BASE_SYSTEM_PROMPT).toContain('8. **Certificações e ESG**');
     expect(BASE_SYSTEM_PROMPT).toContain('5. **Frota Própria vs Terceirizada**');
     expect(BASE_SYSTEM_PROMPT).toContain('6. **Sinais de Sistema Legado**');
+    expect(BASE_SYSTEM_PROMPT).toContain('SAÍDA MÍNIMA OBRIGATÓRIA DA FASE 8');
   });
 });

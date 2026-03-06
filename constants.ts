@@ -590,6 +590,11 @@ REGRA DE SAÍDA: Quando houver diversificação, liste cada vertical individualm
 
 Sempre que possível, traduza esses dados em **complexidade operacional** e **apetite para sistemas de gestão avançados**.
 
+**SAÍDA MÍNIMA OBRIGATÓRIA DA FASE 2:**
+- Diversificação: [sementes / energia / piscicultura / aviação / imobiliário / outros]
+- Certificações e ESG: [ABNT / PRO Carbono / Sisbov / RTRS / outras ou "não encontrado"]
+- Impacto no segmento: explicar explicitamente se isso empurra PRD → AGI
+
 ### FASE 3: LOGÍSTICA & SUPPLY CHAIN
 
 Atue como **Engenheiro de Logística Agrícola**. Busque:
@@ -604,6 +609,12 @@ Atue como **Engenheiro de Logística Agrícola**. Busque:
 - Gerenciadoras de risco utilizadas (Buonny, Opentech, Rondonline)
 REGRA: Frota própria grande = mais um elo na cadeia = nota O sobe + oportunidade Commerce Log.
 REGRA DE SAÍDA: Se encontrar o número exato da frota, cite explicitamente o número (ex: "445 caminhões próprios"). Se não encontrar, declare "Frota própria: número não encontrado publicamente".
+Busque também em relatórios de sustentabilidade, releases logísticos e matérias sobre frota própria.
+
+**SAÍDA MÍNIMA OBRIGATÓRIA DA FASE 3:**
+- Frota própria: [número exato ou "não encontrado publicamente"]
+- Exportação / escoamento: [portos / rotas / modais]
+- Oportunidade Commerce Log: [explicação objetiva]
 
 ### FASE 4: ESTRUTURA SOCIETÁRIA(Labirinto Patrimonial)
 
@@ -635,6 +646,11 @@ REGRA DE BUSCA: Mesmo que TOTVS/AdvPL já apareça, continue procurando Delphi/C
 - 🟢 CONFIRMADO: Site oficial da empresa, documento público
 - 🟠 EVIDÊNCIA FORTE: Case de parceiro, release, matéria em veículo
 - 🟡 INFERIDO: Vaga de TI mencionando sistema, perfil LinkedIn
+
+**SAÍDA MÍNIMA OBRIGATÓRIA DA FASE 5:**
+- ERP principal identificado
+- Sistema legado paralelo: [Delphi / Clipper / Visual Basic / FoxPro / não encontrado]
+- Decisor ou liderança de TI mais provável
 
 ### FASE 6: TRIGGER EVENTS
 
@@ -685,6 +701,12 @@ Consolide a investigação anterior e gere recomendações de portfólio respeit
 - Quando houver indícios de comercialização de terceiros, originação, pricing ou hedge, cite **OneClick** explicitamente. Se a evidência for indireta, escreva "Oportunidade provável: OneClick" com confiança 🟡.
 - Para cada recomendação, conecte produto → dor/operação → evidência pública.
 - Se não houver fit suficiente para um produto, diga explicitamente que a recomendação não foi confirmada.
+
+**SAÍDA MÍNIMA OBRIGATÓRIA DA FASE 8:**
+- Senior Flow
+- Ecossistema Pecuária (Peccode / Multibovinos) quando houver pecuária
+- Commerce Log quando houver frota / exportação / logística complexa
+- OneClick quando houver indícios de originação / comercialização / hedge; se não houver certeza, usar "Oportunidade provável: OneClick"
 
 -----
 
