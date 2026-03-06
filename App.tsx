@@ -925,22 +925,6 @@ const App: React.FC = () => {
     setSelectedCRMCardId(null);
   };
 
-  // --- Render helpers ---
-  const renderUserHeader = () => {
-    if (!user) return null;
-    const displayName = typeof user.displayName === 'string' ? user.displayName : 'Usuário';
-    return (
-      <div className="hidden lg:flex items-center gap-2 mr-2 border-r border-slate-300 dark:border-slate-700 pr-3">
-        <span className="text-xs font-medium text-slate-500 dark:text-slate-400 truncate max-w-[120px]">
-          👤 {displayName}
-        </span>
-        <button onClick={logout} className="text-[10px] text-red-500 hover:text-red-600 font-medium hover:underline">
-          Sair
-        </button>
-      </div>
-    );
-  };
-
   if (!isInitialized) {
     return (
       <div
@@ -989,20 +973,6 @@ const App: React.FC = () => {
       <div
         className={`flex flex-col h-[100dvh] w-full overflow-hidden overscroll-none ${isDarkMode ? 'bg-slate-950' : 'bg-slate-50'}`}
       >
-        <header
-          className={`h-12 px-3 md:px-4 flex items-center justify-between border-b backdrop-blur-sm ${isDarkMode ? 'bg-slate-950/80 border-slate-800' : 'bg-white/80 border-slate-200'}`}
-        >
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-semibold text-slate-800 dark:text-slate-100">🦅 Senior Scout 360</span>
-              <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
-                {MODE_LABELS[mode].icon} {MODE_LABELS[mode].label}
-              </span>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">{renderUserHeader()}</div>
-        </header>
-
         <div className="flex-1 min-h-0">
           {activeView === 'chat' || !canAccessMiniCRM ? (
             <ChatInterface
@@ -1057,7 +1027,6 @@ const App: React.FC = () => {
               canAccessMiniCRM={canAccessMiniCRM}
               canAccessDashboard={canAccessDashboard}
               canAccessIntegrityCheck={canAccessIntegrityCheck}
-              userHeaderNode={renderUserHeader()}
               onLogout={logout}
               lastUserQuery={lastQuery}
               processing={{ stage: loadingStatus, completedStages: completedLoadingStatuses }}
