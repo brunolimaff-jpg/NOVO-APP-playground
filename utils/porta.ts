@@ -1,6 +1,7 @@
 import { PORTA_FLAG_PENALTIES, PORTA_WEIGHTS, PortaFlag, PortaSegmento, ScorePortaData } from '../types';
 
 export const PORTA_MARKER_ANY_REGEX = /\[\[PORTA:[^\]]*\]\]/g;
+const PORTA_AUX_MARKER_ANY_REGEX = /\[\[(?:PORTA_FEED_[A-Z0-9_]+|PORTA_FLAG|PORTA_SEG):[\s\S]*?\]\]/g;
 export const PORTA_MARKER_V2_REGEX =
   /\[\[PORTA:(\d+):P(\d+):O(\d+):R(\d+):T(\d+):A(\d+):(PRD|AGI|COP):(NONE|(?:(?:TRAD|LOCK|NOFIT)(?:,(?:TRAD|LOCK|NOFIT))*))\]\]/;
 export const PORTA_MARKER_V1_REGEX = /\[\[PORTA:(\d+):P(\d+):O(\d+):R(\d+):T(\d+):A(\d+)\]\]/;
@@ -68,7 +69,7 @@ export function getPortaCompatibility(score: number): {
 }
 
 export function stripPortaMarkers(content: string): string {
-  return content.replace(PORTA_MARKER_ANY_REGEX, '');
+  return content.replace(PORTA_MARKER_ANY_REGEX, '').replace(PORTA_AUX_MARKER_ANY_REGEX, '');
 }
 
 export function calculatePortaScoreBruto(
@@ -86,6 +87,142 @@ export function calculatePortaScoreBruto(
 
 export function calculatePortaFlagMultiplier(flags: PortaFlag[]): number {
   return flags.reduce((acc, flag) => acc * PORTA_FLAG_PENALTIES[flag], 1);
+}
+
+function clampPillar(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.max(0, Math.min(10, Math.round(value)));
+}
+
+function parseNumericFromChunk(chunk: string): number | null {
+  const match = chunk.match(/-?\d+(?:[.,]\d+)?/);
+  if (!match) return null;
+  const parsed = Number.parseFloat(match[0].replace(',', '.'));
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function normalizeToken(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[\[\]\s]/g, '')
+    .toUpperCase();
+}
+
+function avg(values: number[]): number {
+  return values.reduce((sum, v) => sum + v, 0) / values.length;
+}
+
+function employeesToProxyP(employees: number): number {
+  if (employees >= 10000) return 10;
+  if (employees >= 5000) return 9;
+  if (employees >= 2000) return 8;
+  if (employees >= 1000) return 7;
+  if (employees >= 500) return 6;
+  if (employees >= 200) return 5;
+  if (employees >= 80) return 4;
+  if (employees >= 30) return 3;
+  if (employees > 0) return 2;
+  return 0;
+}
+
+function parsePortaFeeds(content: string): ScorePortaData | null {
+  const notes = {
+    p: [] as number[],
+    o: [] as number[],
+    r: [] as number[],
+    t: [] as number[],
+    a: [] as number[],
+    a2: [] as number[],
+    pProxyEmployees: [] as number[],
+  };
+
+  const activeFlags = new Set<PortaFlag>();
+  let segmento: PortaSegmento | null = null;
+
+  const markerRegex = /\[\[(PORTA_FEED_[A-Z0-9_]+|PORTA_FLAG|PORTA_SEG):([\s\S]*?)\]\]/g;
+  for (const markerMatch of content.matchAll(markerRegex)) {
+    const marker = markerMatch[1];
+    const body = markerMatch[2];
+
+    if (marker === 'PORTA_SEG') {
+      const segMatch = body.match(/PRD|AGI|COP/i);
+      if (segMatch) segmento = segMatch[0].toUpperCase() as PortaSegmento;
+      continue;
+    }
+
+    if (marker === 'PORTA_FLAG') {
+      const parts = body.split(':');
+      const rawFlag = normalizeToken(parts[0] || '');
+      const rawStatus = normalizeToken(parts[1] || '');
+      const isActive = rawStatus === 'SIM';
+      if (isActive && (rawFlag === 'TRAD' || rawFlag === 'LOCK' || rawFlag === 'NOFIT')) {
+        activeFlags.add(rawFlag as PortaFlag);
+      }
+      continue;
+    }
+
+    const note = parseNumericFromChunk(body);
+    if (marker === 'PORTA_FEED_P_PROXY') {
+      if (note !== null) notes.pProxyEmployees.push(note);
+      continue;
+    }
+    if (note === null) continue;
+
+    if (marker === 'PORTA_FEED_P') notes.p.push(note);
+    if (marker === 'PORTA_FEED_O') notes.o.push(note);
+    if (marker === 'PORTA_FEED_R' || marker === 'PORTA_FEED_R_TRAB') notes.r.push(note);
+    if (marker === 'PORTA_FEED_T') notes.t.push(note);
+    if (marker === 'PORTA_FEED_A') notes.a.push(note);
+    if (marker === 'PORTA_FEED_A2') notes.a2.push(note);
+  }
+
+  const pFromMass = notes.p.length ? avg(notes.p) : null;
+  const pFromProxy =
+    notes.pProxyEmployees.length > 0 ? avg(notes.pProxyEmployees.map(employeesToProxyP)) : null;
+
+  let p: number | null = null;
+  if (pFromMass !== null && pFromProxy !== null) p = (pFromMass * 2 + pFromProxy) / 3;
+  else if (pFromMass !== null) p = pFromMass;
+  else if (pFromProxy !== null) p = pFromProxy;
+
+  const o = notes.o.length ? avg(notes.o) : null;
+  const r = notes.r.length ? avg(notes.r) : null;
+  const t = notes.t.length ? avg(notes.t) : null;
+  const aMain = notes.a.length ? avg(notes.a) : null;
+  const a2 = notes.a2.length ? avg(notes.a2) : null;
+
+  let a: number | null = null;
+  if (aMain !== null && a2 !== null) a = (aMain * 2 + a2) / 3;
+  else if (aMain !== null) a = aMain;
+  else if (a2 !== null) a = a2;
+
+  const hasMinimumPillars = p !== null && o !== null && r !== null && t !== null && a !== null;
+  if (!hasMinimumPillars) return null;
+
+  const finalSegmento = segmento || 'PRD';
+  const orderedFlags = (['TRAD', 'LOCK', 'NOFIT'] as PortaFlag[]).filter(flag => activeFlags.has(flag));
+
+  const pNote = clampPillar(p);
+  const oNote = clampPillar(o);
+  const rNote = clampPillar(r);
+  const tNote = clampPillar(t);
+  const aNote = clampPillar(a);
+  const scoreBruto = calculatePortaScoreBruto(pNote, oNote, rNote, tNote, aNote, finalSegmento);
+  const multiplier = calculatePortaFlagMultiplier(orderedFlags);
+  const score = Math.max(0, Math.min(100, Math.round(scoreBruto * multiplier)));
+
+  return {
+    score,
+    p: pNote,
+    o: oNote,
+    r: rNote,
+    t: tNote,
+    a: aNote,
+    segmento: finalSegmento,
+    flags: orderedFlags,
+    scoreBruto,
+  };
 }
 
 export function parsePortaMarkerV2(content: string): ScorePortaData | null {
@@ -128,5 +265,5 @@ export function parsePortaMarkerV2(content: string): ScorePortaData | null {
     };
   }
 
-  return null;
+  return parsePortaFeeds(content);
 }

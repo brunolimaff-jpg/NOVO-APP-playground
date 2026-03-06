@@ -84,4 +84,24 @@ describe('parseMarkers — PORTA v2', () => {
     expect(result.text).toContain('Before');
     expect(result.text).toContain('After');
   });
+
+  it('parses consolidated score from feed markers when final marker is absent', () => {
+    const content = `
+Resumo executivo consolidado.
+[[PORTA_FEED_P:[8]:HA:[160000]:CNPJS:[18]:FAT:[5000000000]]]
+[[PORTA_FEED_O:[9]:ELOS:[plantio,armazenagem,beneficiamento,exportacao,logistica,rastreabilidade]]]
+[[PORTA_FEED_R:[7]:PRESSOES:[ibama,certificacao]]]
+[[PORTA_FEED_T:[8]:T1:[7]:T2:[8]:T3:[9]:STACK:[TOTVS]]]
+[[PORTA_FEED_A:[8]:A1:[8]:A2:[8]:GERACAO:[G2]]]
+[[PORTA_SEG:[AGI]]]
+[[PORTA_FLAG:LOCK:[NAO]]]
+`;
+
+    const result = parseMarkers(content);
+    expect(result.scorePorta).not.toBeNull();
+    expect(result.scorePorta!.score).toBe(81);
+    expect(result.scorePorta!.segmento).toBe('AGI');
+    expect(result.text).not.toContain('PORTA_FEED');
+    expect(result.text).toContain('Resumo executivo consolidado.');
+  });
 });
