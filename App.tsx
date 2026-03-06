@@ -909,6 +909,7 @@ const App: React.FC = () => {
           followUpNotas={followUpNotas}
           onNotasChange={setFollowUpNotas}
           followUpStatus={followUpStatus}
+          companyName={cleanTitle(extractCompanyName(currentSession?.title)) || currentSession?.empresaAlvo || 'Conta em prospecção'}
           onSchedule={handleScheduleFollowUp}
           onClose={() => setShowFollowUpModal(false)}
         />
