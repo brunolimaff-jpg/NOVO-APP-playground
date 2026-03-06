@@ -12,14 +12,15 @@ import { FollowUpModal } from './components/FollowUpModal';
 import { useAuth } from './contexts/AuthContext';
 import { useMode } from './contexts/ModeContext';
 import { useCRM } from './contexts/CRMContext';
-const CRMPipeline = React.lazy(() =>
-  import('./components/CRMPipeline').then(m => ({ default: m.CRMPipeline }))
-);
-const CRMDetail = React.lazy(() =>
-  import('./components/CRMDetail').then(m => ({ default: m.CRMDetail }))
-);
+const CRMPipeline = React.lazy(() => import('./components/CRMPipeline').then(m => ({ default: m.CRMPipeline })));
+const CRMDetail = React.lazy(() => import('./components/CRMDetail').then(m => ({ default: m.CRMDetail })));
 import { Message, Sender, Feedback, ChatSession, ExportFormat, ReportType, AppError, CRMStage } from './types';
-import { sendMessageToGemini, generateNewSuggestions, generateConsolidatedDossier, resetChatSession } from './services/geminiService';
+import {
+  sendMessageToGemini,
+  generateNewSuggestions,
+  generateConsolidatedDossier,
+  resetChatSession,
+} from './services/geminiService';
 import { listRemoteSessions, getRemoteSession, saveRemoteSession } from './services/sessionRemoteStore';
 import { sendFeedbackRemote } from './services/feedbackRemoteStore';
 import { APP_NAME, MODE_LABELS } from './constants';
@@ -31,7 +32,12 @@ import { normalizeLoadingStatus, statusKey } from './utils/loadingStatus';
 import { BACKEND_URL } from './services/apiConfig';
 import { extractCompanyName } from './utils/companyNameExtractor';
 import { convertMarkdownToHTML, simpleMarkdownToHtml } from './utils/markdownToHtml';
-import { collectFullReport, detectInconsistencies, generateExecutiveSummary, normalizeMermaidBlocks } from './utils/reportUtils';
+import {
+  collectFullReport,
+  detectInconsistencies,
+  generateExecutiveSummary,
+  normalizeMermaidBlocks,
+} from './utils/reportUtils';
 import { getFeatureAccessForUser } from './utils/featureAccess';
 
 const PAGE_SIZE = 20;
@@ -122,12 +128,10 @@ const App: React.FC = () => {
   const updateSessionById = useCallback(
     (sessionId: string, updater: (session: ChatSession) => ChatSession) => {
       setSessions(prev =>
-        prev.map(s =>
-          s.id === sessionId ? { ...updater(s), updatedAt: new Date().toISOString() } : s
-        )
+        prev.map(s => (s.id === sessionId ? { ...updater(s), updatedAt: new Date().toISOString() } : s)),
       );
     },
-    [setSessions]
+    [setSessions],
   );
 
   const updateCurrentSession = useCallback(
@@ -135,14 +139,10 @@ const App: React.FC = () => {
       setSessions(prev => {
         const target = prev.find(s => s.id === currentSessionId);
         if (!target) return prev;
-        return prev.map(s =>
-          s.id === currentSessionId
-            ? { ...updater(s), updatedAt: new Date().toISOString() }
-            : s
-        );
+        return prev.map(s => (s.id === currentSessionId ? { ...updater(s), updatedAt: new Date().toISOString() } : s));
       });
     },
-    [currentSessionId, setSessions]
+    [currentSessionId, setSessions],
   );
 
   // --- Initialization ---
@@ -156,13 +156,17 @@ const App: React.FC = () => {
         remoteList.forEach(r => {
           const existing = sessionMap.get(r.id);
           if (existing) {
-            sessionMap.set(r.id, { ...existing, ...r, messages: existing.messages.length > 0 ? existing.messages : [] });
+            sessionMap.set(r.id, {
+              ...existing,
+              ...r,
+              messages: existing.messages.length > 0 ? existing.messages : [],
+            });
           } else {
             sessionMap.set(r.id, r);
           }
         });
         const mergedSessions = Array.from(sessionMap.values()).sort(
-          (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+          (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
         );
         setSessions(mergedSessions);
         if (mergedSessions.length > 0) setCurrentSessionId(mergedSessions[0].id);
@@ -176,7 +180,7 @@ const App: React.FC = () => {
       setIsInitialized(true);
     };
     initApp();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -190,8 +194,13 @@ const App: React.FC = () => {
     const newSession: ChatSession = {
       id: uuidv4(),
       title: 'Nova Investigação',
-      empresaAlvo: null, cnpj: null, modoPrincipal: null, scoreOportunidade: null, resumoDossie: null,
-      createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+      empresaAlvo: null,
+      cnpj: null,
+      modoPrincipal: null,
+      scoreOportunidade: null,
+      resumoDossie: null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
       messages: [],
     };
     setSessions(prev => [newSession, ...prev]);
@@ -223,7 +232,9 @@ const App: React.FC = () => {
       try {
         const fullSession = await getRemoteSession(sessionId);
         if (fullSession) updateSessionById(sessionId, () => fullSession);
-      } catch (e) { console.error('Lazy load error', e); }
+      } catch (e) {
+        console.error('Lazy load error', e);
+      }
     }
   };
 
@@ -265,14 +276,21 @@ const App: React.FC = () => {
       await saveRemoteSession(finalized, userId, user?.displayName);
       setRemoteSaveStatus('success');
       setTimeout(() => setRemoteSaveStatus('idle'), 3000);
-    } catch { setRemoteSaveStatus('error'); }
-    finally { setIsSavingRemote(false); }
+    } catch {
+      setRemoteSaveStatus('error');
+    } finally {
+      setIsSavingRemote(false);
+    }
   };
 
   const handleClearChat = () => {
     resetChatSession();
     updateCurrentSession(session => ({
-      ...session, messages: [], title: 'Nova Investigação', empresaAlvo: null, updatedAt: new Date().toISOString(),
+      ...session,
+      messages: [],
+      title: 'Nova Investigação',
+      empresaAlvo: null,
+      updatedAt: new Date().toISOString(),
     }));
     setInvestigationLogged(false);
     setLoadingStatus('Realizando pesquisa...');
@@ -303,9 +321,10 @@ const App: React.FC = () => {
       const session = sessionsRef.current.find(s => s.id === sessionId);
       if (session) {
         const msgs = session.messages;
-        historyToPass = (msgs.length > 0 && msgs[msgs.length - 1].text === text && msgs[msgs.length - 1].sender === Sender.User)
-          ? msgs.slice(0, -1)
-          : msgs;
+        historyToPass =
+          msgs.length > 0 && msgs[msgs.length - 1].text === text && msgs[msgs.length - 1].sender === Sender.User
+            ? msgs.slice(0, -1)
+            : msgs;
       }
     }
 
@@ -313,69 +332,93 @@ const App: React.FC = () => {
     activeGenerationRef.current[sessionId] = botMessageId;
 
     const botMessagePlaceholder: Message = {
-      id: botMessageId, sender: Sender.Bot, text: '', timestamp: new Date(), isThinking: true, isSourcesOpen: false,
+      id: botMessageId,
+      sender: Sender.Bot,
+      text: '',
+      timestamp: new Date(),
+      isThinking: true,
+      isSourcesOpen: false,
     };
 
-    setSessions(prev => prev.map(s => s.id === sessionId ? {
-      ...s,
-      messages: [...s.messages.filter(m => !m.isError), botMessagePlaceholder],
-      updatedAt: new Date().toISOString(),
-    } : s));
+    setSessions(prev =>
+      prev.map(s =>
+        s.id === sessionId
+          ? {
+              ...s,
+              messages: [...s.messages.filter(m => !m.isError), botMessagePlaceholder],
+              updatedAt: new Date().toISOString(),
+            }
+          : s,
+      ),
+    );
     setVisibleCount(prev => prev + 1);
 
     try {
-      const { text: responseText, sources, suggestions, scorePorta, ghostReason } = await sendMessageToGemini(
-        text, historyToPass, systemInstruction,
-        {
-          signal,
-          onText: () => {},
-          onStatus: (newStatus) => {
-            const normalizedStatus = normalizeLoadingStatus(newStatus);
-            if (!normalizedStatus) return;
-            const newKey = statusKey(normalizedStatus);
-            setLoadingStatus(prev => {
-              const normalizedPrev = normalizeLoadingStatus(prev) || prev;
-              if (normalizedPrev && normalizedPrev !== normalizedStatus) {
-                lastStatusRef.current = normalizedPrev;
-                lastStatusKeyRef.current = statusKey(normalizedPrev);
-              }
-              return normalizedStatus;
-            });
-            if (
-              lastStatusRef.current &&
-              lastStatusRef.current !== normalizedStatus &&
-              lastStatusKeyRef.current !== newKey
-            ) {
-              const statusToAdd = lastStatusRef.current;
-              setCompletedLoadingStatuses(completed =>
-                statusToAdd && !completed.some(existing => statusKey(existing) === statusKey(statusToAdd))
-                  ? [...completed, statusToAdd]
-                  : completed
-              );
+      const {
+        text: responseText,
+        sources,
+        suggestions,
+        scorePorta,
+        ghostReason,
+      } = await sendMessageToGemini(text, historyToPass, systemInstruction, {
+        signal,
+        onText: () => {},
+        onStatus: newStatus => {
+          const normalizedStatus = normalizeLoadingStatus(newStatus);
+          if (!normalizedStatus) return;
+          const newKey = statusKey(normalizedStatus);
+          setLoadingStatus(prev => {
+            const normalizedPrev = normalizeLoadingStatus(prev) || prev;
+            if (normalizedPrev && normalizedPrev !== normalizedStatus) {
+              lastStatusRef.current = normalizedPrev;
+              lastStatusKeyRef.current = statusKey(normalizedPrev);
             }
-          },
-          nomeVendedor: typeof user?.displayName === 'string' ? user.displayName : 'Vendedor',
-        }
-      );
+            return normalizedStatus;
+          });
+          if (
+            lastStatusRef.current &&
+            lastStatusRef.current !== normalizedStatus &&
+            lastStatusKeyRef.current !== newKey
+          ) {
+            const statusToAdd = lastStatusRef.current;
+            setCompletedLoadingStatuses(completed =>
+              statusToAdd && !completed.some(existing => statusKey(existing) === statusKey(statusToAdd))
+                ? [...completed, statusToAdd]
+                : completed,
+            );
+          }
+        },
+        nomeVendedor: typeof user?.displayName === 'string' ? user.displayName : 'Vendedor',
+      });
 
       if (activeGenerationRef.current[sessionId] !== botMessageId) return;
 
       updateSessionById(sessionId, s => ({
         ...s,
-        title: (s.messages.length <= 2 || s.title === 'Nova Investigação') ? cleanTitle(extractCompanyName(text)) : s.title,
+        title:
+          s.messages.length <= 2 || s.title === 'Nova Investigação' ? cleanTitle(extractCompanyName(text)) : s.title,
         empresaAlvo: s.messages.length <= 2 ? extractCompanyName(text) : s.empresaAlvo,
+        scoreOportunidade: scorePorta?.score ?? s.scoreOportunidade,
         messages: s.messages.map(msg =>
-          msg.id === botMessageId ? {
-            ...msg, text: responseText, groundingSources: sources, suggestions, scorePorta: scorePorta || undefined, isThinking: false,
-            ...(ghostReason && { ghostDetails: ghostReason }),
-          } : msg
+          msg.id === botMessageId
+            ? {
+                ...msg,
+                text: responseText,
+                groundingSources: sources,
+                suggestions,
+                scorePorta: scorePorta || undefined,
+                isThinking: false,
+                ...(ghostReason && { ghostDetails: ghostReason }),
+              }
+            : msg,
         ),
       }));
 
       if (!investigationLogged && responseText.length > 500) {
         setInvestigationLogged(true);
         fetch(BACKEND_URL, {
-          method: 'POST', redirect: 'follow',
+          method: 'POST',
+          redirect: 'follow',
           headers: { 'Content-Type': 'text/plain' },
           body: JSON.stringify({
             action: 'logInvestigation',
@@ -386,14 +429,19 @@ const App: React.FC = () => {
           }),
         }).catch(err => console.log('Log falhou:', err));
       }
-
     } catch (error: unknown) {
       const err = error as Error;
       if (err.name === 'AbortError' || err.message?.includes('aborted')) {
-        setSessions(prev => prev.map(s => s.id === sessionId ? {
-          ...s,
-          messages: s.messages.filter(msg => msg.id !== botMessageId || msg.text.trim().length > 0),
-        } : s));
+        setSessions(prev =>
+          prev.map(s =>
+            s.id === sessionId
+              ? {
+                  ...s,
+                  messages: s.messages.filter(msg => msg.id !== botMessageId || msg.text.trim().length > 0),
+                }
+              : s,
+          ),
+        );
         setIsLoading(false);
         abortControllerRef.current = null;
         return;
@@ -402,10 +450,17 @@ const App: React.FC = () => {
       const appError = normalizeAppError(error as Error);
       updateSessionById(sessionId, s => ({
         ...s,
-        messages: [...s.messages.filter(m => m.id !== botMessageId), {
-          id: uuidv4(), sender: Sender.Bot, text: 'Erro no processamento',
-          timestamp: new Date(), isError: true, errorDetails: appError,
-        }],
+        messages: [
+          ...s.messages.filter(m => m.id !== botMessageId),
+          {
+            id: uuidv4(),
+            sender: Sender.Bot,
+            text: 'Erro no processamento',
+            timestamp: new Date(),
+            isError: true,
+            errorDetails: appError,
+          },
+        ],
       }));
     } finally {
       setIsLoading(false);
@@ -420,9 +475,16 @@ const App: React.FC = () => {
       sessionId = uuidv4();
       const immediateTitle = cleanTitle(extractCompanyName(displayText || text));
       const newSession: ChatSession = {
-        id: sessionId, title: immediateTitle || 'Nova Investigação',
-        empresaAlvo: immediateTitle || null, cnpj: null, modoPrincipal: null, scoreOportunidade: null, resumoDossie: null,
-        createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), messages: [],
+        id: sessionId,
+        title: immediateTitle || 'Nova Investigação',
+        empresaAlvo: immediateTitle || null,
+        cnpj: null,
+        modoPrincipal: null,
+        scoreOportunidade: null,
+        resumoDossie: null,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        messages: [],
       };
       setSessions(prev => [newSession, ...prev]);
       setCurrentSessionId(sessionId);
@@ -431,10 +493,17 @@ const App: React.FC = () => {
       const session = sessions.find(s => s.id === sessionId);
       currentHistory = session ? [...session.messages] : [];
     }
-    const userMessage: Message = { id: uuidv4(), sender: Sender.User, text: displayText || text, timestamp: new Date() };
-    setSessions(prev => prev.map(s =>
-      s.id === sessionId ? { ...s, messages: [...s.messages, userMessage], updatedAt: new Date().toISOString() } : s
-    ));
+    const userMessage: Message = {
+      id: uuidv4(),
+      sender: Sender.User,
+      text: displayText || text,
+      timestamp: new Date(),
+    };
+    setSessions(prev =>
+      prev.map(s =>
+        s.id === sessionId ? { ...s, messages: [...s.messages, userMessage], updatedAt: new Date().toISOString() } : s,
+      ),
+    );
     setVisibleCount(prev => prev + 1);
     await processMessage(text, sessionId, currentHistory);
   };
@@ -443,7 +512,7 @@ const App: React.FC = () => {
     const empresaContext = currentSession?.empresaAlvo || currentSession?.title || 'a empresa desta conversa';
     await handleSendMessage(
       `Dossiê completo de [${empresaContext}]. Protocolo de investigação forense especializada:\n\n${hiddenPrompt}`,
-      displayMessage
+      displayMessage,
     );
   };
 
@@ -491,29 +560,47 @@ const App: React.FC = () => {
     if (!targetSession) return;
     const targetMessage = targetSession.messages.find(m => m.id === messageId);
     if (!targetMessage) return;
-    const companyName = targetSession.empresaAlvo || extractCompanyName(targetSession.title || '') || 'Empresa não identificada';
+    const companyName =
+      targetSession.empresaAlvo || extractCompanyName(targetSession.title || '') || 'Empresa não identificada';
     let lastUserQuestion = '';
     const msgs = targetSession.messages;
     const idx = msgs.findIndex(m => m.id === messageId);
     for (let i = idx - 1; i >= 0; i--) {
-      if (msgs[i].sender === Sender.User) { lastUserQuestion = msgs[i].text; break; }
+      if (msgs[i].sender === Sender.User) {
+        lastUserQuestion = msgs[i].text;
+        break;
+      }
     }
     const snippet = (targetMessage.text || '').slice(0, 3000);
-    const contextText = [`EMPRESA: ${companyName}`, lastUserQuestion ? `PERGUNTA_ANTERIOR: ${lastUserQuestion}` : '', 'TRECHO_DOSSIE:', snippet].filter(Boolean).join('\n\n');
+    const contextText = [
+      `EMPRESA: ${companyName}`,
+      lastUserQuestion ? `PERGUNTA_ANTERIOR: ${lastUserQuestion}` : '',
+      'TRECHO_DOSSIE:',
+      snippet,
+    ]
+      .filter(Boolean)
+      .join('\n\n');
     const oldSuggestions = targetMessage.suggestions || [];
     updateSessionById(sessionId, session => ({
-      ...session, messages: session.messages.map(msg => msg.id === messageId ? { ...msg, isRegeneratingSuggestions: true } : msg),
+      ...session,
+      messages: session.messages.map(msg => (msg.id === messageId ? { ...msg, isRegeneratingSuggestions: true } : msg)),
     }));
     try {
       const newSuggestions = await generateNewSuggestions(contextText, oldSuggestions);
       updateSessionById(sessionId, session => ({
-        ...session, messages: session.messages.map(msg => msg.id === messageId ? { ...msg, suggestions: newSuggestions, isRegeneratingSuggestions: false } : msg),
+        ...session,
+        messages: session.messages.map(msg =>
+          msg.id === messageId ? { ...msg, suggestions: newSuggestions, isRegeneratingSuggestions: false } : msg,
+        ),
       }));
     } catch (e: unknown) {
       console.warn('Suggestion regeneration failed', e);
       toast.error(e instanceof Error ? e.message : 'Falha na conexão com a IA.');
       updateSessionById(sessionId, session => ({
-        ...session, messages: session.messages.map(msg => msg.id === messageId ? { ...msg, isRegeneratingSuggestions: false } : msg),
+        ...session,
+        messages: session.messages.map(msg =>
+          msg.id === messageId ? { ...msg, isRegeneratingSuggestions: false } : msg,
+        ),
       }));
     }
   };
@@ -521,22 +608,37 @@ const App: React.FC = () => {
   // --- Feedback ---
   const handleReportError = async (messageId: string, error: AppError) => {
     if (!currentSession) return;
-    const errorPayload = JSON.stringify({ code: error.code, source: error.source, message: error.message, details: error.details }, null, 2);
+    const errorPayload = JSON.stringify(
+      { code: error.code, source: error.source, message: error.message, details: error.details },
+      null,
+      2,
+    );
     try {
       await sendFeedbackRemote({
-        feedbackId: uuidv4(), sessionId: currentSession.id, messageId,
-        sectionKey: 'ERROR_REPORT', sectionTitle: 'System Error',
-        type: 'dislike', comment: `Automated Error Report: ${error.code}`,
-        aiContent: errorPayload, userId, userName: user?.displayName,
+        feedbackId: uuidv4(),
+        sessionId: currentSession.id,
+        messageId,
+        sectionKey: 'ERROR_REPORT',
+        sectionTitle: 'System Error',
+        type: 'dislike',
+        comment: `Automated Error Report: ${error.code}`,
+        aiContent: errorPayload,
+        userId,
+        userName: user?.displayName,
         timestamp: new Date().toISOString(),
       });
-    } catch (e) { console.error('Failed to report error', e); }
+    } catch (e) {
+      console.error('Failed to report error', e);
+    }
   };
 
   const handleFeedback = (messageId: string, feedback: Feedback) => {
     if (!currentSession) return;
     updateCurrentSession(session => ({
-      ...session, messages: session.messages.map(m => m.id === messageId ? { ...m, feedback: m.feedback === feedback ? undefined : feedback } : m),
+      ...session,
+      messages: session.messages.map(m =>
+        m.id === messageId ? { ...m, feedback: m.feedback === feedback ? undefined : feedback } : m,
+      ),
     }));
   };
 
@@ -544,26 +646,38 @@ const App: React.FC = () => {
     if (!currentSession) return;
     const snapshotSessionId = currentSession.id;
     updateSessionById(snapshotSessionId, session => ({
-      ...session, messages: session.messages.map(m => m.id === messageId ? { ...m, feedback } : m),
+      ...session,
+      messages: session.messages.map(m => (m.id === messageId ? { ...m, feedback } : m)),
     }));
     try {
       await sendFeedbackRemote({
-        feedbackId: uuidv4(), sessionId: snapshotSessionId, messageId,
-        sectionKey: null, sectionTitle: null,
-        type: feedback === 'up' ? 'like' : 'dislike', comment, aiContent: content,
-        userId, userName: user?.displayName, timestamp: new Date().toISOString(),
+        feedbackId: uuidv4(),
+        sessionId: snapshotSessionId,
+        messageId,
+        sectionKey: null,
+        sectionTitle: null,
+        type: feedback === 'up' ? 'like' : 'dislike',
+        comment,
+        aiContent: content,
+        userId,
+        userName: user?.displayName,
+        timestamp: new Date().toISOString(),
       });
-    } catch (e) { console.error('Feedback error', e); }
+    } catch (e) {
+      console.error('Feedback error', e);
+    }
   };
 
   const handleSectionFeedback = (messageId: string, sectionTitle: string, feedback: Feedback) => {
     updateCurrentSession(session => ({
-      ...session, messages: session.messages.map(msg => {
+      ...session,
+      messages: session.messages.map(msg => {
         if (msg.id !== messageId) return msg;
         const currentSections = msg.sectionFeedback || {};
         const newVal = currentSections[sectionTitle] === feedback ? undefined : feedback;
         const newSections = { ...currentSections };
-        if (newVal === undefined) delete newSections[sectionTitle]; else newSections[sectionTitle] = newVal;
+        if (newVal === undefined) delete newSections[sectionTitle];
+        else newSections[sectionTitle] = newVal;
         return { ...msg, sectionFeedback: newSections };
       }),
     }));
@@ -571,7 +685,10 @@ const App: React.FC = () => {
 
   const handleToggleMessageSources = (messageId: string) => {
     updateCurrentSession(session => ({
-      ...session, messages: session.messages.map(msg => msg.id === messageId ? { ...msg, isSourcesOpen: !msg.isSourcesOpen } : msg),
+      ...session,
+      messages: session.messages.map(msg =>
+        msg.id === messageId ? { ...msg, isSourcesOpen: !msg.isSourcesOpen } : msg,
+      ),
     }));
   };
 
@@ -579,7 +696,10 @@ const App: React.FC = () => {
   async function handleExportPDF() {
     try {
       const { text: fullText, sections, allLinks } = collectFullReport(allMessages);
-      if (!fullText || fullText.length < 100) { alert('Nenhum dossiê para exportar.'); return; }
+      if (!fullText || fullText.length < 100) {
+        alert('Nenhum dossiê para exportar.');
+        return;
+      }
 
       const inconsistenciesSection = detectInconsistencies(sections);
       const normalizedFullText = normalizeMermaidBlocks(fullText);
@@ -610,8 +730,15 @@ const App: React.FC = () => {
     setExportStatus('loading');
     setExportError(null);
     try {
-      const contentMarkdown = await generateConsolidatedDossier(currentSession.messages, systemInstruction, mode, reportType);
-      const safeTitle = cleanTitle(currentSession.title).replace(/[^a-z0-9]/gi, '_').substring(0, 50);
+      const contentMarkdown = await generateConsolidatedDossier(
+        currentSession.messages,
+        systemInstruction,
+        mode,
+        reportType,
+      );
+      const safeTitle = cleanTitle(currentSession.title)
+        .replace(/[^a-z0-9]/gi, '_')
+        .substring(0, 50);
       const dateStr = new Date().toISOString().slice(0, 10);
       const reportSuffix = reportType === 'executive' ? 'EXEC' : reportType === 'tech' ? 'FICHA' : 'DOSSIE';
       const filename = `SeniorScout_${safeTitle}_${reportSuffix}_${dateStr}`;
@@ -635,26 +762,46 @@ const App: React.FC = () => {
     setEmailStatus('sending');
     try {
       const { text: fullText, sections } = collectFullReport(allMessages);
-      if (!fullText || fullText.length < 100) { setEmailStatus('error'); return; }
+      if (!fullText || fullText.length < 100) {
+        setEmailStatus('error');
+        return;
+      }
       const inconsistenciesSection = detectInconsistencies(sections);
       const htmlBody = fixFakeLinksHTML(convertMarkdownToHTML(fullText + inconsistenciesSection, true));
       const response = await fetch(BACKEND_URL, {
-        method: 'POST', redirect: 'follow', headers: { 'Content-Type': 'text/plain' },
+        method: 'POST',
+        redirect: 'follow',
+        headers: { 'Content-Type': 'text/plain' },
         body: JSON.stringify({
-          action: 'sendEmail', email: emailTo, subject: emailSubject, body: htmlBody,
-          empresa: cleanTitle(extractCompanyName(currentSession?.title)), vendedor: user?.displayName || 'Vendedor',
+          action: 'sendEmail',
+          email: emailTo,
+          subject: emailSubject,
+          body: htmlBody,
+          empresa: cleanTitle(extractCompanyName(currentSession?.title)),
+          vendedor: user?.displayName || 'Vendedor',
         }),
       });
       const text = await response.text();
       let result;
-      try { result = JSON.parse(text); } catch { result = response.ok ? { success: true } : { success: false }; }
+      try {
+        result = JSON.parse(text);
+      } catch {
+        result = response.ok ? { success: true } : { success: false };
+      }
       if (result.success) {
         setEmailStatus('sent');
-        setTimeout(() => { setShowEmailModal(false); setEmailStatus(null); setEmailTo(''); }, 3000);
+        setTimeout(() => {
+          setShowEmailModal(false);
+          setEmailStatus(null);
+          setEmailTo('');
+        }, 3000);
       } else {
         setEmailStatus('error');
       }
-    } catch { setEmailStatus('error'); toast.error('Falha ao enviar email. Verifique sua conexão.'); }
+    } catch {
+      setEmailStatus('error');
+      toast.error('Falha ao enviar email. Verifique sua conexão.');
+    }
   }
 
   // --- Follow-up ---
@@ -662,22 +809,38 @@ const App: React.FC = () => {
     setFollowUpStatus('sending');
     try {
       const response = await fetch(BACKEND_URL, {
-        method: 'POST', redirect: 'follow', headers: { 'Content-Type': 'text/plain' },
+        method: 'POST',
+        redirect: 'follow',
+        headers: { 'Content-Type': 'text/plain' },
         body: JSON.stringify({
           action: 'scheduleFollowUp',
           empresa: cleanTitle(extractCompanyName(currentSession?.title)),
-          vendedor: user?.displayName || 'Vendedor', dias: followUpDias,
-          emailVendedor: emailTo, notas: followUpNotas,
+          vendedor: user?.displayName || 'Vendedor',
+          dias: followUpDias,
+          emailVendedor: emailTo,
+          notas: followUpNotas,
         }),
       });
       const text = await response.text();
       let result;
-      try { result = JSON.parse(text); } catch { result = { success: true }; }
+      try {
+        result = JSON.parse(text);
+      } catch {
+        result = { success: true };
+      }
       if (result.success || result.ok) {
         setFollowUpStatus('sent');
-        setTimeout(() => { setShowFollowUpModal(false); setFollowUpStatus('idle'); setFollowUpNotas(''); }, 3000);
-      } else { setFollowUpStatus('error'); }
-    } catch { setFollowUpStatus('error'); }
+        setTimeout(() => {
+          setShowFollowUpModal(false);
+          setFollowUpStatus('idle');
+          setFollowUpNotas('');
+        }, 3000);
+      } else {
+        setFollowUpStatus('error');
+      }
+    } catch {
+      setFollowUpStatus('error');
+    }
   }
 
   // --- CRM ---
@@ -689,7 +852,12 @@ const App: React.FC = () => {
     const session = sessions.find(s => s.id === sessionId);
     if (!session) return;
     const existingCard = cards.find(c => c.id === `crm_${sessionId}`);
-    if (existingCard) { setSelectedCRMCardId(existingCard.id); setActiveView('crm'); toast.success('Empresa já existe no CRM.'); return; }
+    if (existingCard) {
+      setSelectedCRMCardId(existingCard.id);
+      setActiveView('crm');
+      toast.success('Empresa já existe no CRM.');
+      return;
+    }
     const card = await createCardFromSession(session);
     toast.success(`${card.companyName} adicionada ao CRM!`);
     setSelectedCRMCardId(card.id);
@@ -701,20 +869,35 @@ const App: React.FC = () => {
     setIsCreatingCrmCard(true);
     try {
       const card = await createManualCard({
-        companyName: newCrmName.trim(), website: newCrmWebsite.trim() || undefined,
-        briefDescription: newCrmResumo.trim() || undefined, stage: 'prospeccao',
+        companyName: newCrmName.trim(),
+        website: newCrmWebsite.trim() || undefined,
+        briefDescription: newCrmResumo.trim() || undefined,
+        stage: 'prospeccao',
       });
-      setNewCrmName(''); setNewCrmWebsite(''); setNewCrmResumo('');
+      setNewCrmName('');
+      setNewCrmWebsite('');
+      setNewCrmResumo('');
       setShowNewCrmForm(false);
       setSelectedCRMCardId(card.id);
-    } catch (err) { console.error('Erro ao criar card:', err); }
-    finally { setIsCreatingCrmCard(false); }
+    } catch (err) {
+      console.error('Erro ao criar card:', err);
+    } finally {
+      setIsCreatingCrmCard(false);
+    }
   };
 
-  const handleMoveCRMCard = async (cardId: string, toStage: CRMStage) => { await moveCardToStage(cardId, toStage); };
-  const handleSelectCRMCard = (cardId: string) => { setSelectedCRMCardId(cardId); };
-  const handleCloseCRMDetail = () => { setSelectedCRMCardId(null); };
-  const handleMoveStageFromDetail = async (stage: string) => { if (selectedCRMCardId) await moveCardToStage(selectedCRMCardId, stage as CRMStage); };
+  const handleMoveCRMCard = async (cardId: string, toStage: CRMStage) => {
+    await moveCardToStage(cardId, toStage);
+  };
+  const handleSelectCRMCard = (cardId: string) => {
+    setSelectedCRMCardId(cardId);
+  };
+  const handleCloseCRMDetail = () => {
+    setSelectedCRMCardId(null);
+  };
+  const handleMoveStageFromDetail = async (stage: string) => {
+    if (selectedCRMCardId) await moveCardToStage(selectedCRMCardId, stage as CRMStage);
+  };
 
   const handleSelectSessionFromDetail = async (sessionId: string) => {
     await handleSelectSession(sessionId);
@@ -751,17 +934,23 @@ const App: React.FC = () => {
         <span className="text-xs font-medium text-slate-500 dark:text-slate-400 truncate max-w-[120px]">
           👤 {displayName}
         </span>
-        <button onClick={logout} className="text-[10px] text-red-500 hover:text-red-600 font-medium hover:underline">Sair</button>
+        <button onClick={logout} className="text-[10px] text-red-500 hover:text-red-600 font-medium hover:underline">
+          Sair
+        </button>
       </div>
     );
   };
 
   if (!isInitialized) {
     return (
-      <div className={`flex h-screen w-full items-center justify-center ${isDarkMode ? 'bg-slate-950' : 'bg-slate-50'}`}>
+      <div
+        className={`flex h-screen w-full items-center justify-center ${isDarkMode ? 'bg-slate-950' : 'bg-slate-50'}`}
+      >
         <div className="flex flex-col items-center gap-4">
           <div className="w-10 h-10 border-4 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin" />
-          <p className={`text-sm font-medium ${isDarkMode ? 'text-slate-400' : 'text-slate-500'} animate-pulse`}>Preparando ambiente...</p>
+          <p className={`text-sm font-medium ${isDarkMode ? 'text-slate-400' : 'text-slate-500'} animate-pulse`}>
+            Preparando ambiente...
+          </p>
         </div>
       </div>
     );
@@ -774,7 +963,12 @@ const App: React.FC = () => {
       {!isOnline && (
         <div className="fixed top-0 inset-x-0 z-[100] flex items-center justify-center gap-2 bg-amber-500 text-amber-950 text-xs font-semibold py-1.5 px-4 shadow-lg">
           <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 5.636a9 9 0 010 12.728M15.536 8.464a5 5 0 010 7.072M8.464 8.464a5 5 0 000 7.072M5.636 5.636a9 9 0 000 12.728M12 12v.01" />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M18.364 5.636a9 9 0 010 12.728M15.536 8.464a5 5 0 010 7.072M8.464 8.464a5 5 0 000 7.072M5.636 5.636a9 9 0 000 12.728M12 12v.01"
+            />
           </svg>
           Sem conexão — algumas funções ficam indisponíveis offline
         </div>
@@ -792,8 +986,12 @@ const App: React.FC = () => {
         </div>
       )}
 
-      <div className={`flex flex-col h-[100dvh] w-full overflow-hidden overscroll-none ${isDarkMode ? 'bg-slate-950' : 'bg-slate-50'}`}>
-        <header className={`h-12 px-3 md:px-4 flex items-center justify-between border-b backdrop-blur-sm ${isDarkMode ? 'bg-slate-950/80 border-slate-800' : 'bg-white/80 border-slate-200'}`}>
+      <div
+        className={`flex flex-col h-[100dvh] w-full overflow-hidden overscroll-none ${isDarkMode ? 'bg-slate-950' : 'bg-slate-50'}`}
+      >
+        <header
+          className={`h-12 px-3 md:px-4 flex items-center justify-between border-b backdrop-blur-sm ${isDarkMode ? 'bg-slate-950/80 border-slate-800' : 'bg-white/80 border-slate-200'}`}
+        >
           <div className="flex items-center gap-3 min-w-0">
             <div className="flex items-center gap-2">
               <span className="text-sm font-semibold text-slate-800 dark:text-slate-100">🦅 Senior Scout 360</span>
@@ -841,11 +1039,18 @@ const App: React.FC = () => {
               exportError={exportError}
               pdfReportContent={pdfReportContent}
               onOpenEmailModal={() => {
-                setEmailSubject('Dossiê de Inteligência — ' + cleanTitle(extractCompanyName(currentSession?.title)) + ' — 🦅 Senior Scout 360');
+                setEmailSubject(
+                  'Dossiê de Inteligência — ' +
+                    cleanTitle(extractCompanyName(currentSession?.title)) +
+                    ' — 🦅 Senior Scout 360',
+                );
                 setShowEmailModal(true);
                 setEmailStatus(null);
               }}
-              onOpenFollowUpModal={() => { setShowFollowUpModal(true); setFollowUpStatus('idle'); }}
+              onOpenFollowUpModal={() => {
+                setShowFollowUpModal(true);
+                setFollowUpStatus('idle');
+              }}
               onSaveRemote={handleSaveRemote}
               isSavingRemote={isSavingRemote}
               remoteSaveStatus={remoteSaveStatus}
@@ -863,33 +1068,60 @@ const App: React.FC = () => {
               <div className="flex-1 p-4 md:p-6 overflow-y-auto">
                 <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
                   <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Pipeline · Kanban</p>
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                      Pipeline · Kanban
+                    </p>
                     <h1 className="text-sm md:text-base font-semibold text-slate-800 dark:text-slate-100">Mini CRM</h1>
                   </div>
                   <div className="flex items-center gap-2">
-                    <button onClick={() => setShowNewCrmForm(prev => !prev)}
-                      className="text-[11px] px-3 py-1.5 rounded-full bg-emerald-500 text-white hover:bg-emerald-600 font-medium transition-colors">
+                    <button
+                      onClick={() => setShowNewCrmForm(prev => !prev)}
+                      className="text-[11px] px-3 py-1.5 rounded-full bg-emerald-500 text-white hover:bg-emerald-600 font-medium transition-colors"
+                    >
                       {showNewCrmForm ? '✕ Cancelar' : '+ Nova empresa'}
                     </button>
-                    <button onClick={() => setActiveView('chat')}
-                      className="text-[11px] px-3 py-1.5 rounded-full border border-slate-300/70 dark:border-slate-700 text-slate-600 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                    <button
+                      onClick={() => setActiveView('chat')}
+                      className="text-[11px] px-3 py-1.5 rounded-full border border-slate-300/70 dark:border-slate-700 text-slate-600 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                    >
                       ← Voltar
                     </button>
                   </div>
                 </div>
                 {showNewCrmForm && (
-                  <div className={`mb-5 rounded-xl border p-4 space-y-3 ${isDarkMode ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200'}`}>
+                  <div
+                    className={`mb-5 rounded-xl border p-4 space-y-3 ${isDarkMode ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200'}`}
+                  >
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                      <input type="text" value={newCrmName} onChange={e => setNewCrmName(e.target.value)} placeholder="Nome da empresa *" autoFocus
-                        className={`rounded-lg border px-3 py-2 text-sm bg-transparent ${isDarkMode ? 'border-slate-700 text-slate-100' : 'border-slate-300 text-slate-900'}`} />
-                      <input type="text" value={newCrmWebsite} onChange={e => setNewCrmWebsite(e.target.value)} placeholder="Website (opcional)"
-                        className={`rounded-lg border px-3 py-2 text-sm bg-transparent ${isDarkMode ? 'border-slate-700 text-slate-100' : 'border-slate-300 text-slate-900'}`} />
-                      <input type="text" value={newCrmResumo} onChange={e => setNewCrmResumo(e.target.value)} placeholder="Resumo breve (opcional)"
-                        className={`rounded-lg border px-3 py-2 text-sm bg-transparent ${isDarkMode ? 'border-slate-700 text-slate-100' : 'border-slate-300 text-slate-900'}`} />
+                      <input
+                        type="text"
+                        value={newCrmName}
+                        onChange={e => setNewCrmName(e.target.value)}
+                        placeholder="Nome da empresa *"
+                        autoFocus
+                        className={`rounded-lg border px-3 py-2 text-sm bg-transparent ${isDarkMode ? 'border-slate-700 text-slate-100' : 'border-slate-300 text-slate-900'}`}
+                      />
+                      <input
+                        type="text"
+                        value={newCrmWebsite}
+                        onChange={e => setNewCrmWebsite(e.target.value)}
+                        placeholder="Website (opcional)"
+                        className={`rounded-lg border px-3 py-2 text-sm bg-transparent ${isDarkMode ? 'border-slate-700 text-slate-100' : 'border-slate-300 text-slate-900'}`}
+                      />
+                      <input
+                        type="text"
+                        value={newCrmResumo}
+                        onChange={e => setNewCrmResumo(e.target.value)}
+                        placeholder="Resumo breve (opcional)"
+                        className={`rounded-lg border px-3 py-2 text-sm bg-transparent ${isDarkMode ? 'border-slate-700 text-slate-100' : 'border-slate-300 text-slate-900'}`}
+                      />
                     </div>
                     <div className="flex justify-end">
-                      <button onClick={handleCreateManualCRMCard} disabled={!newCrmName.trim() || isCreatingCrmCard}
-                        className="px-4 py-2 rounded-lg text-[12px] font-semibold bg-emerald-600 text-white hover:bg-emerald-500 disabled:bg-slate-400 disabled:cursor-not-allowed">
+                      <button
+                        onClick={handleCreateManualCRMCard}
+                        disabled={!newCrmName.trim() || isCreatingCrmCard}
+                        className="px-4 py-2 rounded-lg text-[12px] font-semibold bg-emerald-600 text-white hover:bg-emerald-500 disabled:bg-slate-400 disabled:cursor-not-allowed"
+                      >
                         {isCreatingCrmCard ? 'Criando...' : 'Criar empresa'}
                       </button>
                     </div>
@@ -907,9 +1139,13 @@ const App: React.FC = () => {
       {selectedCRMCard && canAccessMiniCRM && (
         <React.Suspense fallback={null}>
           <CRMDetail
-            card={selectedCRMCard} sessions={sessions} onClose={handleCloseCRMDetail}
-            onSelectSession={handleSelectSessionFromDetail} onMoveStage={handleMoveStageFromDetail}
-            onCreateSessionFromCard={handleCreateSessionFromDetail} isDarkMode={isDarkMode}
+            card={selectedCRMCard}
+            sessions={sessions}
+            onClose={handleCloseCRMDetail}
+            onSelectSession={handleSelectSessionFromDetail}
+            onMoveStage={handleMoveStageFromDetail}
+            onCreateSessionFromCard={handleCreateSessionFromDetail}
+            isDarkMode={isDarkMode}
           />
         </React.Suspense>
       )}
@@ -935,7 +1171,11 @@ const App: React.FC = () => {
           followUpNotas={followUpNotas}
           onNotasChange={setFollowUpNotas}
           followUpStatus={followUpStatus}
-          companyName={cleanTitle(extractCompanyName(currentSession?.title)) || currentSession?.empresaAlvo || 'Conta em prospecção'}
+          companyName={
+            cleanTitle(extractCompanyName(currentSession?.title)) ||
+            currentSession?.empresaAlvo ||
+            'Conta em prospecção'
+          }
           onSchedule={handleScheduleFollowUp}
           onClose={() => setShowFollowUpModal(false)}
         />

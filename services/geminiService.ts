@@ -3,7 +3,14 @@ import { ChatMode, NOME_VENDEDOR_PLACEHOLDER } from '../constants';
 import { normalizeAppError } from '../utils/errorHelpers';
 import { withAutoRetry } from '../utils/retry';
 import { Message } from '../types';
-import { lookupCliente, formatarParaPrompt, benchmarkClientes, formatarBenchmarkParaPrompt, isConcorrenteOuPropria } from './clientLookupService';
+import { parsePortaMarkerV2, stripPortaMarkers } from '../utils/porta';
+import {
+  lookupCliente,
+  formatarParaPrompt,
+  benchmarkClientes,
+  formatarBenchmarkParaPrompt,
+  isConcorrenteOuPropria,
+} from './clientLookupService';
 import { addInvestigation } from '../components/InvestigationDashboard';
 import { CompetitorDetection, getContextoConcorrentesRegionais } from './competitorService';
 import { buscarContextoPinecone, buscarContextoDocsPinecone } from './ragService';
@@ -23,9 +30,16 @@ export interface GeminiRequestOptions {
 }
 
 export interface SpotterExtractedData {
-  companyName?: string; contactName?: string; contactRole?: string;
-  contactEmail?: string; contactPhone?: string; segment?: string;
-  size?: string; pains?: string[]; currentSystems?: string[]; summary?: string;
+  companyName?: string;
+  contactName?: string;
+  contactRole?: string;
+  contactEmail?: string;
+  contactPhone?: string;
+  segment?: string;
+  size?: string;
+  pains?: string[];
+  currentSystems?: string[];
+  summary?: string;
 }
 
 import { MODEL_IDS } from '../config/models';
@@ -51,15 +65,18 @@ PROIBIÇÕES:
 Responda EXCLUSIVAMENTE em Português (Brasil) usando um Array JSON de strings.
 `;
 
+export { parsePortaMarkerV2 };
+
 function sanitizeStreamText(text: string): string {
-  return text
-    .replace(/\[\[COMPETITOR:[^\]]*\]\]/g, '')
-    .replace(/\[\[PORTA:[^\]]*\]\]/g, '')
-    .replace(/\[\[STATUS:[^\]]*\]\]/g, '')
-    .replace(/\[\[[A-Z_]+:[^\n]*?\]\]/g, '')
-    .replace(/\[\[[A-Z_]*:?[^\n]*$/, '')
-    .replace(/^(\s*\]\s*\n)+/, '')
-    .replace(/^\s*\]/, '');
+  return stripPortaMarkers(
+    text
+      .replace(/\[\[COMPETITOR:[^\]]*\]\]/g, '')
+      .replace(/\[\[STATUS:[^\]]*\]\]/g, '')
+      .replace(/\[\[[A-Z_]+:[^\n]*?\]\]/g, '')
+      .replace(/\[\[[A-Z_]*:?[^\n]*$/, '')
+      .replace(/^(\s*\]\s*\n)+/, '')
+      .replace(/^\s*\]/, ''),
+  );
 }
 
 function enforceOpeningWithSeller(rawText: string, nomeVendedor: string): string {
@@ -69,10 +86,14 @@ function enforceOpeningWithSeller(rawText: string, nomeVendedor: string): string
   if (/^#+\s/.test(trimmedStart)) return rawText;
 
   let text = trimmedStart;
-  const forbiddenOpenings = [ /^fala[,!\.\s]*time[\.!?\s-]*/i, /^fala[,!\.\s]*(pessoal|galera)[\.!?\s-]*/i ];
+  const forbiddenOpenings = [/^fala[,!\.\s]*time[\.!?\s-]*/i, /^fala[,!\.\s]*(pessoal|galera)[\.!?\s-]*/i];
   let replaced = false;
   for (const re of forbiddenOpenings) {
-    if (re.test(text)) { text = text.replace(re, `${seller}, `); replaced = true; break; }
+    if (re.test(text)) {
+      text = text.replace(re, `${seller}, `);
+      replaced = true;
+      break;
+    }
   }
   if (!replaced) return rawText;
   const match = rawText.match(/^\s*/);
@@ -83,18 +104,40 @@ function parseCompetitorMarker(content: string): CompetitorDetection | null {
   const match = content.match(/\[\[COMPETITOR:([^:\]]+):([^:\]]+):([^:\]]+):([^\]]+)\]\]/);
   if (!match) return null;
   return {
-    encontrado: true, nomeERP: match[1].trim(), nivelAmeaca: match[2].trim() as 'alto' | 'medio' | 'baixo',
-    revendaLocal: match[3].trim(), confianca: match[4].trim() as 'alta' | 'media' | 'baixa',
+    encontrado: true,
+    nomeERP: match[1].trim(),
+    nivelAmeaca: match[2].trim() as 'alto' | 'medio' | 'baixo',
+    revendaLocal: match[3].trim(),
+    confianca: match[4].trim() as 'alta' | 'media' | 'baixa',
   };
 }
 
 function extractEstadoFromMessage(message: string): string {
   const ufsKnown: Record<string, string> = {
-    'mato grosso do sul': 'MS', 'mato grosso': 'MT', 'goiás': 'GO', 'goias': 'GO',
-    'pará': 'PA', 'para': 'PA', 'maranhão': 'MA', 'maranhao': 'MA', 'tocantins': 'TO',
-    'bahia': 'BA', 'minas gerais': 'MG', 'são paulo': 'SP', 'paraná': 'PR', 'parana': 'PR',
-    'rio grande do sul': 'RS', ' MT ': 'MT', ' MS ': 'MS', ' GO ': 'GO', ' PA ': 'PA',
-    ' BA ': 'BA', ' MG ': 'MG', ' SP ': 'SP', ' PR ': 'PR', ' RS ': 'RS',
+    'mato grosso do sul': 'MS',
+    'mato grosso': 'MT',
+    goiás: 'GO',
+    goias: 'GO',
+    pará: 'PA',
+    para: 'PA',
+    maranhão: 'MA',
+    maranhao: 'MA',
+    tocantins: 'TO',
+    bahia: 'BA',
+    'minas gerais': 'MG',
+    'são paulo': 'SP',
+    paraná: 'PR',
+    parana: 'PR',
+    'rio grande do sul': 'RS',
+    ' MT ': 'MT',
+    ' MS ': 'MS',
+    ' GO ': 'GO',
+    ' PA ': 'PA',
+    ' BA ': 'BA',
+    ' MG ': 'MG',
+    ' SP ': 'SP',
+    ' PR ': 'PR',
+    ' RS ': 'RS',
   };
   const lower = message.toLowerCase();
   for (const [key, uf] of Object.entries(ufsKnown)) {
@@ -111,22 +154,23 @@ export function parseMarkers(content: string): ParsedContent {
   const statusRegex = /\[\[STATUS:([^\]]+)\]\]/g;
   let statusMatch;
   while ((statusMatch = statusRegex.exec(content)) !== null) {
-    statuses.push(statusMatch[1]); 
+    statuses.push(statusMatch[1]);
     text = text.replace(statusMatch[0], '');
   }
 
-  const portaMatch = text.match(/\[\[PORTA:(\d+):P(\d+):O(\d+):R(\d+):T(\d+):A(\d+)\]\]/);
-  if (portaMatch) {
-    scorePorta = {
-      score: parseInt(portaMatch[1]), p: parseInt(portaMatch[2]), o: parseInt(portaMatch[3]),
-      r: parseInt(portaMatch[4]), t: parseInt(portaMatch[5]), a: parseInt(portaMatch[6]),
-    };
-    text = text.replace(portaMatch[0], '');
-  }
+  scorePorta = parsePortaMarkerV2(text);
+  text = stripPortaMarkers(text);
 
   text = text.replace(/\[\[COMPETITOR:[^\]]*\]\]/g, '').replace(/\[\[[A-Z_]+:[^\n]*?\]\]/g, '');
-  text = text.replace(/\*{0,2}Score PORTA:\*{0,2}\s*\d+\/100\s*[—–-]\s*(?:Alta|Média|Baixa)\s*Compatibilidade\.?\s*/gi, '');
-  text = text.replace(/^(\s*\]\s*\n)+/, '').replace(/^\s*\]/, '').replace(/^\s*\n/gm, '\n').trim();
+  text = text.replace(
+    /\*{0,2}Score PORTA:\*{0,2}\s*\d+\/100\s*[—–-]\s*(?:Alta|Média|Baixa)\s*Compatibilidade\.?\s*/gi,
+    '',
+  );
+  text = text
+    .replace(/^(\s*\]\s*\n)+/, '')
+    .replace(/^\s*\]/, '')
+    .replace(/^\s*\n/gm, '\n')
+    .trim();
   return { text, statuses, scorePorta };
 }
 
@@ -134,13 +178,19 @@ const companyMetrics: Record<string, Record<string, number>> = {};
 function extractMetrics(text: string): Record<string, number> {
   const m: Record<string, number> = {};
   const haMatch = text.match(/(\d[\d.,]*)\s*(mil\s+)?hect(?:ares?)?\b/i);
-  if (haMatch) m.ha = haMatch[2] ? parseFloat(haMatch[1].replace(/\./g, '').replace(',', '.')) * 1000 : parseFloat(haMatch[1].replace(/\./g, '').replace(',', '.'));
+  if (haMatch)
+    m.ha = haMatch[2]
+      ? parseFloat(haMatch[1].replace(/\./g, '').replace(',', '.')) * 1000
+      : parseFloat(haMatch[1].replace(/\./g, '').replace(',', '.'));
   const empMatch = text.match(/\+?(\d[\d.,]*)\s*(mil\s+)?(?:colaboradores?|funcionários?|empregados?)\b/i);
-  if (empMatch) m.employees = empMatch[2] ? parseFloat(empMatch[1].replace(/\./g, '').replace(',', '.')) * 1000 : parseFloat(empMatch[1].replace(/\./g, '').replace(',', '.'));
+  if (empMatch)
+    m.employees = empMatch[2]
+      ? parseFloat(empMatch[1].replace(/\./g, '').replace(',', '.')) * 1000
+      : parseFloat(empMatch[1].replace(/\./g, '').replace(',', '.'));
   return m;
 }
 
-let currentCompanyContext: { empresa: string; sessionId: string; timestamp: number; } | null = null;
+let currentCompanyContext: { empresa: string; sessionId: string; timestamp: number } | null = null;
 
 export function generateContextReminder(companyName: string | null, sessionId?: string): string {
   if (!companyName) return '';
@@ -148,7 +198,9 @@ export function generateContextReminder(companyName: string | null, sessionId?: 
   return `\n\n📌 [CONTEXTO ATIVO]: Você está investigando a empresa "${companyName}".\n- Mantenha foco TOTAL nesta empresa.\n- NUNCA cite nomes de empresas que não foram mencionados pelo usuário.\n`;
 }
 
-export function resetCompanyContext(): void { currentCompanyContext = null; }
+export function resetCompanyContext(): void {
+  currentCompanyContext = null;
+}
 
 export function extractSuggestionsFromResponse(content: string): string[] {
   if (!content) return [];
@@ -159,8 +211,19 @@ export function extractSuggestionsFromResponse(content: string): string[] {
   for (const regex of regexes) {
     const parts = content.split(regex);
     if (parts.length >= 2) {
-      return parts[parts.length - 1].split('\n').map(l => l.trim()).filter(l => /^[\*\-•\+]\s/.test(l) || /^\d+\./.test(l))
-        .map(l => l.replace(/^[\*\-•\+\d\.]+\s*/, '').replace(/^\"|'|'|\"$/g, '').replace(/\*+$/, '').trim()).filter(l => l.length > 0).slice(0, 4);
+      return parts[parts.length - 1]
+        .split('\n')
+        .map(l => l.trim())
+        .filter(l => /^[\*\-•\+]\s/.test(l) || /^\d+\./.test(l))
+        .map(l =>
+          l
+            .replace(/^[\*\-•\+\d\.]+\s*/, '')
+            .replace(/^\"|'|'|\"$/g, '')
+            .replace(/\*+$/, '')
+            .trim(),
+        )
+        .filter(l => l.length > 0)
+        .slice(0, 4);
     }
   }
   return [];
@@ -168,22 +231,31 @@ export function extractSuggestionsFromResponse(content: string): string[] {
 
 export const resetChatSession = () => resetCompanyContext();
 
-const analyzeUserIntent = async (msg: string): Promise<{ empresa: string | null; benchmark: boolean; rota: 'tatica' | 'profunda' }> => {
+const analyzeUserIntent = async (
+  msg: string,
+): Promise<{ empresa: string | null; benchmark: boolean; rota: 'tatica' | 'profunda' }> => {
   if (!msg || msg.trim().length < 5) return { empresa: null, benchmark: false, rota: 'tatica' };
   try {
     const prompt = `Analise a frase: "${msg}". Extraia (JSON): 1. "empresa": NOME DA EMPRESA (ou "NONE"). 2. "benchmark": boolean. 3. "rota": "profunda" ou "tatica".`;
     const response = await proxyGenerateContent({
       model: ROUTER_MODEL_ID,
       contents: prompt,
-      config: { temperature: 0, responseMimeType: 'application/json' }
+      config: { temperature: 0, responseMimeType: 'application/json' },
     });
-    const parsed = JSON.parse((response.text || '{}').replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim());
+    const parsed = JSON.parse(
+      (response.text || '{}')
+        .replace(/^```json\s*/i, '')
+        .replace(/```\s*$/i, '')
+        .trim(),
+    );
     return {
-      empresa: (!parsed.empresa || parsed.empresa === 'NONE' || parsed.empresa.length < 2) ? null : parsed.empresa,
+      empresa: !parsed.empresa || parsed.empresa === 'NONE' || parsed.empresa.length < 2 ? null : parsed.empresa,
       benchmark: !!parsed.benchmark,
-      rota: parsed.rota === 'profunda' ? 'profunda' : 'tatica'
+      rota: parsed.rota === 'profunda' ? 'profunda' : 'tatica',
     };
-  } catch { return { empresa: null, benchmark: false, rota: 'tatica' }; }
+  } catch {
+    return { empresa: null, benchmark: false, rota: 'tatica' };
+  }
 };
 
 const generateBenchmarkKeywords = async (empresaNome: string, contexto: string): Promise<string[]> => {
@@ -191,10 +263,15 @@ const generateBenchmarkKeywords = async (empresaNome: string, contexto: string):
     const resp = await proxyGenerateContent({
       model: ROUTER_MODEL_ID,
       contents: `Gere 5 palavras-chave do SETOR de "${empresaNome}". Contexto: "${contexto}". Separadas por vírgula.`,
-      config: { temperature: 0.1 }
+      config: { temperature: 0.1 },
     });
-    return (resp.text || "").split(',').map(k => k.trim()).filter(k => k.length > 1);
-  } catch { return []; }
+    return (resp.text || '')
+      .split(',')
+      .map(k => k.trim())
+      .filter(k => k.length > 1);
+  } catch {
+    return [];
+  }
 };
 
 export const generateLoadingCuriosities = async (context: string): Promise<string[]> => {
@@ -221,65 +298,119 @@ REGRAS:
 - "setor"/"regional": contexto de mercado e região para reforçar diagnóstico.
 - Frases curtas (máx 130 chars), concretas e sem linguagem genérica.
 - Se não houver dado confiável, use formulação prudente (ex: "sinal de expansão em apuração").`,
-      config: { responseMimeType: 'application/json', temperature: 0.8, maxOutputTokens: 1024 }
+      config: { responseMimeType: 'application/json', temperature: 0.8, maxOutputTokens: 1024 },
     });
     return parseLoadingCuriosities(response.text || '', context);
-  } catch { return []; }
+  } catch {
+    return [];
+  }
 };
 
-const generateFallbackSuggestions = async (lastUserText: string, botResponseText: string, isOperacao: boolean, empresaAlvo: string | null): Promise<string[]> => {
+const generateFallbackSuggestions = async (
+  lastUserText: string,
+  botResponseText: string,
+  isOperacao: boolean,
+  empresaAlvo: string | null,
+): Promise<string[]> => {
   try {
-    const isMegaPrompt = lastUserText.length > 300 && (lastUserText.includes('Protocolo de investigação') || lastUserText.includes('DIRETRIZ'));
-    
+    const isMegaPrompt =
+      lastUserText.length > 300 &&
+      (lastUserText.includes('Protocolo de investigação') || lastUserText.includes('DIRETRIZ'));
+
     // CORREÇÃO: Sempre forçar a inclusão do nome da empresa nas sugestões
     const empresaNome = empresaAlvo || 'a empresa alvo';
     const target = `da empresa ${empresaNome}`;
-    
-    const effectiveUserContext = isMegaPrompt 
-      ? `O usuário executou uma análise profunda (Raio-X/Dossiê) sobre ${empresaNome}.` 
+
+    const effectiveUserContext = isMegaPrompt
+      ? `O usuário executou uma análise profunda (Raio-X/Dossiê) sobre ${empresaNome}.`
       : `O usuário, investigando ${empresaNome}, enviou a pergunta: "${lastUserText.substring(0, 500)}".`;
 
     const response = await proxyGenerateContent({
       model: ROUTER_MODEL_ID,
       contents: `${effectiveUserContext}\n\nA IA respondeu com esta análise:\n"${botResponseText.substring(0, 1000)}..."\n\n**REGRA OBRIGATÓRIA**: Cada sugestão DEVE mencionar "${empresaNome}" ou usar pronomes que deixem clara a referência à empresa (ex: "dessa empresa", "deles", "lá").\n\nGere 3 sugestões CURTAS E DIRETAS de perguntas (follow-up) que o usuário pode fazer para se aprofundar nesta resposta. \n\nExemplos BONS:\n- "Como ${empresaNome} gerencia acesso e balanças hoje?"\n- "Quais concorrentes dessa empresa em MT já usam WMS Senior?"\n- "${empresaNome} tem planos de novas aquisições nos próximos 12 meses?"\n\nExemplos RUINS (NÃO FAZER):\n- "Quais concorrentes em MT já usam o WMS?" (falta o nome da empresa)\n- "Como gerenciam acesso?" (muito genérico)\n\nRetorne APENAS um JSON Array de strings.`,
-      config: { systemInstruction: "Você é o assistente B2B que sugere os próximos passos da investigação. SEMPRE mencione o nome da empresa nas sugestões.", responseMimeType: 'application/json', temperature: 0.3 }
+      config: {
+        systemInstruction:
+          'Você é o assistente B2B que sugere os próximos passos da investigação. SEMPRE mencione o nome da empresa nas sugestões.',
+        responseMimeType: 'application/json',
+        temperature: 0.3,
+      },
     });
 
-    const json = JSON.parse((response.text || "[]").replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim());
+    const json = JSON.parse(
+      (response.text || '[]')
+        .replace(/^```json\s*/i, '')
+        .replace(/```\s*$/i, '')
+        .trim(),
+    );
     if (!Array.isArray(json)) return [`Mapear decisores ${target}`, `Verificar gaps técnicos de ${empresaNome}`];
-    
+
     // Forçar substituição se a IA esqueceu
     return json
-      .map((item: any) => typeof item === 'string' ? item : item?.pergunta || item?.sugestao || "Aprofundar análise")
+      .map((item: any) => (typeof item === 'string' ? item : item?.pergunta || item?.sugestao || 'Aprofundar análise'))
       .map((suggestion: string) => {
         // Se não menciona a empresa, forçar adição
-        if (empresaAlvo && !suggestion.toLowerCase().includes(empresaAlvo.toLowerCase()) && 
-            !suggestion.includes('dessa empresa') && !suggestion.includes('deles') && !suggestion.includes('lá')) {
+        if (
+          empresaAlvo &&
+          !suggestion.toLowerCase().includes(empresaAlvo.toLowerCase()) &&
+          !suggestion.includes('dessa empresa') &&
+          !suggestion.includes('deles') &&
+          !suggestion.includes('lá')
+        ) {
           return suggestion.replace(/^(\w+)/, `$1 ${empresaAlvo}`);
         }
         return suggestion;
       })
       .slice(0, 3);
-  } catch { 
+  } catch {
     const empresa = empresaAlvo || 'a empresa';
-    return [`Aprofundar análise de ${empresa}`, `Mapear decisores de ${empresa}`, `Verificar gaps técnicos de ${empresa}`]; 
+    return [
+      `Aprofundar análise de ${empresa}`,
+      `Mapear decisores de ${empresa}`,
+      `Verificar gaps técnicos de ${empresa}`,
+    ];
   }
 };
 
-export const sendMessageToGemini = async (message: string, history: Message[], systemInstruction: string, options: GeminiRequestOptions = {}): Promise<{ text: string; sources: Array<{ title: string, url: string }>, suggestions: string[], scorePorta: ScorePortaData | null, statuses: string[], empresa?: string | null, ghostReason?: string }> => {
-  const { useGrounding = true, thinkingMode = false, signal, onText, onStatus, onScorePorta, onCompetitor, nomeVendedor } = options;
+export const sendMessageToGemini = async (
+  message: string,
+  history: Message[],
+  systemInstruction: string,
+  options: GeminiRequestOptions = {},
+): Promise<{
+  text: string;
+  sources: Array<{ title: string; url: string }>;
+  suggestions: string[];
+  scorePorta: ScorePortaData | null;
+  statuses: string[];
+  empresa?: string | null;
+  ghostReason?: string;
+}> => {
+  const {
+    useGrounding = true,
+    thinkingMode = false,
+    signal,
+    onText,
+    onStatus,
+    onScorePorta,
+    onCompetitor,
+    nomeVendedor,
+  } = options;
 
   const guardResult = scanInput(message);
-  if (guardResult.level === 'blocked') throw normalizeAppError(new Error(`Mensagem bloqueada: ${guardResult.reason}.`), 'GUARD');
+  if (guardResult.level === 'blocked')
+    throw normalizeAppError(new Error(`Mensagem bloqueada: ${guardResult.reason}.`), 'GUARD');
 
   const safeMessage = guardResult.sanitized;
-  
+
   // AQUI FOI CORRIGIDO: Recoloquei a variável que tinha sumido
   const nomeParaInjetar = nomeVendedor?.trim() || 'Vendedor';
-  const systemInstructionFinal = systemInstruction.replace(new RegExp(NOME_VENDEDOR_PLACEHOLDER.replace(/[{}]/g, '\\$&'), 'g'), nomeParaInjetar);
+  const systemInstructionFinal = systemInstruction.replace(
+    new RegExp(NOME_VENDEDOR_PLACEHOLDER.replace(/[{}]/g, '\\$&'), 'g'),
+    nomeParaInjetar,
+  );
 
   const apiCall = async () => {
-    onStatus?.("Analisando complexidade do pedido...");
+    onStatus?.('Analisando complexidade do pedido...');
 
     const isMegaPromptMessage = message.startsWith('Dossiê completo de [');
     let embeddedCompany = null;
@@ -289,22 +420,24 @@ export const sendMessageToGemini = async (message: string, history: Message[], s
       if (embeddedCompany === 'a empresa desta conversa') embeddedCompany = currentCompanyContext?.empresa || null;
     }
 
-    const ragQuery = isMegaPromptMessage ? (embeddedCompany || 'Empresa Alvo') : message;
+    const ragQuery = isMegaPromptMessage ? embeddedCompany || 'Empresa Alvo' : message;
     const ragContextPromise = buscarContextoPinecone(ragQuery);
     const docsRagPromise = buscarContextoDocsPinecone(ragQuery);
 
     const intentQuery = isMegaPromptMessage ? `Investigar a empresa ${embeddedCompany || 'desconhecida'}` : message;
     const { empresa: rawEmpresa, benchmark, rota } = await analyzeUserIntent(intentQuery);
-    
+
     let empresa = isConcorrenteOuPropria(rawEmpresa || '') ? null : rawEmpresa;
-    if (isMegaPromptMessage && embeddedCompany && !isConcorrenteOuPropria(embeddedCompany)) { empresa = embeddedCompany; }
-    
+    if (isMegaPromptMessage && embeddedCompany && !isConcorrenteOuPropria(embeddedCompany)) {
+      empresa = embeddedCompany;
+    }
+
     if (!empresa && currentCompanyContext?.empresa) {
-       empresa = currentCompanyContext.empresa;
+      empresa = currentCompanyContext.empresa;
     }
 
     let finalInstruction = systemInstructionFinal;
-    if (!empresa && !history.some(h => h.sender === 'bot' && h.text.includes('PORTA:'))) {
+    if (!empresa && !history.some(h => h.sender === 'bot' && (h.scorePorta || h.text.includes('PORTA:')))) {
       finalInstruction = `Você é o Especialista Técnico da Senior Sistemas.
 SUA ÚNICA MISSÃO: Responder a pergunta técnica de forma DIRETA. 
 Use os links do RAG [Texto](URL). NÃO inicie fluxos de investigação, NÃO peça CNPJ.`;
@@ -318,8 +451,8 @@ Use os links do RAG [Texto](URL). NÃO inicie fluxos de investigação, NÃO pe�
     }
 
     const isDeepResearch = rota === 'profunda' || isMegaPromptMessage;
-    if (isDeepResearch) onStatus?.("Deep Research ativado — varredura web iniciada...");
-    if (signal?.aborted) throw new Error("Request aborted");
+    if (isDeepResearch) onStatus?.('Deep Research ativado — varredura web iniciada...');
+    if (signal?.aborted) throw new Error('Request aborted');
 
     let enrichments: string[] = [];
     if (empresa) {
@@ -332,32 +465,34 @@ Use os links do RAG [Texto](URL). NÃO inicie fluxos de investigação, NÃO pe�
       const competitorContext = getContextoConcorrentesRegionais(extractEstadoFromMessage(message));
       if (competitorContext) enrichments.push(competitorContext);
       if (benchmark || message.includes('investigar')) {
-        onStatus?.("Mapeando benchmarks...");
+        onStatus?.('Mapeando benchmarks...');
         const bench = await benchmarkClientes(await generateBenchmarkKeywords(empresa, message));
         if (bench.ok) enrichments.push(formatarBenchmarkParaPrompt(bench, empresa));
       }
     }
 
-    onStatus?.("Consultando bases de conhecimento...");
+    onStatus?.('Consultando bases de conhecimento...');
     const [ragContext, docsRagContext] = await Promise.all([
       Promise.race([ragContextPromise, new Promise<string>(r => setTimeout(() => r(''), 60000))]),
-      Promise.race([docsRagPromise, new Promise<string>(r => setTimeout(() => r(''), 60000))])
+      Promise.race([docsRagPromise, new Promise<string>(r => setTimeout(() => r(''), 60000))]),
     ]);
 
     if (ragContext) enrichments.push(`## INTELIGÊNCIA INTERNA (RAG)\n${sanitizeExternalContent(ragContext)}`);
     if (docsRagContext) enrichments.push(`## DOCUMENTAÇÃO SENIOR (RAG)\n${sanitizeExternalContent(docsRagContext)}`);
 
-    const isTechnicalMode = !empresa && !history.some(h => h.sender === 'bot' && h.text.includes('PORTA:'));
-    let messageToSend = enrichments.length > 0 
-      ? `## PERGUNTA\n"${effectiveUserMessage}"\n\n---\n## CONTEXTO\n${enrichments.join('\n')}\n---\nO usuário perguntou: "${effectiveUserMessage}"` 
-      : effectiveUserMessage;
-    
+    const isTechnicalMode =
+      !empresa && !history.some(h => h.sender === 'bot' && (h.scorePorta || h.text.includes('PORTA:')));
+    let messageToSend =
+      enrichments.length > 0
+        ? `## PERGUNTA\n"${effectiveUserMessage}"\n\n---\n## CONTEXTO\n${enrichments.join('\n')}\n---\nO usuário perguntou: "${effectiveUserMessage}"`
+        : effectiveUserMessage;
+
     if (isTechnicalMode) messageToSend += `\n\nResponda diretamente como Especialista Senior.`;
 
-    if (!isDeepResearch) onStatus?.("Gerando resposta...");
+    if (!isDeepResearch) onStatus?.('Gerando resposta...');
     const sdkHistory = history
       .filter(msg => !msg.isError)
-      .map(msg => ({ role: msg.sender === Sender.User ? 'user' as const : 'model' as const, text: msg.text }));
+      .map(msg => ({ role: msg.sender === Sender.User ? ('user' as const) : ('model' as const), text: msg.text }));
 
     const response = await proxyChatSendMessage(
       {
@@ -366,21 +501,21 @@ Use os links do RAG [Texto](URL). NÃO inicie fluxos de investigação, NÃO pe�
         systemInstruction: `${CANARY_TOKEN}\n${finalInstruction}\nMODO LIVE STATUS (OBRIGATÓRIO):\nEmita marcadores [[STATUS: Mensagem]] a cada etapa da análise. Use links markdown [texto](URL).`,
         message: messageToSend,
         useGrounding,
-        thinkingMode
+        thinkingMode,
       },
-      signal
+      signal,
     );
 
-    const rawAccumulator = response.text || "";
+    const rawAccumulator = response.text || '';
     const groundingChunks = Array.isArray(response.groundingChunks) ? response.groundingChunks : [];
     onText?.(sanitizeStreamText(rawAccumulator));
 
     const finalParsed = parseMarkers(rawAccumulator);
-    finalParsed.statuses.forEach((status) => onStatus?.(status));
+    finalParsed.statuses.forEach(status => onStatus?.(status));
     if (finalParsed.scorePorta) onScorePorta?.(finalParsed.scorePorta);
     const competitorDetection = parseCompetitorMarker(rawAccumulator);
     if (competitorDetection) onCompetitor?.(competitorDetection);
-    
+
     // Agora o nomeParaInjetar existe e não dará mais erro!
     let finalText = enforceOpeningWithSeller(finalParsed.text, nomeParaInjetar);
 
@@ -388,64 +523,107 @@ Use os links do RAG [Texto](URL). NÃO inicie fluxos de investigação, NÃO pe�
     const linkRegex = /\[([^\]\n]{1,120})\]\((https?:\/\/[^)\s]{4,})\)/g;
     let linkMatch;
     while ((linkMatch = linkRegex.exec(finalText)) !== null) {
-      if (!inlineLinks.some(l => l.url === linkMatch[2])) inlineLinks.push({ title: linkMatch[1].trim(), url: linkMatch[2] });
+      if (!inlineLinks.some(l => l.url === linkMatch[2]))
+        inlineLinks.push({ title: linkMatch[1].trim(), url: linkMatch[2] });
     }
-    const sources = [...groundingChunks.filter(c => c.web?.uri).map(c => ({ title: c.web.title || c.web.uri, url: c.web.uri })), ...inlineLinks];
+    const sources = [
+      ...groundingChunks.filter(c => c.web?.uri).map(c => ({ title: c.web.title || c.web.uri, url: c.web.uri })),
+      ...inlineLinks,
+    ];
 
     return {
-      text: finalText, sources, suggestions: [],
-      scorePorta: (!rawEmpresa || isConcorrenteOuPropria(rawEmpresa)) ? undefined : finalParsed.scorePorta,
-      statuses: finalParsed.statuses, empresa,
-      ghostReason: !rawAccumulator.trim() ? "Timeout" : undefined
+      text: finalText,
+      sources,
+      suggestions: [],
+      scorePorta: !rawEmpresa || isConcorrenteOuPropria(rawEmpresa) ? undefined : finalParsed.scorePorta,
+      statuses: finalParsed.statuses,
+      empresa,
+      ghostReason: !rawAccumulator.trim() ? 'Timeout' : undefined,
     };
   };
 
   try {
     const responseData = await withAutoRetry('Gemini:Stream', apiCall, { maxRetries: 2 });
-    
+
     let suggestions = extractSuggestionsFromResponse(responseData.text);
-    
+
     if (!suggestions || suggestions.length === 0) {
-      onStatus?.("Gerando ganchos comerciais finais...");
-      suggestions = await generateFallbackSuggestions(message, responseData.text, systemInstruction.includes("Operação"), responseData.empresa || null);
+      onStatus?.('Gerando ganchos comerciais finais...');
+      suggestions = await generateFallbackSuggestions(
+        message,
+        responseData.text,
+        systemInstruction.includes('Operação'),
+        responseData.empresa || null,
+      );
     }
 
     if (responseData.empresa && responseData.text.length > 300) {
       addInvestigation({
-        id: Date.now().toString(), empresa: responseData.empresa,
+        id: Date.now().toString(),
+        empresa: responseData.empresa,
         score: responseData.scorePorta?.score || 75,
-        scoreLabel: responseData.scorePorta ? `${responseData.scorePorta.score}/100` : "ANALISADO",
-        gaps: [], familias: [], isCliente: responseData.text.includes("✅ SIM"),
-        modo: systemInstruction.includes("Operação") ? "Operação" : "Diretoria",
-        data: new Date().toLocaleDateString("pt-BR"),
+        scoreLabel: responseData.scorePorta ? `${responseData.scorePorta.score}/100` : 'ANALISADO',
+        gaps: [],
+        familias: [],
+        isCliente: responseData.text.includes('✅ SIM'),
+        modo: systemInstruction.includes('Operação') ? 'Operação' : 'Diretoria',
+        data: new Date().toLocaleDateString('pt-BR'),
         resumo: responseData.text.substring(0, 150).replace(/[#*\n]/g, ' '),
       });
     }
     return { ...responseData, suggestions };
-  } catch (error: any) { throw normalizeAppError(error, 'GEMINI'); }
+  } catch (error: any) {
+    throw normalizeAppError(error, 'GEMINI');
+  }
 };
 
-export const generateNewSuggestions = async (contextText: string, previousSuggestions: string[] = []): Promise<string[]> => {
+export const generateNewSuggestions = async (
+  contextText: string,
+  previousSuggestions: string[] = [],
+): Promise<string[]> => {
   if (!contextText.trim()) return [];
   try {
     const response = await proxyGenerateContent({
       model: ROUTER_MODEL_ID,
-      contents: [{ role: "user", parts: [{ text: `CONTEXTO:\n${contextText}\n\nEVITAR: ${previousSuggestions.join(', ')}\nGere 3 perguntas JSON.` }] }],
-      config: { systemInstruction: CONTINUITY_SYSTEM, responseMimeType: "application/json", temperature: 0.4 }
+      contents: [
+        {
+          role: 'user',
+          parts: [
+            { text: `CONTEXTO:\n${contextText}\n\nEVITAR: ${previousSuggestions.join(', ')}\nGere 3 perguntas JSON.` },
+          ],
+        },
+      ],
+      config: { systemInstruction: CONTINUITY_SYSTEM, responseMimeType: 'application/json', temperature: 0.4 },
     });
-    return JSON.parse((response.text || "[]").replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim())
-      .map((i: any) => typeof i === 'string' ? i : i.pergunta || i.sugestao || "Opção").slice(0, 3);
-  } catch { return ["Mapear decisores", "Consultar ERP atual"]; }
+    return JSON.parse(
+      (response.text || '[]')
+        .replace(/^```json\s*/i, '')
+        .replace(/```\s*$/i, '')
+        .trim(),
+    )
+      .map((i: any) => (typeof i === 'string' ? i : i.pergunta || i.sugestao || 'Opção'))
+      .slice(0, 3);
+  } catch {
+    return ['Mapear decisores', 'Consultar ERP atual'];
+  }
 };
 
-export const generateConsolidatedDossier = async (history: Message[], systemInstruction: string, mode: ChatMode, reportType: ReportType = 'full'): Promise<string> => {
+export const generateConsolidatedDossier = async (
+  history: Message[],
+  systemInstruction: string,
+  mode: ChatMode,
+  reportType: ReportType = 'full',
+): Promise<string> => {
   try {
     const response = await proxyGenerateContent({
-      model: TACTICAL_MODEL_ID, contents: `Consolide este histórico: ${history.map(m => m.text).join('\n')}`,
-      config: { systemInstruction, temperature: 0.2, maxOutputTokens: 65536 }
+      model: TACTICAL_MODEL_ID,
+      contents: `Consolide este histórico: ${history.map(m => m.text).join('\n')}`,
+      config: { systemInstruction, temperature: 0.2, maxOutputTokens: 65536 },
     });
-    return response.text || "Erro na consolidação.";
-  } catch (error) { throw normalizeAppError(error, 'GEMINI'); }
+    return response.text || 'Erro na consolidação.';
+  } catch (error) {
+    throw normalizeAppError(error, 'GEMINI');
+  }
 };
 
 export const extractSpotterData = async (raw: string): Promise<SpotterExtractedData> => {
@@ -460,7 +638,12 @@ FORMATO: Retorne EXCLUSIVAMENTE um JSON com as chaves: companyName, contactName,
 `;
   const response = await proxyGenerateContent({
     model: ROUTER_MODEL_ID,
-    contents: [{ role: 'user', parts: [{ text: `${systemInstruction}\n\nFICHA COPIADA DO SPOTTER:\n\n${sanitizeExternalContent(raw)}` }] }],
+    contents: [
+      {
+        role: 'user',
+        parts: [{ text: `${systemInstruction}\n\nFICHA COPIADA DO SPOTTER:\n\n${sanitizeExternalContent(raw)}` }],
+      },
+    ],
     config: { responseMimeType: 'application/json', temperature: 0.2, maxOutputTokens: 65536 },
   });
   try {
