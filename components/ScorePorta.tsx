@@ -114,6 +114,60 @@ const ScorePorta: React.FC<ScorePortaProps> = ({
         </div>
       </div>
 
+      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '10px' }}>
+        <span
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px',
+            padding: '4px 10px',
+            borderRadius: '999px',
+            background: badgeBg,
+            color: valueColor,
+            fontSize: '11px',
+            fontWeight: 700,
+          }}
+        >
+          SEG {segmento}
+        </span>
+        {flags.length > 0 ? (
+          flags.map((flag) => (
+            <span
+              key={flag}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '4px 10px',
+                borderRadius: '999px',
+                background: badgeBg,
+                color: valueColor,
+                fontSize: '11px',
+                fontWeight: 700,
+              }}
+            >
+              {PORTA_FLAG_META[flag].icon} {PORTA_FLAG_META[flag].label}
+            </span>
+          ))
+        ) : (
+          <span
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '4px 10px',
+              borderRadius: '999px',
+              background: badgeBg,
+              color: labelColor,
+              fontSize: '11px',
+              fontWeight: 700,
+            }}
+          >
+            Sem flags
+          </span>
+        )}
+      </div>
+
       {/* Progress bar */}
       <div
         style={{

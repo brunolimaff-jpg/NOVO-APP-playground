@@ -1,4 +1,4 @@
-import { AppError, ReportType, Sender, ScorePortaData, ParsedContent } from '../types';
+import { AppError, Message, ParsedContent, ReportType, ScorePortaData, Sender } from '../types';
 import { ChatMode, NOME_VENDEDOR_PLACEHOLDER } from '../constants';
 import { normalizeAppError } from '../utils/errorHelpers';
 import { withAutoRetry } from '../utils/retry';
@@ -16,7 +16,10 @@ import { CompetitorDetection, getContextoConcorrentesRegionais } from './competi
 import { buscarContextoPinecone, buscarContextoDocsPinecone } from './ragService';
 import { scanInput, sanitizeExternalContent, CANARY_TOKEN } from '../utils/promptGuard';
 import { parseLoadingCuriosities } from '../utils/loadingCuriosities';
+import { parsePortaMarkerV2 } from '../utils/porta';
 import { proxyChatSendMessage, proxyGenerateContent } from './geminiProxy';
+
+export { parsePortaMarkerV2 } from '../utils/porta';
 
 export interface GeminiRequestOptions {
   useGrounding?: boolean;
