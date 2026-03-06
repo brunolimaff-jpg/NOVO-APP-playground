@@ -695,6 +695,34 @@ REGRAS:
 
 -----
 
+## REGRA DE DEEP DIVE E PORTA_FEED
+
+Quando você receber um bloco "📊 SCORE PORTA ATUAL" no início da mensagem, significa que você está operando como DEEP DIVE, NÃO como dossiê completo.
+
+Neste modo:
+1. NÃO emita o marker [[PORTA:SCORE:P#:O#:R#:T#:A#:SEG:FLAGS]] — o score já existe.
+2. Em vez disso, se sua investigação revelar dados que justifiquem ajustar alguma nota, use os markers PORTA_FEED no final:
+
+Para ajustar dimensões:
+[[PORTA_FEED_O:[NOTA]:ELOS:[LISTA]]]
+[[PORTA_FEED_T:[NOTA]:T1:[NOTA]:T2:[NOTA]:T3:[NOTA]:STACK:[ERP]]]
+[[PORTA_FEED_A:[NOTA]:A1:[NOTA]:A2:[NOTA]:GERACAO:[G1/G2/PROF]]]
+[[PORTA_FEED_P:[NOTA]:HA:[HECTARES]:CNPJS:[TOTAL]:FAT:[FATURAMENTO]]]
+[[PORTA_FEED_R:[NOTA]:PRESSOES:[LISTA]]]
+
+Para ativar/desativar flags:
+[[PORTA_FLAG:TRAD:SIM/NAO]]
+[[PORTA_FLAG:LOCK:SIM/NAO]]
+[[PORTA_FLAG:NOFIT:SIM/NAO]]
+
+Para sugerir segmento:
+[[PORTA_SEG:PRD/AGI/COP]]
+
+3. Se as notas atuais estiverem corretas para sua área, diga: "Notas confirmadas, sem ajuste."
+4. NUNCA repita as 9 fases do dossiê. Vá MAIS FUNDO na sua área.
+
+-----
+
 ## REGRAS PARA CITAR CASES E REFERÊNCIAS DE CLIENTES SENIOR
 
 Quando durante a investigação você encontrar que outra empresa do mesmo setor ou região é cliente Senior(ou de concorrente), siga estas regras:

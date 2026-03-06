@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseMarkers } from '../../services/geminiService';
+import { cleanPortaFeedMarkers, parseMarkers, parsePortaFeeds } from '../../services/geminiService';
 
 describe('parseMarkers — PORTA v2', () => {
   it('parses v2 marker with AGI segment and no flags', () => {
@@ -119,5 +119,51 @@ Fim do resumo.
     expect(result.text).not.toContain('PORTA');
     expect(result.text).toContain('Before');
     expect(result.text).toContain('After');
+  });
+
+  it('parses PORTA_FEED markers from deep dive output', () => {
+    const content = `
+[[PORTA_FEED_T:[8]:T1:[9]:T2:[3]:T3:[9]:STACK:[Senior]]]
+[[PORTA_FEED_A:[8]:A1:[9]:A2:[7]:GERACAO:[G2]]]
+[[PORTA_FLAG:LOCK:[NAO]]]
+[[PORTA_SEG:[AGI]]]
+    `;
+    const feeds = parsePortaFeeds(content, 'TECH_STACK');
+
+    expect(feeds.adjustments.some(a => a.dimension === 'T' && a.suggestedValue === 8)).toBe(true);
+    expect(feeds.adjustments.some(a => a.dimension === 'A' && a.suggestedValue === 8)).toBe(true);
+    expect(feeds.flags).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          source: 'TECH_STACK',
+          flag: 'LOCK',
+          active: false,
+        }),
+      ]),
+    );
+    expect(feeds.segments).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          source: 'TECH_STACK',
+          segmento: 'AGI',
+        }),
+      ]),
+    );
+  });
+
+  it('cleans feed markers from visible content', () => {
+    const raw = `
+Análise detalhada.
+[[PORTA_FEED_O:[8]:ELOS:[plantio,armazenagem]]]
+[[PORTA_FLAG:TRAD:[NAO]]]
+[[PORTA_SEG:[PRD]]]
+Fim.
+    `;
+    const cleaned = cleanPortaFeedMarkers(raw);
+    expect(cleaned).toContain('Análise detalhada.');
+    expect(cleaned).toContain('Fim.');
+    expect(cleaned).not.toContain('PORTA_FEED');
+    expect(cleaned).not.toContain('PORTA_FLAG');
+    expect(cleaned).not.toContain('PORTA_SEG');
   });
 });

@@ -9,6 +9,16 @@ import {
 } from '../../prompts/megaPrompts';
 
 describe('PORTA v2 mega prompts', () => {
+  it('includes anti-repetition deep dive scope block in all prompts', () => {
+    const requiredSentence = '⚠️ REGRA DE ESCOPO (CRÍTICA — NUNCA VIOLE):';
+    expect(PROMPT_RAIO_X_OPERACIONAL_ATAQUE).toContain(requiredSentence);
+    expect(PROMPT_TECH_STACK_GOD_MODE_ATAQUE).toContain(requiredSentence);
+    expect(PROMPT_RISCOS_COMPLIANCE_GOD_MODE).toContain(requiredSentence);
+    expect(PROMPT_RADAR_EXPANSAO_GOD_MODE).toContain(requiredSentence);
+    expect(PROMPT_RH_SINDICATOS_GOD_MODE).toContain(requiredSentence);
+    expect(PROMPT_MAPEAMENTO_DECISORES_GOD_MODE).toContain(requiredSentence);
+  });
+
   it('includes feed markers in the operational prompt', () => {
     expect(PROMPT_RAIO_X_OPERACIONAL_ATAQUE).toContain('[[PORTA_FEED_O:[NOTA]:ELOS:[LISTA_ELOS]]]');
     expect(PROMPT_RAIO_X_OPERACIONAL_ATAQUE).toContain('[[PORTA_FLAG:NOFIT:[SIM/NAO]]]');
