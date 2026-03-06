@@ -2,6 +2,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { ScorePortaData } from '../types';
 import { getPortaCompatibility, PORTA_FLAG_META, PORTA_SEGMENT_LABELS } from '../utils/porta';
+import { getPortaState } from '../services/portaStateService';
 
 interface ScorePortaProps extends ScorePortaData {
   isDarkMode?: boolean;
@@ -42,6 +43,9 @@ const ScorePorta: React.FC<ScorePortaProps> = ({
 
   const values: Record<string, number> = { p, o, r, t, a };
   const flagsText = flags.length > 0 ? flags.join(', ') : 'NONE';
+  const portaState = getPortaState();
+  const baseScore = portaState?.baseScore?.score ?? null;
+  const adjustmentHistory = (portaState?.feedAdjustments || []).slice(-3).reverse();
   const scoreSummary =
     typeof scoreBruto === 'number'
       ? `Score final ${score} (bruto: ${scoreBruto}${flags.length > 0 ? ` - penalizado por ${flagsText}` : ''})`
@@ -168,6 +172,33 @@ const ScorePorta: React.FC<ScorePortaProps> = ({
           </span>
         )}
       </div>
+
+      {(baseScore !== null || adjustmentHistory.length > 0) && (
+        <div
+          style={{
+            marginBottom: '12px',
+            padding: '10px',
+            borderRadius: '10px',
+            background: subtleBg,
+            border: `1px solid ${subtleBorder}`,
+          }}
+        >
+          {baseScore !== null && (
+            <div style={{ fontSize: '11px', fontWeight: 700, color: labelColor, marginBottom: '6px' }}>
+              Score base: {baseScore} | Score consolidado: {score}
+            </div>
+          )}
+          {adjustmentHistory.length > 0 ? (
+            adjustmentHistory.map(item => (
+              <div key={`${item.source}-${item.dimension}-${item.timestamp}`} style={{ fontSize: '11px', color: valueColor }}>
+                {item.source}: {item.dimension} -> {item.suggestedValue}
+              </div>
+            ))
+          ) : (
+            <div style={{ fontSize: '11px', color: labelColor }}>Nenhum ajuste incremental registrado.</div>
+          )}
+        </div>
+      )}
 
       {/* Progress bar */}
       <div

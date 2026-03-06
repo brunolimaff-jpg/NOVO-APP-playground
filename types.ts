@@ -1,5 +1,3 @@
-import React from 'react';
-
 export enum Sender {
   User = 'user',
   Bot = 'bot',
@@ -67,6 +65,54 @@ export const PORTA_FLAG_PENALTIES: Record<PortaFlag, number> = {
   LOCK: 0.5,
   NOFIT: 0.3,
 };
+
+export type PortaDimension = 'P' | 'O' | 'R' | 'T' | 'A';
+
+export interface PortaFeedAdjustment {
+  source: string;
+  dimension: PortaDimension;
+  suggestedValue: number; // 0-10
+  justification: string;
+  subScores?: Record<string, number>;
+  metadata?: Record<string, string>;
+  timestamp: number;
+}
+
+export interface PortaFlagFeed {
+  source: string;
+  flag: PortaFlag;
+  active: boolean;
+  justification: string;
+  timestamp: number;
+}
+
+export interface PortaSegmentFeed {
+  source: string;
+  segmento: PortaSegmento;
+  justification: string;
+  timestamp: number;
+}
+
+export interface PortaState {
+  empresa: string;
+  sessionId: string;
+  baseScore: ScorePortaData | null;
+  baseScoreTimestamp: number | null;
+  feedAdjustments: PortaFeedAdjustment[];
+  flagFeeds: PortaFlagFeed[];
+  segmentFeeds: PortaSegmentFeed[];
+  consolidatedScore: ScorePortaData | null;
+  lastConsolidatedAt: number | null;
+}
+
+export const DEEP_DIVE_SOURCES = {
+  RAIO_X: 'RAIO_X_OPERACIONAL',
+  TECH: 'TECH_STACK',
+  COMPLIANCE: 'RISCOS_COMPLIANCE',
+  EXPANSAO: 'RADAR_EXPANSAO',
+  RH: 'RH_SINDICATOS',
+  DECISORES: 'MAPEAMENTO_DECISORES',
+} as const;
 
 export interface ParsedContent {
   text: string;
@@ -162,8 +208,6 @@ export interface ChatInterfaceProps {
   canAccessMiniCRM?: boolean;
   canAccessDashboard?: boolean;
   canAccessIntegrityCheck?: boolean;
-  // Renomeado de userId para deixar claro que é um nó React, não uma string
-  userHeaderNode: React.ReactNode;
   onLogout: () => void;
   lastUserQuery?: string;
   processing?: {
