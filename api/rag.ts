@@ -1,22 +1,39 @@
 import { GoogleGenAI } from '@google/genai';
 import { Pinecone } from '@pinecone-database/pinecone';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import {
-  DEFAULT_PINECONE_INDEX,
-  didFallbackPineconeIndex,
-  resolveOptionalNamespace,
-  resolvePineconeIndexName,
-} from '../utils/pineconeConfig.ts';
 
 export const config = {
   runtime: 'nodejs',
 };
 export const maxDuration = 60;
 
+const DEFAULT_PINECONE_INDEX = 'scout-arsenal';
+const PINECONE_INDEX_SECRET_PREFIX_RE = /^pcsk_/i;
+const PINECONE_INDEX_NAME_RE = /^[a-z0-9][a-z0-9-]{0,62}$/i;
+
 function getRequiredEnv(name: string): string {
   const value = process.env[name];
   if (!value) throw new Error(`Missing required env var: ${name}`);
   return value;
+}
+
+function normalizeEnvValue(value?: string | null): string | undefined {
+  const normalized = value?.trim();
+  return normalized ? normalized : undefined;
+}
+
+function resolvePineconeIndexName(candidate?: string | null): string {
+  const normalized = normalizeEnvValue(candidate);
+
+  if (!normalized) return DEFAULT_PINECONE_INDEX;
+  if (PINECONE_INDEX_SECRET_PREFIX_RE.test(normalized)) return DEFAULT_PINECONE_INDEX;
+  if (!PINECONE_INDEX_NAME_RE.test(normalized)) return DEFAULT_PINECONE_INDEX;
+
+  return normalized;
+}
+
+function resolveOptionalNamespace(candidate?: string | null): string | undefined {
+  return normalizeEnvValue(candidate);
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -47,8 +64,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const rawIndexName = process.env.PINECONE_INDEX || process.env.PINECONE_DOCS_INDEX;
-    const pineconeIndexName = resolvePineconeIndexName(rawIndexName, DEFAULT_PINECONE_INDEX);
-    if (didFallbackPineconeIndex(rawIndexName, DEFAULT_PINECONE_INDEX)) {
+    const pineconeIndexName = resolvePineconeIndexName(rawIndexName);
+    if (rawIndexName?.trim() && rawIndexName.trim() !== pineconeIndexName) {
       console.warn(
         `[RAG] Invalid Pinecone index env "${rawIndexName}" detected. Falling back to "${pineconeIndexName}".`,
       );
