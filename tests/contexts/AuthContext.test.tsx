@@ -1,7 +1,11 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import React from 'react';
-import { AuthProvider, useAuth } from '../../contexts/AuthContext';
+import {
+  AuthProvider,
+  TEMPORARILY_DISABLE_CLERK,
+  useAuth,
+} from '../../contexts/AuthContext';
 
 const clerkState = vi.hoisted(() => ({
   user: null as
@@ -67,8 +71,17 @@ describe('AuthProvider guest mode', () => {
     clerkState.openSignUp.mockClear();
   });
 
-  it('permits guest access and persists preference', () => {
+  it('reflects guest access according to the current auth mode', () => {
     renderProvider();
+
+    if (TEMPORARILY_DISABLE_CLERK) {
+      expect(screen.getByTestId('is-auth')).toHaveTextContent('true');
+      expect(screen.getByTestId('display-name')).toHaveTextContent('Visitante');
+      expect(screen.getByTestId('is-guest')).toHaveTextContent('true');
+      expect(window.localStorage.getItem('scout360:guest_mode')).toBeNull();
+      return;
+    }
+
     expect(screen.getByTestId('is-auth')).toHaveTextContent('false');
     expect(screen.getByTestId('display-name')).toHaveTextContent('null');
 
@@ -80,19 +93,26 @@ describe('AuthProvider guest mode', () => {
     expect(window.localStorage.getItem('scout360:guest_mode')).toBe('1');
   });
 
-  it('logout clears guest access without calling Clerk signOut', async () => {
+  it('handles logout without forcing Clerk signOut in guest mode', async () => {
     renderProvider();
     fireEvent.click(screen.getByText('guest'));
     fireEvent.click(screen.getByText('logout'));
 
     await waitFor(() => {
-      expect(screen.getByTestId('is-auth')).toHaveTextContent('false');
+      expect(screen.getByTestId('is-auth')).toHaveTextContent(
+        TEMPORARILY_DISABLE_CLERK ? 'true' : 'false',
+      );
     });
     expect(clerkState.signOut).not.toHaveBeenCalled();
     expect(window.localStorage.getItem('scout360:guest_mode')).toBeNull();
+
+    if (TEMPORARILY_DISABLE_CLERK) {
+      expect(screen.getByTestId('display-name')).toHaveTextContent('Visitante');
+      expect(screen.getByTestId('is-guest')).toHaveTextContent('true');
+    }
   });
 
-  it('maps signed Clerk users and does not expose guest flag', () => {
+  it('maps signed Clerk users only when Clerk is enabled', () => {
     clerkState.user = {
       id: 'usr_123',
       fullName: 'Maria Souza',
@@ -106,7 +126,12 @@ describe('AuthProvider guest mode', () => {
     renderProvider();
 
     expect(screen.getByTestId('is-auth')).toHaveTextContent('true');
-    expect(screen.getByTestId('display-name')).toHaveTextContent('Maria Souza');
-    expect(screen.getByTestId('is-guest')).toHaveTextContent('false');
+    if (TEMPORARILY_DISABLE_CLERK) {
+      expect(screen.getByTestId('display-name')).toHaveTextContent('Visitante');
+      expect(screen.getByTestId('is-guest')).toHaveTextContent('true');
+    } else {
+      expect(screen.getByTestId('display-name')).toHaveTextContent('Maria Souza');
+      expect(screen.getByTestId('is-guest')).toHaveTextContent('false');
+    }
   });
 });
