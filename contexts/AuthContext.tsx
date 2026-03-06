@@ -23,9 +23,15 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const GUEST_MODE_STORAGE_KEY = 'scout360:guest_mode';
-export const REQUIRE_CLERK_AUTH = import.meta.env.VITE_REQUIRE_AUTH === 'true';
+
+// TEMPORARY: Desativando o Clerk temporariamente conforme solicitado.
+// Para reativar depois, mude TEMPORARILY_DISABLE_CLERK para false.
+export const TEMPORARILY_DISABLE_CLERK = true;
+
+export const REQUIRE_CLERK_AUTH = !TEMPORARILY_DISABLE_CLERK && import.meta.env.VITE_REQUIRE_AUTH === 'true';
 
 function readGuestModePreference(): boolean {
+  if (TEMPORARILY_DISABLE_CLERK) return true; // Força visitante
   if (REQUIRE_CLERK_AUTH) return false;
   if (typeof window === 'undefined') return false;
   try {
@@ -56,7 +62,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, []);
 
   useEffect(() => {
-    if (isSignedIn && guestModeEnabled) setGuestMode(false);
+    if (isSignedIn && guestModeEnabled && !TEMPORARILY_DISABLE_CLERK) setGuestMode(false);
   }, [guestModeEnabled, isSignedIn, setGuestMode]);
 
   useEffect(() => {
@@ -65,7 +71,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // Mapeia o usuário real do Clerk para o formato que o seu App já usava
   const user: AuthUser | null =
-    isSignedIn && clerkUser
+    isSignedIn && clerkUser && !TEMPORARILY_DISABLE_CLERK
       ? {
           id: clerkUser.id,
           displayName:
@@ -76,7 +82,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           email: clerkUser.primaryEmailAddress?.emailAddress || '',
           isGuest: false,
         }
-      : !REQUIRE_CLERK_AUTH && guestModeEnabled
+      : (!REQUIRE_CLERK_AUTH && guestModeEnabled) || TEMPORARILY_DISABLE_CLERK
         ? {
             id: 'guest',
             displayName: 'Visitante',
@@ -91,10 +97,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setGuestMode(true);
   };
   const login = async () => {
+    if (TEMPORARILY_DISABLE_CLERK) return;
     setGuestMode(false);
     clerk.openSignIn();
   };
   const register = async () => {
+    if (TEMPORARILY_DISABLE_CLERK) return;
     setGuestMode(false);
     clerk.openSignUp();
   };
@@ -103,12 +111,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setGuestMode(false);
       return;
     }
-    await signOut();
+    if (!TEMPORARILY_DISABLE_CLERK) {
+      await signOut();
+    }
     setGuestMode(false);
   };
   
   const updateName = async (name: string) => {
-    if (clerkUser) {
+    if (clerkUser && !TEMPORARILY_DISABLE_CLERK) {
       const parts = name.trim().split(' ');
       await clerkUser.update({ 
         firstName: parts[0], 
@@ -122,8 +132,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       value={{
         user,
         userId: user?.id || '',
-        isAuthenticated: !!isSignedIn || (!REQUIRE_CLERK_AUTH && guestModeEnabled),
-        loading: !isLoaded,
+        isAuthenticated: !!isSignedIn || (!REQUIRE_CLERK_AUTH && guestModeEnabled) || TEMPORARILY_DISABLE_CLERK,
+        loading: TEMPORARILY_DISABLE_CLERK ? false : !isLoaded,
         continueAsGuest,
         login,
         register,
