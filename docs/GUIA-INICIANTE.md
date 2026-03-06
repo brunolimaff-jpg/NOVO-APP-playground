@@ -1,4 +1,4 @@
-# Guia Iniciante (vibe coding) — Senior Scout 360
+# Guia Iniciante (vibe coding) — 🦅 Senior Scout 360
 
 Se você está começando agora, este é o caminho mais simples para rodar e entender o projeto.
 

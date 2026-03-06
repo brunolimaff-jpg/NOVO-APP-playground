@@ -36,7 +36,7 @@ const DEEP_CHAT_MODEL_ID = MODEL_IDS.deepChat;
 const DEEP_RESEARCH_MODEL_ID = MODEL_IDS.deepResearch;
 
 const CONTINUITY_SYSTEM = `
-Você é o estrategista de continuidade do Senior Scout 360.
+Você é o estrategista de continuidade do 🦅 Senior Scout 360.
 Sua missão é criar ganchos comerciais que forcem o cliente a admitir um gap de gestão ou tecnologia.
 
 DIRETRIZES DE PENSAMENTO:

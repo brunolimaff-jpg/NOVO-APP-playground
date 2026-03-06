@@ -1,4 +1,4 @@
-# Senior Scout 360
+# 🦅 Senior Scout 360
 
 Aplicação web de inteligência comercial com IA para prospecção e investigação de empresas (foco em agronegócio), com chat assistido, exportação de dossiês e mini CRM em formato kanban.
 
@@ -20,7 +20,7 @@ Aplicação web de inteligência comercial com IA para prospecção e investiga�
 
 ## Visão geral
 
-O **Senior Scout 360** é um app React/TypeScript com:
+O **🦅 Senior Scout 360** é um app React/TypeScript com:
 
 - Chat com IA (Gemini), em modo streaming;
 - Enriquecimento por RAG (Pinecone) para contexto interno e documentação;

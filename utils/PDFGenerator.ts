@@ -126,7 +126,7 @@ export class PDFGenerator {
       this.doc.setFont('helvetica', 'normal');
       this.doc.setFontSize(7);
       this.tc(C.muted);
-      this.doc.text('Senior Scout 360 — Plataforma de Inteligência Comercial', this.ML, fy);
+      this.doc.text('🦅 Senior Scout 360 — Plataforma de Inteligência Comercial', this.ML, fy);
       this.doc.text(
         `Gerado via IA · ${dateStr} · Pág. ${p}/${total}`,
         this.PW - this.MR,

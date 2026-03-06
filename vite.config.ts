@@ -15,7 +15,7 @@ export default defineConfig(() => {
         registerType: 'autoUpdate',
         includeAssets: ['icons/icon-192.svg', 'icons/icon-512.svg'],
         manifest: {
-          name: 'Senior Scout 360',
+          name: '🦅 Senior Scout 360',
           short_name: 'Scout 360',
           description: 'Inteligência Comercial para Agronegócio · Sênior Sistemas',
           theme_color: '#059669',

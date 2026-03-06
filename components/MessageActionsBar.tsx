@@ -93,7 +93,7 @@ const MessageActionsBar: React.FC<MessageActionsBarProps> = ({
   const handleShare = async () => {
     if (navigator.share) {
       try {
-        await navigator.share({ title: 'Senior Scout 360 — Dossiê', text: content });
+        await navigator.share({ title: '🦅 Senior Scout 360 — Dossiê', text: content });
       } catch {
         handleCopy();
       }
