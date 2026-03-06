@@ -1,6 +1,13 @@
 import { GoogleGenAI } from '@google/genai';
 import { Pinecone } from '@pinecone-database/pinecone';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import {
+    DEFAULT_PINECONE_DOCS_NAMESPACE,
+    DEFAULT_PINECONE_INDEX,
+    didFallbackPineconeIndex,
+    resolveOptionalNamespace,
+    resolvePineconeIndexName,
+} from '../utils/pineconeConfig';
 
 export const config = {
     runtime: 'nodejs',
@@ -36,7 +43,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const ai = new GoogleGenAI({ apiKey: getRequiredEnv('GEMINI_API_KEY') });
 
         const pineconeKey = process.env.PINECONE_DOCS_KEY || getRequiredEnv('PINECONE_API_KEY');
-        const pineconeIndexName = process.env.PINECONE_DOCS_INDEX || 'scout-arsenal';
+        const rawIndexName = process.env.PINECONE_DOCS_INDEX || process.env.PINECONE_INDEX;
+        const pineconeIndexName = resolvePineconeIndexName(rawIndexName, DEFAULT_PINECONE_INDEX);
+        if (didFallbackPineconeIndex(rawIndexName, DEFAULT_PINECONE_INDEX)) {
+            console.warn(
+                `[Docs RAG] Invalid Pinecone index env "${rawIndexName}" detected. Falling back to "${pineconeIndexName}".`,
+            );
+        }
 
         const pc = new Pinecone({ apiKey: pineconeKey });
         const index = pc.index(pineconeIndexName);
@@ -53,7 +66,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             return res.status(200).json({ context: '' });
         }
 
-        const docsNamespace = process.env.PINECONE_DOCS_NAMESPACE || process.env.PINECONE_NAMESPACE || 'senior-erp-docs';
+        const docsNamespace = resolveOptionalNamespace(
+            process.env.PINECONE_DOCS_NAMESPACE,
+            resolveOptionalNamespace(process.env.PINECONE_NAMESPACE, DEFAULT_PINECONE_DOCS_NAMESPACE),
+        ) || DEFAULT_PINECONE_DOCS_NAMESPACE;
         const results = await index.namespace(docsNamespace).query({
             vector: queryVector,
             topK: 5,

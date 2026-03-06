@@ -1,6 +1,12 @@
 import { GoogleGenAI } from '@google/genai';
 import { Pinecone } from '@pinecone-database/pinecone';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import {
+  DEFAULT_PINECONE_INDEX,
+  didFallbackPineconeIndex,
+  resolveOptionalNamespace,
+  resolvePineconeIndexName,
+} from '../utils/pineconeConfig';
 
 export const config = {
   runtime: 'nodejs',
@@ -40,8 +46,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       throw new Error('Missing required env var: PINECONE_API_KEY or PINECONE_DOCS_KEY');
     }
 
-    const pineconeIndexName = process.env.PINECONE_DOCS_INDEX || 'scout-arsenal';
-    const namespace = process.env.PINECONE_NAMESPACE?.trim();
+    const rawIndexName = process.env.PINECONE_INDEX || process.env.PINECONE_DOCS_INDEX;
+    const pineconeIndexName = resolvePineconeIndexName(rawIndexName, DEFAULT_PINECONE_INDEX);
+    if (didFallbackPineconeIndex(rawIndexName, DEFAULT_PINECONE_INDEX)) {
+      console.warn(
+        `[RAG] Invalid Pinecone index env "${rawIndexName}" detected. Falling back to "${pineconeIndexName}".`,
+      );
+    }
+    const namespace = resolveOptionalNamespace(process.env.PINECONE_NAMESPACE);
     const pc = new Pinecone({ apiKey: pineconeKey });
     const index = pc.index(pineconeIndexName);
     const queryTarget = namespace ? index.namespace(namespace) : index;

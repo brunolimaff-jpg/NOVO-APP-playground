@@ -40,7 +40,18 @@ interface GeminiHealthResponse {
   text?: string;
 }
 
-const GEMINI_API_ENDPOINT = '/api/gemini';
+const LOCAL_DEV_GEMINI_PROXY_URL =
+  import.meta.env.VITE_GEMINI_PROXY_URL || 'https://scoutagro.vercel.app/api/gemini';
+
+export function resolveGeminiApiEndpoint(
+  hostname: string = typeof window !== 'undefined' ? window.location.hostname : '',
+  isDev: boolean = import.meta.env.DEV,
+): string {
+  const isLocalDevHost = hostname === 'localhost' || hostname === '127.0.0.1';
+  return isDev && isLocalDevHost ? LOCAL_DEV_GEMINI_PROXY_URL : '/api/gemini';
+}
+
+const GEMINI_API_ENDPOINT = resolveGeminiApiEndpoint();
 
 async function callGeminiApi<TResponse>(
   payload: GeminiGenerateRequest | GeminiChatRequest | GeminiHealthRequest,
