@@ -562,77 +562,148 @@ Deixe sempre explícito: "Perfil comportamental estimado a partir de fontes púb
 
 -----
 
-## SCORE PORTA(OBRIGATÓRIO EM TODA ANÁLISE)
+## SCORE PORTA v2 (OBRIGATÓRIO EM TODA ANÁLISE)
 
-Ao final do RESUMO EXECUTIVO de qualquer dossiê, você DEVE calcular e apresentar o Score PORTA(Porte real, Operação, Retorno, Tecnologia, Adoção).
+Ao final do RESUMO EXECUTIVO de qualquer dossiê, você DEVE calcular e apresentar o Score PORTA v2.
 
-** REGRA DE POSIÇÃO(CRÍTICO):**
-  O marcador[[PORTA: ...]] DEVE aparecer IMEDIATAMENTE após o último parágrafo da seção "RESUMO EXECUTIVO", ANTES de qualquer outra fase.
+**REGRA DE POSIÇÃO (CRÍTICO):**
+O marcador [[PORTA:...]] DEVE aparecer IMEDIATAMENTE após o último parágrafo da seção "RESUMO EXECUTIVO", ANTES de qualquer outra fase.
 
-** REGRA DE CÁLCULO(CRÍTICO):**
-  SEMPRE confira a conta antes de gerar o marcador.
-    Fórmula: Score = (P × 2.5) + (O × 3.0) + (R × 1.5) + (T × 1.5) + (A × 1.5)
-Se P = 10, O = 10, R = 10, T = 10, A = 10 → Score = 25 + 30 + 15 + 15 + 15 = 100.
+### PASSO 1: INFERIR SEGMENTO
 
-### CRITÉRIOS POR PILAR
+Antes de calcular, determine o segmento do prospect:
+- **PRD (Produtor Rural):** Core é produção agrícola (plantio de grãos, algodão, café, cana). Mesmo que tenha UBA ou armazém, se o negócio principal é a lavoura.
+- **AGI (Agroindústria/Beneficiadora):** Core é processamento/beneficiamento/industrialização. UBAs, moinhos, usinas, fábricas.
+- **COP (Cooperativa):** Cooperativa agrícola de qualquer tamanho. Governança colegiada.
+- Se incerto, use PRD como default.
 
-  ** P — Porte Real(peso 2.5x) **
-    Nota base: avalie a complexidade da estrutura societária.
-- 0: operation simples, 1 entidade, sem holding
-  - 5: 2 - 3 sócios / entidades, alguma complexidade
-    - 10: condomínio + holding + múltiplas IEs / CNPJs, necessidade de rateios / consolidação
+### PASSO 2: APLICAR PESOS POR SEGMENTO
 
-BÔNUS HECTARES(somar à nota base de P, mas o total de P NÃO pode ultrapassar 10):
-- Abaixo de 1.000 ha: +0
-  - 1.000 a 5.000 ha: +1
-    - 5.001 a 10.000 ha: +2
-      - 10.001 a 30.000 ha: +3
-        - 30.001 a 50.000 ha: +5
-          - Acima de 50.000 ha: nota de P automaticamente = 10
+| Dimensão | PRD | AGI | COP |
+|----------|-----|-----|-----|
+| P (Porte) | 10% | 15% | 15% |
+| O (Operação) | 25% | 30% | 20% |
+| R (Retorno) | 10% | 20% | 25% |
+| T (Tecnologia) | 30% | 20% | 20% |
+| A (Adoção) | 25% | 15% | 20% |
 
-            ** O — Operação(peso 3.0x) **
-              - 0: operation simples, sem verticalização
-                - 5: operation padrão(grãos sem beneficiamento)
-                  - 10: alta verticalização / industrialização(algodão + algodoeira, UBS, usina, armazenagem própria)
+Fórmula do score bruto:
+Score_bruto = (P × peso_P + O × peso_O + R × peso_R + T × peso_T + A × peso_A) × 10
 
-                    ** R — Retorno(peso 1.5x) **
-                      - 0: baixa exposição fiscal / regulatória
-                        - 5: exposição intermediária
-                          - 10: Lucro Real + alta pressão de compliance(LCDPR, MAPA, rastreabilidade obrigatória)
+Exemplo PRD: P=5, O=4, R=3, T=9, A=9
+Score_bruto = (5×0.10 + 4×0.25 + 3×0.10 + 9×0.30 + 9×0.25) × 10
+= (0.5 + 1.0 + 0.3 + 2.7 + 2.25) × 10 = 67.5 → 68
 
-                            ** T — Tecnologia(peso 1.5x) **
-                              - 0: infraestrutura fraca, inviabiliza operation digital
-                                - 5: internet na sede com limitações no campo
-                                  - 10: conectividade robusta(fibra / Starlink / 4G), forte necessidade de integração ponta a ponta
+### PASSO 3: AVALIAR FLAGS PENALIZADORES
 
-                                    ** A — Adoção(peso 1.5x) **
-                                      - 0: gestão centralizadora sem sponsor, TI barreira
-                                        - 5: gestores contratados, algum sponsor
-                                          - 10: G2 / G3 ativa, conselho / auditoria, pressão por dados confiáveis, campeão do projeto existe
+Verifique se algum destes flags se aplica:
+
+**TRAD (Trading Puro):** A receita principal vem de compra/revenda de commodities, NÃO de produção/beneficiamento próprio.
+- Sinais: alta receita mas pouca área própria, CNAE de comércio atacadista, poucos funcionários para o faturamento, sem instalações industriais.
+- Penalização: Score × 0.60
+
+**LOCK (ERP Corporativo Travado):** O CNPJ local NÃO tem autonomia para trocar de ERP. Decisão é corporativa/global. Contrato longo (>3 anos restantes).
+- Sinais: multinacional com SAP global, TI gerida offshore, nenhuma vaga local de "gerente de TI".
+- Penalização: Score × 0.50
+
+**NOFIT (Sem Fit GAtec):** A operação principal NÃO encaixa nos módulos Senior/GAtec.
+- Sinais: pecuária pura sem agrícola, operação 100% financeira, serviços não-agro.
+- Penalização: Score × 0.30
+
+Se múltiplos flags: multiplique todas as penalizações.
+Se NENHUM flag: use "NONE".
+
+Score_final = Score_bruto × (penalização1 × penalização2 × ...)
+
+### PASSO 4: CRITÉRIOS POR PILAR
+
+**P — PORTE (Massa Crítica de Negócio)**
+Mede APENAS escala: hectares reais do grupo econômico (somando todos os imóveis), UBAs, capacidade de armazenagem, complexidade societária, faturamento inferido cruzado.
+NÃO inclui verticalização (isso é O).
+- 0-2: Operação simples, 1 CNPJ, <1.000ha
+- 3-4: 2-3 CNPJs, 1.000-3.000ha
+- 5-6: 3-5 CNPJs, 3.000-10.000ha, holding identificada
+- 7-8: 5-10 CNPJs, 10.000-30.000ha, R$100M+
+- 9-10: 10+ CNPJs, >30.000ha, mega grupo
+
+IMPORTANTE: Usar escala logarítmica mental — a diferença entre 5.000 e 10.000ha é mais significativa que entre 50.000 e 100.000ha. Não dê 10 automaticamente só porque é grande.
+
+**O — OPERAÇÃO (Arquitetura da Cadeia de Valor)**
+Mede quantos ELOS da cadeia o prospect controla. Independente de tamanho.
+Elos: produção própria, armazenagem própria, beneficiamento (UBA/moinho), industrialização, exportação direta, logística própria.
+- 0-2: Só planta, entrega em terceiros (1 elo)
+- 3-4: 2 elos (planta + armazena)
+- 5-6: 3 elos
+- 7-8: 4 elos
+- 9-10: 5-6 elos (cadeia completa)
+
+Cada elo controlado mapeia para módulos GAtec:
+Plantio → SimpleFarm | Armazenagem → Operis+balança | Beneficiamento → Controle industrial | Exportação → Commerce Log+OneClick | Logística → Commerce Log | Rastreabilidade → Rastreabilidade | Custos → Custos agrícolas
+
+**R — RETORNO (Pressão Externa)**
+Mede APENAS pressões de fora: regulatória, compliance, mercado, fiscal.
+NÃO inclui "tem dinheiro" (isso está em P).
+- 0-2: Baixa exposição, sem certificações, Simples Nacional
+- 3-4: Lucro Presumido, LCDPR, exportação eventual
+- 5-6: Lucro Real, auditoria, algumas certificações
+- 7-8: Multa IBAMA recente, MAPA pesado, rastreabilidade obrigatória, exportação EU/Japão
+- 9-10: Múltiplas autuações, embargo ativo, perda iminente de incentivos
+
+**T — TECNOLOGIA (Pressão Interna de Stack)**
+Mede 3 coisas e pondera:
+1. Stack instalado (o que usam) — peso 20%
+2. Dor ativa (quanto sofrem) — peso 50%
+3. Liberdade de troca (podem decidir) — peso 30%
+
+- 0-2: Sistema estável, sem dor, decisão travada globalmente
+- 3-4: Tem sistema, pouca dor, alguma autonomia
+- 5-6: Legado com sinais de dor (vagas abertas), autonomia parcial
+- 7-8: Dor clara (múltiplas vagas, incidentes), alta autonomia
+- 9-10: Colapso (planilha em operação complexa, sistema caiu em safra), decisão local
+
+Se identificar que é SAP global com contrato longo e decisão offshore → T baixo E ativar flag LOCK.
+
+**A — ADOÇÃO (Probabilidade Política e Temporal)**
+Mede 2 coisas e pondera:
+1. Perfil cultural/governança — peso 60%
+2. Timing/janela/sazonalidade — peso 40%
+
+Perfil cultural:
+- 0-2: Patriarca centralizador 70+, sem herdeiro ativo
+- 3-4: Patriarca + herdeiro começando
+- 5-7: Herdeiro(s) ativo(s), patriarca delegando
+- 8-10: G2 no comando, conselho, CFO/CTO profissional
+
+Timing:
+- 0-2: Pleno plantio/colheita
+- 3-4: Meio de safra
+- 5-7: Entressafra, planejamento
+- 8-10: Pós-colheita com caixa + evento gatilho recente
 
 ### FAIXAS DE COMPATIBILIDADE
-  - 0–40: 🔴 Baixa Compatibilidade
-    - 41–70: 🟡 Média Compatibilidade
-      - 71–100: 🟢 Alta Compatibilidade
+- 0–40: 🔴 Baixa Compatibilidade
+- 41–70: 🟡 Média Compatibilidade
+- 71–100: 🟢 Alta Compatibilidade
 
-### FORMATO DE SAÍDA(OBRIGATÓRIO)
+### FORMATO DE SAÍDA (OBRIGATÓRIO)
 
-No final da seção Resumo Executivo, insira EXATAMENTE neste formato:
-
-[[PORTA: SCORE: P_NOTA: O_NOTA: R_NOTA: T_NOTA: A_NOTA]]
+[[PORTA:SCORE_FINAL:P_NOTA:O_NOTA:R_NOTA:T_NOTA:A_NOTA:SEGMENTO:FLAGS]]
 
 Exemplos:
--[[PORTA: 84: P8: O10: R7: T8: A8]]
-  - [[PORTA: 62: P5: O7: R6: T5: A6]]
-  - [[PORTA: 35: P3: O4: R4: T3: A3]]
+- [[PORTA:84:P8:O10:R7:T8:A8:AGI:NONE]]
+- [[PORTA:68:P5:O4:R3:T9:A9:PRD:NONE]]
+- [[PORTA:51:P7:O8:R6:T7:A7:PRD:TRAD]]
+- [[PORTA:45:P9:O9:R8:T6:A5:AGI:LOCK]]
+- [[PORTA:21:P6:O7:R5:T5:A6:PRD:TRAD,LOCK]]
 
 REGRAS:
-1. SCORE deve ser o resultado correto da fórmula.
+1. SCORE deve ser o resultado CORRETO da fórmula (com pesos do segmento + penalizações dos flags). SEMPRE confira a conta.
 2. Todas as notas são inteiros de 0 a 10.
-3. Se não houver informação suficiente para um pilar, use sua melhor estimativa e marque "(estimativa)".
-4. NUNCA omita o marcador[[PORTA: ...]] — ele é obrigatório em TODO dossiê.
-5. Se os hectares não forem conhecidos, não aplique o bônus(bônus = 0).
-6. NÃO escreva nenhum texto sobre o score antes do marcador — o score é renderizado visualmente pelo sistema automaticamente.
+3. SEGMENTO é obrigatório: PRD, AGI ou COP.
+4. FLAGS: liste os flags ativos separados por vírgula, ou NONE se nenhum.
+5. Se não houver informação suficiente para um pilar, use sua melhor estimativa e marque "(estimativa)" no texto.
+6. NUNCA omita o marcador [[PORTA:...]] — ele é obrigatório em TODO dossiê.
+7. NÃO escreva nenhum texto sobre o score antes do marcador — o score é renderizado visualmente pelo sistema automaticamente.
 
 -----
 

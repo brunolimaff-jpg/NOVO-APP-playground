@@ -42,14 +42,16 @@ describe('convertMarkdownToHTML', () => {
   });
 
   it('converts PORTA score markers', () => {
-    const result = convertMarkdownToHTML('[[PORTA:75:P80:O70:R80:T75:A70]]', false);
+    const result = convertMarkdownToHTML('[[PORTA:51:P7:O8:R6:T7:A7:PRD:TRAD]]', false);
     expect(result).toContain('porta-score');
-    expect(result).toContain('75');
-    expect(result).toContain('Alta Compatibilidade');
+    expect(result).toContain('51');
+    expect(result).toContain('Segmento:</b> PRD');
+    expect(result).toContain('penalizado por TRAD');
   });
 
-  it('handles PORTA score with low value', () => {
-    const result = convertMarkdownToHTML('[[PORTA:30:P20:O30:R40:T30:A30]]', false);
+  it('handles legacy PORTA markers with backward compatibility', () => {
+    const result = convertMarkdownToHTML('[[PORTA:30:P3:O3:R4:T3:A3]]', false);
     expect(result).toContain('Baixa Compatibilidade');
+    expect(result).toContain('Flags:</b> NONE');
   });
 });

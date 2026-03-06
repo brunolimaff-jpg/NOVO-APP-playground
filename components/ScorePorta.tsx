@@ -1,20 +1,43 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { ScorePortaData } from '../types';
+import { PortaFlag, PortaSegmento, ScorePortaData } from '../types';
 
 interface ScorePortaProps extends ScorePortaData {
   isDarkMode?: boolean;
 }
 
 const pillars = [
-  { key: 'p', letter: 'P', label: 'Porte Financeiro' },
-  { key: 'o', letter: 'O', label: 'Operação (escala)' },
-  { key: 'r', letter: 'R', label: 'Retorno esperado' },
-  { key: 't', letter: 'T', label: 'Tecnologia (maturidade)' },
-  { key: 'a', letter: 'A', label: 'Adoção / Cultura' },
+  { key: 'p', letter: 'P', label: 'Porte / massa critica' },
+  { key: 'o', letter: 'O', label: 'Arquitetura operacional' },
+  { key: 'r', letter: 'R', label: 'Pressao externa' },
+  { key: 't', letter: 'T', label: 'Pressao interna de stack' },
+  { key: 'a', letter: 'A', label: 'Adocao / timing' },
 ];
 
-const ScorePorta: React.FC<ScorePortaProps> = ({ score, p, o, r, t, a, isDarkMode = true }) => {
+const segmentLabels: Record<PortaSegmento, string> = {
+  PRD: 'Produtor',
+  AGI: 'Agroindustria',
+  COP: 'Cooperativa',
+};
+
+const flagMeta: Record<PortaFlag, { icon: string; label: string }> = {
+  TRAD: { icon: '🚩', label: 'TRAD' },
+  LOCK: { icon: '🔒', label: 'LOCK' },
+  NOFIT: { icon: '⛔', label: 'NOFIT' },
+};
+
+const ScorePorta: React.FC<ScorePortaProps> = ({
+  score,
+  p,
+  o,
+  r,
+  t,
+  a,
+  segmento = 'PRD',
+  flags = [],
+  scoreBruto,
+  isDarkMode = true
+}) => {
   const isAlta  = score >= 71;
   const isMedia = score >= 41 && score < 71;
 
@@ -28,8 +51,11 @@ const ScorePorta: React.FC<ScorePortaProps> = ({ score, p, o, r, t, a, isDarkMod
   const labelColor  = isDarkMode ? '#94a3b8' : '#64748b';
   const valueColor  = isDarkMode ? '#e2e8f0' : '#334155';
   const subColor    = isDarkMode ? '#475569' : '#94a3b8';
+  const metaBg      = isDarkMode ? '#111827' : '#f8fafc';
 
   const values: Record<string, number> = { p, o, r, t, a };
+  const hasPenalties = typeof scoreBruto === 'number' && scoreBruto !== score && flags.length > 0;
+  const flagsLabel = flags.length > 0 ? flags.join(', ') : 'NONE';
 
   return (
     <motion.div
@@ -49,10 +75,23 @@ const ScorePorta: React.FC<ScorePortaProps> = ({ score, p, o, r, t, a, isDarkMod
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <span style={{ fontSize: '16px' }}>🎯</span>
           <span
-            title="P = Porte · O = Operação · R = Retorno · T = Tecnologia · A = Adoção"
+            title="P = Porte · O = Operacao · R = Retorno · T = Tecnologia · A = Adocao"
             style={{ fontSize: '12px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: labelColor, cursor: 'help' }}
           >
             PORTA
+          </span>
+          <span
+            title={segmentLabels[segmento]}
+            style={{
+              padding: '3px 8px',
+              borderRadius: '999px',
+              background: pillBg,
+              color: valueColor,
+              fontSize: '11px',
+              fontWeight: 700,
+            }}
+          >
+            {segmento}
           </span>
         </div>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
@@ -83,6 +122,83 @@ const ScorePorta: React.FC<ScorePortaProps> = ({ score, p, o, r, t, a, isDarkMod
         <span style={{ fontSize: '13px', fontWeight: 600, color: barColor }}>
           {emoji} {label}
         </span>
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '12px' }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            flexWrap: 'wrap',
+            padding: '8px 10px',
+            borderRadius: '10px',
+            background: metaBg,
+          }}
+        >
+          <span style={{ fontSize: '11px', fontWeight: 700, color: labelColor }}>
+            Segmento
+          </span>
+          <span style={{ fontSize: '12px', fontWeight: 700, color: valueColor }}>
+            {segmento} · {segmentLabels[segmento]}
+          </span>
+        </div>
+
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            flexWrap: 'wrap',
+            padding: '8px 10px',
+            borderRadius: '10px',
+            background: metaBg,
+          }}
+        >
+          <span style={{ fontSize: '11px', fontWeight: 700, color: labelColor }}>
+            Flags
+          </span>
+          {flags.length > 0 ? (
+            flags.map((flag) => (
+              <span
+                key={flag}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  padding: '3px 8px',
+                  borderRadius: '999px',
+                  background: pillBg,
+                  color: valueColor,
+                  fontSize: '11px',
+                  fontWeight: 700,
+                }}
+              >
+                <span>{flagMeta[flag].icon}</span>
+                <span>{flagMeta[flag].label}</span>
+              </span>
+            ))
+          ) : (
+            <span style={{ fontSize: '12px', fontWeight: 600, color: valueColor }}>Sem flags</span>
+          )}
+        </div>
+
+        {typeof scoreBruto === 'number' && (
+          <div
+            style={{
+              padding: '8px 10px',
+              borderRadius: '10px',
+              background: metaBg,
+              fontSize: '12px',
+              fontWeight: 600,
+              color: valueColor,
+            }}
+          >
+            {hasPenalties
+              ? `Score: ${score} (bruto: ${scoreBruto} - penalizado por ${flagsLabel})`
+              : `Score: ${score}${scoreBruto !== score ? ` (bruto: ${scoreBruto})` : ''}`}
+          </div>
+        )}
       </div>
 
       {/* Pillar pills */}

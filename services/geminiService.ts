@@ -1,4 +1,13 @@
-import { AppError, ReportType, Sender, ScorePortaData, ParsedContent } from '../types';
+import {
+  AppError,
+  ParsedContent,
+  PortaFlag,
+  PortaSegmento,
+  PORTA_WEIGHTS,
+  ReportType,
+  ScorePortaData,
+  Sender
+} from '../types';
 import { ChatMode, NOME_VENDEDOR_PLACEHOLDER } from '../constants';
 import { normalizeAppError } from '../utils/errorHelpers';
 import { withAutoRetry } from '../utils/retry';
@@ -51,7 +60,10 @@ PROIBIÇÕES:
 Responda EXCLUSIVAMENTE em Português (Brasil) usando um Array JSON de strings.
 `;
 
-function sanitizeStreamText(text: string): string {
+const PORTA_MARKER_V2_REGEX = /\[\[PORTA:(\d+):P(\d+):O(\d+):R(\d+):T(\d+):A(\d+):(PRD|AGI|COP):(NONE|(?:(?:TRAD|LOCK|NOFIT)(?:,(?:TRAD|LOCK|NOFIT))*))\]\]/;
+const PORTA_MARKER_V1_REGEX = /\[\[PORTA:(\d+):P(\d+):O(\d+):R(\d+):T(\d+):A(\d+)\]\]/;
+
+export function sanitizeStreamText(text: string): string {
   return text
     .replace(/\[\[COMPETITOR:[^\]]*\]\]/g, '')
     .replace(/\[\[PORTA:[^\]]*\]\]/g, '')
@@ -88,6 +100,56 @@ function parseCompetitorMarker(content: string): CompetitorDetection | null {
   };
 }
 
+export function parsePortaMarkerV2(content: string): ScorePortaData | null {
+  const v2Match = content.match(PORTA_MARKER_V2_REGEX);
+
+  if (v2Match) {
+    const flags: PortaFlag[] = v2Match[8] === 'NONE'
+      ? []
+      : v2Match[8].split(',') as PortaFlag[];
+
+    const segmento = v2Match[7] as PortaSegmento;
+    const p = Number.parseInt(v2Match[2], 10);
+    const o = Number.parseInt(v2Match[3], 10);
+    const r = Number.parseInt(v2Match[4], 10);
+    const t = Number.parseInt(v2Match[5], 10);
+    const a = Number.parseInt(v2Match[6], 10);
+    const weights = PORTA_WEIGHTS[segmento];
+    const scoreBruto = Math.round(
+      (p * weights.p + o * weights.o + r * weights.r + t * weights.t + a * weights.a) * 10
+    );
+
+    return {
+      score: Number.parseInt(v2Match[1], 10),
+      p,
+      o,
+      r,
+      t,
+      a,
+      segmento,
+      flags,
+      scoreBruto,
+    };
+  }
+
+  const v1Match = content.match(PORTA_MARKER_V1_REGEX);
+
+  if (v1Match) {
+    return {
+      score: Number.parseInt(v1Match[1], 10),
+      p: Number.parseInt(v1Match[2], 10),
+      o: Number.parseInt(v1Match[3], 10),
+      r: Number.parseInt(v1Match[4], 10),
+      t: Number.parseInt(v1Match[5], 10),
+      a: Number.parseInt(v1Match[6], 10),
+      segmento: 'PRD',
+      flags: [],
+    };
+  }
+
+  return null;
+}
+
 function extractEstadoFromMessage(message: string): string {
   const ufsKnown: Record<string, string> = {
     'mato grosso do sul': 'MS', 'mato grosso': 'MT', 'goiás': 'GO', 'goias': 'GO',
@@ -115,13 +177,9 @@ export function parseMarkers(content: string): ParsedContent {
     text = text.replace(statusMatch[0], '');
   }
 
-  const portaMatch = text.match(/\[\[PORTA:(\d+):P(\d+):O(\d+):R(\d+):T(\d+):A(\d+)\]\]/);
-  if (portaMatch) {
-    scorePorta = {
-      score: parseInt(portaMatch[1]), p: parseInt(portaMatch[2]), o: parseInt(portaMatch[3]),
-      r: parseInt(portaMatch[4]), t: parseInt(portaMatch[5]), a: parseInt(portaMatch[6]),
-    };
-    text = text.replace(portaMatch[0], '');
+  scorePorta = parsePortaMarkerV2(text);
+  if (scorePorta) {
+    text = text.replace(/\[\[PORTA:[^\]]*\]\]/g, '');
   }
 
   text = text.replace(/\[\[COMPETITOR:[^\]]*\]\]/g, '').replace(/\[\[[A-Z_]+:[^\n]*?\]\]/g, '');

@@ -38,16 +38,35 @@ export interface AppError {
 }
 
 // ===================================================================
-// NOVO: Score PORTA
+// SCORE PORTA v2
 // ===================================================================
+export type PortaSegmento = 'PRD' | 'AGI' | 'COP';
+
+export type PortaFlag = 'TRAD' | 'LOCK' | 'NOFIT';
+
 export interface ScorePortaData {
-  score: number;
-  p: number;
-  o: number;
-  r: number;
-  t: number;
-  a: number;
+  score: number; // 0-100, score final ja com penalizacoes
+  p: number; // 0-10
+  o: number; // 0-10
+  r: number; // 0-10
+  t: number; // 0-10
+  a: number; // 0-10
+  segmento: PortaSegmento;
+  flags: PortaFlag[];
+  scoreBruto?: number; // 0-100, score antes das penalizacoes
 }
+
+export const PORTA_WEIGHTS: Record<PortaSegmento, { p: number; o: number; r: number; t: number; a: number }> = {
+  PRD: { p: 0.10, o: 0.25, r: 0.10, t: 0.30, a: 0.25 },
+  AGI: { p: 0.15, o: 0.30, r: 0.20, t: 0.20, a: 0.15 },
+  COP: { p: 0.15, o: 0.20, r: 0.25, t: 0.20, a: 0.20 },
+};
+
+export const PORTA_FLAG_PENALTIES: Record<PortaFlag, number> = {
+  TRAD: 0.60,
+  LOCK: 0.50,
+  NOFIT: 0.30,
+};
 
 export interface ParsedContent {
   text: string;
