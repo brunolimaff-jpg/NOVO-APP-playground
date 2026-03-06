@@ -65,11 +65,6 @@ export default function WarRoom({ isOpen, onClose, isDarkMode, defaultCompetitor
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
   const [linkStatuses, setLinkStatuses] = useState<Record<string, LinkValidationResult>>({});
-  const [targetsByMode, setTargetsByMode] = useState<Record<'killscript' | 'benchmark' | 'objections', string>>({
-    killscript: defaultCompetitorTarget || '',
-    benchmark: defaultCompetitorTarget || '',
-    objections: defaultCompetitorTarget || '',
-  });
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -147,11 +142,7 @@ export default function WarRoom({ isOpen, onClose, isDarkMode, defaultCompetitor
     let target = '';
 
     if (mode !== 'tech') {
-      const configuredTarget = targetsByMode[mode].trim();
-      target = configuredTarget || inferredTarget;
-      if (!configuredTarget && inferredTarget) {
-        setTargetsByMode(prev => ({ ...prev, [mode]: inferredTarget }));
-      }
+      target = inferredTarget || (defaultCompetitorTarget || '').trim();
     }
 
     setInput('');
@@ -195,7 +186,7 @@ export default function WarRoom({ isOpen, onClose, isDarkMode, defaultCompetitor
       setStatus('');
       abortRef.current = null;
     }
-  }, [input, isLoading, messagesByMode, mode, targetsByMode]);
+  }, [defaultCompetitorTarget, input, isLoading, messagesByMode, mode]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
@@ -375,20 +366,6 @@ export default function WarRoom({ isOpen, onClose, isDarkMode, defaultCompetitor
             )}
           </div>
         </div>
-
-        {mode !== 'tech' && (
-          <div className={`px-3 sm:px-5 py-2 border-b ${t.terminalBdr} ${t.terminalHdr}`}>
-            <label className={`text-[10px] uppercase tracking-wider font-semibold ${t.labelTxt} mr-2`}>
-              Concorrente alvo
-            </label>
-            <input
-              value={targetsByMode[mode]}
-              onChange={(e) => setTargetsByMode(prev => ({ ...prev, [mode]: e.target.value }))}
-              placeholder="Ex: TOTVS"
-              className={`mt-1 w-full max-w-xs rounded-lg border px-2.5 py-1.5 text-xs ${dk ? 'bg-slate-900 border-slate-700 text-slate-100' : 'bg-white border-slate-300 text-slate-800'}`}
-            />
-          </div>
-        )}
 
         {copyFeedback && (
           <div className={`mx-3 sm:mx-5 mt-2 text-[11px] rounded-lg px-3 py-2 ${dk ? 'bg-slate-900 text-slate-300' : 'bg-slate-100 text-slate-700'}`}>
