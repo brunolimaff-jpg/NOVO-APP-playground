@@ -1,4 +1,4 @@
-# Arquitetura Técnica — Senior Scout 360
+# Arquitetura Técnica — 🦅 Senior Scout 360
 
 Este documento detalha o desenho técnico da aplicação, os módulos principais e os fluxos de execução.
 

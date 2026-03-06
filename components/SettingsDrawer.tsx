@@ -240,7 +240,7 @@ const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
           {/* ===== SOBRE ===== */}
           <section>
             <div className={`text-center pt-6 border-t ${isDarkMode ? 'border-gray-700/30' : 'border-gray-200'}`}>
-              <p className={`text-xs font-bold ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>Senior Scout 360 · v{version}</p>
+              <p className={`text-xs font-bold ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>🦅 Senior Scout 360 · v{version}</p>
               <p className={`text-[10px] mt-1 ${isDarkMode ? 'text-gray-600' : 'text-gray-400'}`}>Inteligência Comercial para Agronegócio</p>
             </div>
           </section>

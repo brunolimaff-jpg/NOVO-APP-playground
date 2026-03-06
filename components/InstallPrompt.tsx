@@ -43,7 +43,7 @@ export default function InstallPrompt() {
         <div className="flex items-start gap-3">
           <span className="text-2xl">📱</span>
           <div className="flex-1 min-w-0">
-            <h3 className="font-bold text-sm mb-1">Instalar Senior Scout 360</h3>
+            <h3 className="font-bold text-sm mb-1">Instalar 🦅 Senior Scout 360</h3>
             <p className="text-xs opacity-90 mb-3">Acesso rápido direto da tela inicial</p>
             <div className="flex gap-2">
               <button

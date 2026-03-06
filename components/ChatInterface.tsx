@@ -274,7 +274,7 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
             <SettingsDrawer
               isOpen={showSettings} onClose={() => setShowSettings(false)} userName={user?.displayName || ''}
               onUpdateName={updateName} mode={mode} onSetMode={setMode} isDarkMode={isDarkMode}
-              onToggleTheme={onToggleTheme} onOpenDashboard={() => setShowDashboard(true)}
+              onToggleTheme={onToggleTheme} onOpenDashboard={() => canAccessDashboard && setShowDashboard(true)}
               onExportPDF={onExportPDF} onCopyMarkdown={handleCopyMarkdown}
               onSendEmail={onOpenEmailModal} onScheduleFollowUp={onOpenFollowUpModal} exportStatus={exportStatus}
               canAccessDashboard={canAccessDashboard}

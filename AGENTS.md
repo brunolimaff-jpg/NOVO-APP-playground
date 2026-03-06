@@ -4,7 +4,7 @@
 
 ### Overview
 
-**Senior Scout 360** is a React 19 + TypeScript + Vite commercial intelligence web app (Portuguese language UI). See `README.md` for full architecture and scripts.
+**🦅 Senior Scout 360** is a React 19 + TypeScript + Vite commercial intelligence web app (Portuguese language UI). See `README.md` for full architecture and scripts.
 
 ### Running the dev server
 

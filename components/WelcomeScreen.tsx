@@ -82,7 +82,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onSendMessage, onPreFill,
         <div className="text-center mb-8">
           <div className="text-5xl mb-3">🎯</div>
           <h1 className={`text-2xl font-bold mb-1 ${theme.textPrimary}`}>
-            Senior Scout 360
+            🦅 Senior Scout 360
           </h1>
           <p className={`${theme.textSecondary} text-sm`}>
             Inteligência comercial que transforma dados em vendas
@@ -192,7 +192,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onSendMessage, onPreFill,
 
         {/* Footer discreto */}
         <div className={`text-center text-xs ${theme.textSecondary} mt-4 pb-4`}>
-          Senior Scout 360 — Modo Sincerão 🤠 — v4.3
+          🦅 Senior Scout 360 — Modo Sincerão 🤠 — v4.3
           <br />
           Desenvolvido por Bruno Lima — Senior Sistemas — Cuiabá, MT
         </div>

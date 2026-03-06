@@ -15,7 +15,7 @@ interface SessionsSidebarProps {
   isOpen: boolean;
   onCloseMobile: () => void;
   isDarkMode: boolean;
-  canAccessMiniCRM: boolean;
+  canAccessMiniCRM?: boolean;
 }
 
 const SessionsSidebar: React.FC<SessionsSidebarProps> = ({
@@ -29,7 +29,7 @@ const SessionsSidebar: React.FC<SessionsSidebarProps> = ({
   isOpen,
   onCloseMobile,
   isDarkMode,
-  canAccessMiniCRM
+  canAccessMiniCRM = true,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -237,7 +237,7 @@ const SessionsSidebar: React.FC<SessionsSidebarProps> = ({
 
             <div className={`p-4 border-t flex-none ${isDarkMode ? 'border-slate-800' : 'border-slate-200'}`}>
                 <p className={`text-[10px] text-center ${theme.textSecondary}`}>
-                  Senior Scout 360
+                  🦅 Senior Scout 360
                 </p>
             </div>
         </div>

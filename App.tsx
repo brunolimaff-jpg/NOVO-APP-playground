@@ -682,7 +682,10 @@ const App: React.FC = () => {
 
   // --- CRM ---
   const handleSaveToCRM = async (sessionId: string) => {
-    if (!canAccessMiniCRM) return;
+    if (!canAccessMiniCRM) {
+      toast.error('Mini CRM indisponível no modo MVP.');
+      return;
+    }
     const session = sessions.find(s => s.id === sessionId);
     if (!session) return;
     const existingCard = cards.find(c => c.id === `crm_${sessionId}`);
@@ -730,10 +733,13 @@ const App: React.FC = () => {
     }, 80);
   };
 
-  const handleOpenKanban = () => { setActiveView('crm'); setSelectedCRMCardId(null); };
-  const handleOpenKanbanGuarded = () => {
-    if (!canAccessMiniCRM) return;
-    handleOpenKanban();
+  const handleOpenKanbanSafe = () => {
+    if (!canAccessMiniCRM) {
+      toast.error('Mini CRM indisponível no modo MVP.');
+      return;
+    }
+    setActiveView('crm');
+    setSelectedCRMCardId(null);
   };
 
   // --- Render helpers ---
@@ -790,7 +796,7 @@ const App: React.FC = () => {
         <header className={`h-12 px-3 md:px-4 flex items-center justify-between border-b backdrop-blur-sm ${isDarkMode ? 'bg-slate-950/80 border-slate-800' : 'bg-white/80 border-slate-200'}`}>
           <div className="flex items-center gap-3 min-w-0">
             <div className="flex items-center gap-2">
-              <span className="text-sm font-semibold text-slate-800 dark:text-slate-100">Senior Scout 360</span>
+              <span className="text-sm font-semibold text-slate-800 dark:text-slate-100">🦅 Senior Scout 360</span>
               <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
                 {MODE_LABELS[mode].icon} {MODE_LABELS[mode].label}
               </span>
@@ -808,7 +814,7 @@ const App: React.FC = () => {
               onSelectSession={handleSelectSession}
               onDeleteSession={handleDeleteSession}
               onSaveToCRM={handleSaveToCRM}
-              onOpenKanban={handleOpenKanbanGuarded}
+              onOpenKanban={handleOpenKanbanSafe}
               isSidebarOpen={isSidebarOpen}
               onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
               messages={allMessages.slice(-visibleCount)}
@@ -835,7 +841,7 @@ const App: React.FC = () => {
               exportError={exportError}
               pdfReportContent={pdfReportContent}
               onOpenEmailModal={() => {
-                setEmailSubject('Dossiê de Inteligência — ' + cleanTitle(extractCompanyName(currentSession?.title)) + ' — Senior Scout 360');
+                setEmailSubject('Dossiê de Inteligência — ' + cleanTitle(extractCompanyName(currentSession?.title)) + ' — 🦅 Senior Scout 360');
                 setShowEmailModal(true);
                 setEmailStatus(null);
               }}

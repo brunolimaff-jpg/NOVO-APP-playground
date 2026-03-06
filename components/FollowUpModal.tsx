@@ -49,7 +49,7 @@ export const FollowUpModal: React.FC<FollowUpModalProps> = ({
 }) => {
   const targetName = companyName?.trim() || 'Conta em prospecção';
   const { start, end } = buildEventWindow(followUpDias);
-  const subject = `Follow-up Senior Scout 360 | ${targetName}`;
+  const subject = `Follow-up 🦅 Senior Scout 360 | ${targetName}`;
   const notes = followUpNotas.trim()
     ? `Notas: ${followUpNotas.trim()}`
     : 'Sem notas adicionais.';
@@ -63,7 +63,7 @@ export const FollowUpModal: React.FC<FollowUpModalProps> = ({
     const icsContent = [
       'BEGIN:VCALENDAR',
       'VERSION:2.0',
-      'PRODID:-//Senior Scout 360//FollowUp//PT-BR',
+      'PRODID:-//🦅 Senior Scout 360//FollowUp//PT-BR',
       'CALSCALE:GREGORIAN',
       'METHOD:PUBLISH',
       'BEGIN:VEVENT',
