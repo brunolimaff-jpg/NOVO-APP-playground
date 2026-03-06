@@ -191,7 +191,7 @@ const ScorePorta: React.FC<ScorePortaProps> = ({
           {adjustmentHistory.length > 0 ? (
             adjustmentHistory.map(item => (
               <div key={`${item.source}-${item.dimension}-${item.timestamp}`} style={{ fontSize: '11px', color: valueColor }}>
-                {item.source}: {item.dimension} -> {item.suggestedValue}
+                {item.source}: {item.dimension} {'->'} {item.suggestedValue}
               </div>
             ))
           ) : (
