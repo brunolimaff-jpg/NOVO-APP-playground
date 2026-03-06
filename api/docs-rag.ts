@@ -7,7 +7,7 @@ import {
     didFallbackPineconeIndex,
     resolveOptionalNamespace,
     resolvePineconeIndexName,
-} from '../utils/pineconeConfig';
+} from '../utils/pineconeConfig.ts';
 
 export const config = {
     runtime: 'nodejs',
