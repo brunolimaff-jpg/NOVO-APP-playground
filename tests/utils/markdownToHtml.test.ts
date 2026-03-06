@@ -56,4 +56,29 @@ describe('convertMarkdownToHTML', () => {
     expect(result).toContain('Baixa Compatibilidade');
     expect(result).toContain('PRD');
   });
+
+  it('converts consolidated PORTA feeds into a rendered score card', () => {
+    const result = convertMarkdownToHTML(
+      `
+[[PORTA_FEED_O:[6]:ELOS:[Plantio,Armazenagem,Beneficiamento]]]
+[[PORTA_FEED_R:[4]:PRESSOES:[LCDPR]]]
+[[PORTA_FEED_T:[6]:T1:[5]:T2:[6]:T3:[7]:STACK:[Planilhas]]]
+[[PORTA_FEED_P:[6]:HA:[8500]:CNPJS:[4]:FAT:[R$ 180 mi]]]
+[[PORTA_FEED_P_PROXY:FUNC:[650]]]
+[[PORTA_FEED_A2:[8]:TIMING:[BOM]:FASE:[Entressafra]]]
+[[PORTA_FEED_A:[6]:A1:[5]:A2:[6]:GERACAO:[G1_5]]]
+[[PORTA_SEG:[PRD]]]
+[[PORTA_FLAG:TRAD:[NAO]:NATUREZA:[PRODUCAO]]]
+[[PORTA_FLAG:LOCK:[NAO]]]
+[[PORTA_FLAG:NOFIT:[NAO]]]
+      `,
+      false,
+    );
+
+    expect(result).toContain('porta-score');
+    expect(result).toContain('58');
+    expect(result).toContain('PRD');
+    expect(result).toContain('Produtor Rural');
+    expect(result).not.toContain('PORTA_FEED');
+  });
 });
