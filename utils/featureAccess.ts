@@ -4,6 +4,7 @@ export interface UserFeatureAccess {
   miniCRM: boolean;
   dashboard: boolean;
   integrityCheck: boolean;
+  clientLookup: boolean;
 }
 
 const MVP_LOCK_RESTRICTED_FEATURES = true;
@@ -13,6 +14,7 @@ const FULL_ACCESS: UserFeatureAccess = {
   miniCRM: true,
   dashboard: true,
   integrityCheck: true,
+  clientLookup: true,
 };
 
 function normalizeValue(value: string): string {
@@ -55,5 +57,6 @@ export function getFeatureAccessForUser(user: Pick<AuthUser, 'displayName' | 'em
     miniCRM: hasRestrictedAccess,
     dashboard: hasRestrictedAccess,
     integrityCheck: hasRestrictedAccess,
+    clientLookup: hasRestrictedAccess,
   };
 }

@@ -23,8 +23,10 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const GUEST_MODE_STORAGE_KEY = 'scout360:guest_mode';
+export const REQUIRE_CLERK_AUTH = import.meta.env.VITE_REQUIRE_AUTH === 'true';
 
 function readGuestModePreference(): boolean {
+  if (REQUIRE_CLERK_AUTH) return false;
   if (typeof window === 'undefined') return false;
   try {
     return window.localStorage.getItem(GUEST_MODE_STORAGE_KEY) === '1';
@@ -57,6 +59,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (isSignedIn && guestModeEnabled) setGuestMode(false);
   }, [guestModeEnabled, isSignedIn, setGuestMode]);
 
+  useEffect(() => {
+    if (REQUIRE_CLERK_AUTH && guestModeEnabled) setGuestMode(false);
+  }, [guestModeEnabled, setGuestMode]);
+
   // Mapeia o usuário real do Clerk para o formato que o seu App já usava
   const user: AuthUser | null =
     isSignedIn && clerkUser
@@ -70,7 +76,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           email: clerkUser.primaryEmailAddress?.emailAddress || '',
           isGuest: false,
         }
-      : guestModeEnabled
+      : !REQUIRE_CLERK_AUTH && guestModeEnabled
         ? {
             id: 'guest',
             displayName: 'Visitante',
@@ -80,7 +86,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         : null;
 
   // As funções abaixo agora acionam o Clerk
-  const continueAsGuest = () => setGuestMode(true);
+  const continueAsGuest = () => {
+    if (REQUIRE_CLERK_AUTH) return;
+    setGuestMode(true);
+  };
   const login = async () => {
     setGuestMode(false);
     clerk.openSignIn();
@@ -113,7 +122,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       value={{
         user,
         userId: user?.id || '',
-        isAuthenticated: !!isSignedIn || guestModeEnabled,
+        isAuthenticated: !!isSignedIn || (!REQUIRE_CLERK_AUTH && guestModeEnabled),
         loading: !isLoaded,
         continueAsGuest,
         login,
