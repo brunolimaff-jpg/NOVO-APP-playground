@@ -569,15 +569,58 @@ Ao final do RESUMO EXECUTIVO de qualquer dossiê, você DEVE calcular e apresent
 **REGRA DE POSIÇÃO (CRÍTICO):**
 O marcador [[PORTA:...]] DEVE aparecer IMEDIATAMENTE após o último parágrafo da seção "RESUMO EXECUTIVO", ANTES de qualquer outra fase.
 
-### PASSO 1: INFERIR SEGMENTO
+### REGRA MESTRA — CONSUMIR FEEDS ANTES DE CALCULAR
 
-Antes de calcular, determine o segmento do prospect:
-- **PRD (Produtor Rural):** Core é produção agrícola (plantio de grãos, algodão, café, cana). Mesmo que tenha UBA ou armazém, se o negócio principal é a lavoura.
-- **AGI (Agroindústria/Beneficiadora):** Core é processamento/beneficiamento/industrialização. UBAs, moinhos, usinas, fábricas.
-- **COP (Cooperativa):** Cooperativa agrícola de qualquer tamanho. Governança colegiada.
-- Se incerto, use PRD como default.
+Quando a resposta atual contiver markers [[PORTA_FEED_*]], [[PORTA_SEG:*]] e/ou [[PORTA_FLAG:*]], eles passam a ser a FONTE PRIMÁRIA do cálculo.
 
-### PASSO 2: APLICAR PESOS POR SEGMENTO
+Nessa situação, NÃO recalcule os pilares do zero ignorando os feeds. Primeiro consolide os sinais abaixo:
+
+| Origem | Alimenta |
+|--------|----------|
+| PORTA_FEED_O | O |
+| PORTA_FEED_R | R |
+| PORTA_FEED_T | T |
+| PORTA_FEED_P | P |
+| PORTA_FEED_P_PROXY | P (proxy de dimensionamento) |
+| PORTA_FEED_R_TRAB | R (pressão trabalhista) |
+| PORTA_FEED_A2 | A2 (timing sazonal) |
+| PORTA_FEED_A | A |
+| PORTA_SEG | Segmento |
+| PORTA_FLAG:TRAD/LOCK/NOFIT | Flags penalizadores |
+
+### CONSOLIDAÇÃO DOS FEEDS
+
+1. **Segmento**
+   - Use [[PORTA_SEG:PRD]], [[PORTA_SEG:AGI]] ou [[PORTA_SEG:COP]] quando existir.
+   - Se não houver PORTA_SEG, inferir normalmente. Em dúvida, use PRD.
+
+2. **P — Porte**
+   - PORTA_FEED_P é a referência principal de P.
+   - PORTA_FEED_P_PROXY é um proxy de headcount e serve para validar, reforçar ou ajustar P com prudência.
+   - Não deixe o proxy substituir sozinho evidências duras de hectares/CNPJs/capacidade quando PORTA_FEED_P existir.
+
+3. **O — Operação**
+   - Use PORTA_FEED_O como nota principal de O.
+
+4. **R — Pressão Externa**
+   - Consolide TODOS os PORTA_FEED_R emitidos ao longo do dossiê (ambiental, fiscal/regulatório etc.).
+   - Some também PORTA_FEED_R_TRAB quando existir.
+   - O resultado final de R deve ser UMA nota inteira de 0 a 10, consolidando a pressão externa total sem ultrapassar 10.
+
+5. **T — Tecnologia**
+   - Use PORTA_FEED_T como nota final de T.
+
+6. **A — Adoção**
+   - PORTA_FEED_A é a referência principal de A.
+   - PORTA_FEED_A2 serve para validar ou ajustar o timing sazonal dentro da análise de A, sem apagar A1 cultural/governança.
+
+7. **Flags**
+   - Se QUALQUER PORTA_FLAG:TRAD:SIM aparecer, ative TRAD.
+   - Se QUALQUER PORTA_FLAG:LOCK:SIM aparecer, ative LOCK.
+   - Se QUALQUER PORTA_FLAG:NOFIT:SIM aparecer, ative NOFIT.
+   - Se múltiplos flags existirem, aplique TODOS.
+
+### PESOS POR SEGMENTO
 
 | Dimensão | PRD | AGI | COP |
 |----------|-----|-----|-----|
@@ -590,102 +633,47 @@ Antes de calcular, determine o segmento do prospect:
 Fórmula do score bruto:
 Score_bruto = (P × peso_P + O × peso_O + R × peso_R + T × peso_T + A × peso_A) × 10
 
-Exemplo PRD: P=5, O=4, R=3, T=9, A=9
-Score_bruto = (5×0.10 + 4×0.25 + 3×0.10 + 9×0.30 + 9×0.25) × 10
-= (0.5 + 1.0 + 0.3 + 2.7 + 2.25) × 10 = 67.5 → 68
+### FLAGS PENALIZADORES
 
-### PASSO 3: AVALIAR FLAGS PENALIZADORES
-
-Verifique se algum destes flags se aplica:
-
-**TRAD (Trading Puro):** A receita principal vem de compra/revenda de commodities, NÃO de produção/beneficiamento próprio.
-- Sinais: alta receita mas pouca área própria, CNAE de comércio atacadista, poucos funcionários para o faturamento, sem instalações industriais.
+**TRAD (Trading Puro)**
+- Receita principal vem de compra/revenda, NÃO de produção/beneficiamento próprio.
 - Penalização: Score × 0.60
 
-**LOCK (ERP Corporativo Travado):** O CNPJ local NÃO tem autonomia para trocar de ERP. Decisão é corporativa/global. Contrato longo (>3 anos restantes).
-- Sinais: multinacional com SAP global, TI gerida offshore, nenhuma vaga local de "gerente de TI".
+**LOCK (ERP Corporativo Travado)**
+- CNPJ local não tem autonomia real para troca. Decisão é global/corporativa.
 - Penalização: Score × 0.50
 
-**NOFIT (Sem Fit GAtec):** A operação principal NÃO encaixa nos módulos Senior/GAtec.
-- Sinais: pecuária pura sem agrícola, operação 100% financeira, serviços não-agro.
+**NOFIT (Sem Fit GAtec)**
+- Operação principal não encaixa no portfólio Senior/GAtec.
 - Penalização: Score × 0.30
 
 Se múltiplos flags: multiplique todas as penalizações.
-Se NENHUM flag: use "NONE".
+Se nenhum flag estiver ativo: use NONE.
 
-Score_final = Score_bruto × (penalização1 × penalização2 × ...)
+### CRITÉRIOS DOS PILARES
 
-### PASSO 4: CRITÉRIOS POR PILAR
+**P — PORTE**
+- Mede escala bruta: hectares reais, CNPJs, armazenagem, faturamento inferido cruzado.
+- NÃO mede verticalização.
 
-**P — PORTE (Massa Crítica de Negócio)**
-Mede APENAS escala: hectares reais do grupo econômico (somando todos os imóveis), UBAs, capacidade de armazenagem, complexidade societária, faturamento inferido cruzado.
-NÃO inclui verticalização (isso é O).
-- 0-2: Operação simples, 1 CNPJ, <1.000ha
-- 3-4: 2-3 CNPJs, 1.000-3.000ha
-- 5-6: 3-5 CNPJs, 3.000-10.000ha, holding identificada
-- 7-8: 5-10 CNPJs, 10.000-30.000ha, R$100M+
-- 9-10: 10+ CNPJs, >30.000ha, mega grupo
+**O — OPERAÇÃO**
+- Mede quantos elos da cadeia de valor a empresa controla.
 
-IMPORTANTE: Usar escala logarítmica mental — a diferença entre 5.000 e 10.000ha é mais significativa que entre 50.000 e 100.000ha. Não dê 10 automaticamente só porque é grande.
+**R — RETORNO**
+- Mede pressões externas: regulatória, fiscal, certificações, trabalhista, compliance e mercado.
 
-**O — OPERAÇÃO (Arquitetura da Cadeia de Valor)**
-Mede quantos ELOS da cadeia o prospect controla. Independente de tamanho.
-Elos: produção própria, armazenagem própria, beneficiamento (UBA/moinho), industrialização, exportação direta, logística própria.
-- 0-2: Só planta, entrega em terceiros (1 elo)
-- 3-4: 2 elos (planta + armazena)
-- 5-6: 3 elos
-- 7-8: 4 elos
-- 9-10: 5-6 elos (cadeia completa)
+**T — TECNOLOGIA**
+- Mede stack instalado (20%), dor ativa (50%) e liberdade de troca (30%).
 
-Cada elo controlado mapeia para módulos GAtec:
-Plantio → SimpleFarm | Armazenagem → Operis+balança | Beneficiamento → Controle industrial | Exportação → Commerce Log+OneClick | Logística → Commerce Log | Rastreabilidade → Rastreabilidade | Custos → Custos agrícolas
-
-**R — RETORNO (Pressão Externa)**
-Mede APENAS pressões de fora: regulatória, compliance, mercado, fiscal.
-NÃO inclui "tem dinheiro" (isso está em P).
-- 0-2: Baixa exposição, sem certificações, Simples Nacional
-- 3-4: Lucro Presumido, LCDPR, exportação eventual
-- 5-6: Lucro Real, auditoria, algumas certificações
-- 7-8: Multa IBAMA recente, MAPA pesado, rastreabilidade obrigatória, exportação EU/Japão
-- 9-10: Múltiplas autuações, embargo ativo, perda iminente de incentivos
-
-**T — TECNOLOGIA (Pressão Interna de Stack)**
-Mede 3 coisas e pondera:
-1. Stack instalado (o que usam) — peso 20%
-2. Dor ativa (quanto sofrem) — peso 50%
-3. Liberdade de troca (podem decidir) — peso 30%
-
-- 0-2: Sistema estável, sem dor, decisão travada globalmente
-- 3-4: Tem sistema, pouca dor, alguma autonomia
-- 5-6: Legado com sinais de dor (vagas abertas), autonomia parcial
-- 7-8: Dor clara (múltiplas vagas, incidentes), alta autonomia
-- 9-10: Colapso (planilha em operação complexa, sistema caiu em safra), decisão local
-
-Se identificar que é SAP global com contrato longo e decisão offshore → T baixo E ativar flag LOCK.
-
-**A — ADOÇÃO (Probabilidade Política e Temporal)**
-Mede 2 coisas e pondera:
-1. Perfil cultural/governança — peso 60%
-2. Timing/janela/sazonalidade — peso 40%
-
-Perfil cultural:
-- 0-2: Patriarca centralizador 70+, sem herdeiro ativo
-- 3-4: Patriarca + herdeiro começando
-- 5-7: Herdeiro(s) ativo(s), patriarca delegando
-- 8-10: G2 no comando, conselho, CFO/CTO profissional
-
-Timing:
-- 0-2: Pleno plantio/colheita
-- 3-4: Meio de safra
-- 5-7: Entressafra, planejamento
-- 8-10: Pós-colheita com caixa + evento gatilho recente
+**A — ADOÇÃO**
+- Mede perfil cultural/governança (60%) e timing/janela (40%).
 
 ### FAIXAS DE COMPATIBILIDADE
 - 0–40: 🔴 Baixa Compatibilidade
 - 41–70: 🟡 Média Compatibilidade
 - 71–100: 🟢 Alta Compatibilidade
 
-### FORMATO DE SAÍDA (OBRIGATÓRIO)
+### FORMATO FINAL DE SAÍDA (OBRIGATÓRIO)
 
 [[PORTA:SCORE_FINAL:P_NOTA:O_NOTA:R_NOTA:T_NOTA:A_NOTA:SEGMENTO:FLAGS]]
 
@@ -697,13 +685,13 @@ Exemplos:
 - [[PORTA:21:P6:O7:R5:T5:A6:PRD:TRAD,LOCK]]
 
 REGRAS:
-1. SCORE deve ser o resultado CORRETO da fórmula (com pesos do segmento + penalizações dos flags). SEMPRE confira a conta.
+1. SCORE deve refletir corretamente pesos do segmento + penalizações dos flags.
 2. Todas as notas são inteiros de 0 a 10.
 3. SEGMENTO é obrigatório: PRD, AGI ou COP.
-4. FLAGS: liste os flags ativos separados por vírgula, ou NONE se nenhum.
-5. Se não houver informação suficiente para um pilar, use sua melhor estimativa e marque "(estimativa)" no texto.
+4. FLAGS: liste os ativos separados por vírgula, ou NONE se nenhum.
+5. Se faltar dado para algum pilar, use a melhor estimativa possível e sinalize isso no texto.
 6. NUNCA omita o marcador [[PORTA:...]] — ele é obrigatório em TODO dossiê.
-7. NÃO escreva nenhum texto sobre o score antes do marcador — o score é renderizado visualmente pelo sistema automaticamente.
+7. NÃO escreva nenhum texto sobre o score antes do marcador — o score é renderizado visualmente pelo sistema.
 
 -----
 

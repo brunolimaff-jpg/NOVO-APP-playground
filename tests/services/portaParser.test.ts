@@ -77,6 +77,42 @@ describe('parseMarkers — PORTA v2', () => {
     expect(result.scorePorta).toBeNull();
   });
 
+  it('consolidates PORTA feed markers when final marker is absent', () => {
+    const content = `
+Resumo executivo.
+[[PORTA_FEED_O:[8]:ELOS:[Plantio,Armazenagem,Beneficiamento,Exportacao,Logistica]]]
+[[PORTA_FEED_R:[7]:PRESSOES:[Licenca ambiental,GlobalGAP]]]
+[[PORTA_FEED_R:[6]:PRESSOES:[ICMS,IBS/CBS]]]
+[[PORTA_FEED_T:[8]:T1:[7]:T2:[8]:T3:[9]:STACK:[TOTVS]]]
+[[PORTA_FEED_P:[8]:HA:[30000]:CNPJS:[12]:FAT:[R$ 2 bi]]]
+[[PORTA_FEED_P_PROXY:FUNC:[2500]]]
+[[PORTA_FEED_R_TRAB:[5]:PASSIVOS:[Horas extras]]]
+[[PORTA_FEED_A2:[7]:TIMING:[NEUTRO]:FASE:[Planejamento]]]
+[[PORTA_FEED_A:[8]:A1:[8]:A2:[7]:GERACAO:[G2]]]
+[[PORTA_SEG:[AGI]]]
+[[PORTA_FLAG:TRAD:[NAO]:NATUREZA:[PRODUCAO]]]
+[[PORTA_FLAG:LOCK:[NAO]]]
+[[PORTA_FLAG:NOFIT:[NAO]]]
+Fim do resumo.
+    `;
+    const result = parseMarkers(content);
+
+    expect(result.scorePorta).toEqual({
+      score: 76,
+      p: 8,
+      o: 8,
+      r: 6,
+      t: 8,
+      a: 8,
+      segmento: 'AGI',
+      flags: [],
+      scoreBruto: 76,
+    });
+    expect(result.text).not.toContain('PORTA_FEED');
+    expect(result.text).toContain('Resumo executivo.');
+    expect(result.text).toContain('Fim do resumo.');
+  });
+
   it('strips v2 marker from text output', () => {
     const content = 'Before [[PORTA:84:P8:O10:R7:T8:A8:AGI:NONE]] After';
     const result = parseMarkers(content);

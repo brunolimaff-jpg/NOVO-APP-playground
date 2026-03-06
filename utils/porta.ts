@@ -1,9 +1,20 @@
 import { PORTA_FLAG_PENALTIES, PORTA_WEIGHTS, PortaFlag, PortaSegmento, ScorePortaData } from '../types';
 
-export const PORTA_MARKER_ANY_REGEX = /\[\[PORTA:[^\]]*\]\]/g;
+export const PORTA_MARKER_ANY_REGEX = /\[\[(?:PORTA(?::[^\]]*|_[^\]]*))\]\]/g;
 export const PORTA_MARKER_V2_REGEX =
   /\[\[PORTA:(\d+):P(\d+):O(\d+):R(\d+):T(\d+):A(\d+):(PRD|AGI|COP):(NONE|(?:(?:TRAD|LOCK|NOFIT)(?:,(?:TRAD|LOCK|NOFIT))*))\]\]/;
 export const PORTA_MARKER_V1_REGEX = /\[\[PORTA:(\d+):P(\d+):O(\d+):R(\d+):T(\d+):A(\d+)\]\]/;
+const PORTA_SEGMENT_REGEX = /\[\[PORTA_SEG:(PRD|AGI|COP)\]\]/g;
+const PORTA_FLAG_REGEX = /\[\[PORTA_FLAG:(TRAD|LOCK|NOFIT):(SIM|NAO|NÃO)(?::[^\]]+)?\]\]/g;
+const PORTA_FEED_O_REGEX = /\[\[PORTA_FEED_O:(\d+):ELOS:([^\]]*)\]\]/g;
+const PORTA_FEED_R_REGEX = /\[\[PORTA_FEED_R:(\d+):PRESSOES:([^\]]*)\]\]/g;
+const PORTA_FEED_T_REGEX = /\[\[PORTA_FEED_T:(\d+):T1:(\d+):T2:(\d+):T3:(\d+):STACK:([^\]]*)\]\]/g;
+const PORTA_FEED_P_REGEX = /\[\[PORTA_FEED_P:(\d+):HA:([^:\]]*):CNPJS:([^:\]]*):FAT:([^\]]*)\]\]/g;
+const PORTA_FEED_P_PROXY_REGEX = /\[\[PORTA_FEED_P_PROXY:FUNC:([^\]]*)\]\]/g;
+const PORTA_FEED_R_TRAB_REGEX = /\[\[PORTA_FEED_R_TRAB:(\d+):PASSIVOS:([^\]]*)\]\]/g;
+const PORTA_FEED_A2_REGEX = /\[\[PORTA_FEED_A2:(\d+):TIMING:([^:\]]*):FASE:([^\]]*)\]\]/g;
+const PORTA_FEED_A_REGEX = /\[\[PORTA_FEED_A:(\d+):A1:(\d+):A2:(\d+):GERACAO:([^\]]*)\]\]/g;
+const PORTA_FLAG_ORDER: PortaFlag[] = ['TRAD', 'LOCK', 'NOFIT'];
 
 export const PORTA_SEGMENT_LABELS: Record<PortaSegmento, string> = {
   PRD: 'Produtor Rural',
@@ -68,7 +79,52 @@ export function getPortaCompatibility(score: number): {
 }
 
 export function stripPortaMarkers(content: string): string {
-  return content.replace(PORTA_MARKER_ANY_REGEX, '');
+  return normalizePortaContent(content).replace(PORTA_MARKER_ANY_REGEX, '');
+}
+
+function normalizePortaContent(content: string): string {
+  return content.replace(/:\[([^[\]]*)\]/g, ':$1');
+}
+
+function clampPortaNote(value: number): number {
+  return Math.max(0, Math.min(10, Math.round(value)));
+}
+
+function parseLooseInteger(raw: string): number | null {
+  if (!raw) return null;
+  const digits = raw.replace(/[^\d]/g, '');
+  if (!digits) return null;
+  const parsed = Number.parseInt(digits, 10);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function collectMatches(regex: RegExp, content: string): RegExpExecArray[] {
+  return Array.from(content.matchAll(regex));
+}
+
+function averageRounded(values: number[]): number | null {
+  if (values.length === 0) return null;
+  return clampPortaNote(values.reduce((sum, value) => sum + value, 0) / values.length);
+}
+
+function lastNumberMatch(regex: RegExp, content: string): number | null {
+  const matches = collectMatches(regex, content);
+  const last = matches[matches.length - 1];
+  if (!last) return null;
+  return parseLooseInteger(last[1]);
+}
+
+function mapEmployeesToPScore(employeeCount: number): number {
+  if (employeeCount < 50) return 1;
+  if (employeeCount < 100) return 2;
+  if (employeeCount < 200) return 3;
+  if (employeeCount < 500) return 4;
+  if (employeeCount < 1000) return 5;
+  if (employeeCount < 2000) return 6;
+  if (employeeCount < 5000) return 7;
+  if (employeeCount < 10000) return 8;
+  if (employeeCount < 20000) return 9;
+  return 10;
 }
 
 export function calculatePortaScoreBruto(
@@ -88,8 +144,78 @@ export function calculatePortaFlagMultiplier(flags: PortaFlag[]): number {
   return flags.reduce((acc, flag) => acc * PORTA_FLAG_PENALTIES[flag], 1);
 }
 
+export function buildPortaScoreFromFeeds(content: string): ScorePortaData | null {
+  const normalizedContent = normalizePortaContent(content);
+  const segmentoMatches = collectMatches(PORTA_SEGMENT_REGEX, normalizedContent);
+  const segmento = (segmentoMatches[segmentoMatches.length - 1]?.[1] as PortaSegmento | undefined) || 'PRD';
+
+  const activeFlags = new Set<PortaFlag>();
+  for (const match of collectMatches(PORTA_FLAG_REGEX, normalizedContent)) {
+    const flag = match[1] as PortaFlag;
+    const isActive = match[2] === 'SIM';
+    if (isActive) activeFlags.add(flag);
+  }
+  const flags = PORTA_FLAG_ORDER.filter(flag => activeFlags.has(flag));
+
+  const o = lastNumberMatch(PORTA_FEED_O_REGEX, normalizedContent);
+  const t = lastNumberMatch(PORTA_FEED_T_REGEX, normalizedContent);
+
+  const pBase = lastNumberMatch(PORTA_FEED_P_REGEX, normalizedContent);
+  const employeeCount = lastNumberMatch(PORTA_FEED_P_PROXY_REGEX, normalizedContent);
+  const pProxy = employeeCount === null ? null : mapEmployeesToPScore(employeeCount);
+  const p = pBase !== null && pProxy !== null ? clampPortaNote(pBase * 0.8 + pProxy * 0.2) : (pBase ?? pProxy);
+
+  const rValues = [
+    ...collectMatches(PORTA_FEED_R_REGEX, normalizedContent)
+      .map(match => parseLooseInteger(match[1]))
+      .filter((value): value is number => value !== null),
+    ...collectMatches(PORTA_FEED_R_TRAB_REGEX, normalizedContent)
+      .map(match => parseLooseInteger(match[1]))
+      .filter((value): value is number => value !== null),
+  ];
+  const r = averageRounded(rValues);
+
+  const aFeedMatches = collectMatches(PORTA_FEED_A_REGEX, normalizedContent);
+  const lastAFeed = aFeedMatches[aFeedMatches.length - 1];
+  const aFinalFromDecision = lastAFeed ? parseLooseInteger(lastAFeed[1]) : null;
+  const a1 = lastAFeed ? parseLooseInteger(lastAFeed[2]) : null;
+  const a2FromDecision = lastAFeed ? parseLooseInteger(lastAFeed[3]) : null;
+  const a2FromRh = lastNumberMatch(PORTA_FEED_A2_REGEX, normalizedContent);
+
+  let a: number | null = null;
+  if (a1 !== null && a2FromDecision !== null) {
+    const mergedA2 =
+      a2FromRh !== null ? (averageRounded([a2FromDecision, a2FromRh]) ?? a2FromDecision) : a2FromDecision;
+    a = clampPortaNote(a1 * 0.6 + mergedA2 * 0.4);
+  } else if (aFinalFromDecision !== null) {
+    a = aFinalFromDecision;
+  } else if (a2FromRh !== null) {
+    a = a2FromRh;
+  }
+
+  if ([p, o, r, t, a].some(value => value === null)) {
+    return null;
+  }
+
+  const scoreBruto = calculatePortaScoreBruto(p!, o!, r!, t!, a!, segmento);
+  const score = Math.round(scoreBruto * calculatePortaFlagMultiplier(flags));
+
+  return {
+    score,
+    p: p!,
+    o: o!,
+    r: r!,
+    t: t!,
+    a: a!,
+    segmento,
+    flags,
+    scoreBruto,
+  };
+}
+
 export function parsePortaMarkerV2(content: string): ScorePortaData | null {
-  const v2Match = content.match(PORTA_MARKER_V2_REGEX);
+  const normalizedContent = normalizePortaContent(content);
+  const v2Match = normalizedContent.match(PORTA_MARKER_V2_REGEX);
 
   if (v2Match) {
     const p = Number.parseInt(v2Match[2], 10);
@@ -113,7 +239,7 @@ export function parsePortaMarkerV2(content: string): ScorePortaData | null {
     };
   }
 
-  const v1Match = content.match(PORTA_MARKER_V1_REGEX);
+  const v1Match = normalizedContent.match(PORTA_MARKER_V1_REGEX);
 
   if (v1Match) {
     return {
@@ -128,5 +254,5 @@ export function parsePortaMarkerV2(content: string): ScorePortaData | null {
     };
   }
 
-  return null;
+  return buildPortaScoreFromFeeds(normalizedContent);
 }
