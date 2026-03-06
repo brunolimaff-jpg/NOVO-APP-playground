@@ -2,35 +2,44 @@ import { extractValidLinks } from './linkFixer';
 import { formatSourcesForExport, SourceRef } from './textCleaners';
 import { fixFakeLinksHTML } from './linkFixer';
 import { APP_NAME } from '../constants';
+import {
+  getPortaCompatibility,
+  parsePortaMarkerV2,
+  PORTA_FLAG_META,
+  PORTA_MARKER_ANY_REGEX,
+  PORTA_SEGMENT_LABELS,
+} from './porta';
 
 export function convertMarkdownToHTML(md: string, includeSources: boolean = true): string {
   const allLinks = extractValidLinks(md);
   const markdownHttpLinkRegex = /\[([^\]]+)\]\((https?:\/\/(?:[^\s()]+|\([^\s()]*\))+)\)/g;
   let html = md
-    .replace(
-      /\[\[PORTA:(\d+):P(\d+):O(\d+):R(\d+):T(\d+):A(\d+)(?::(PRD|AGI|COP):(NONE|(?:(?:TRAD|LOCK|NOFIT)(?:,(?:TRAD|LOCK|NOFIT))*)))?\]\]/g,
-      (_, score, p, o, r, t, a, seg, flags) => {
-        const s = parseInt(score);
-        const color = s >= 71 ? '#059669' : s >= 41 ? '#eab308' : '#ef4444';
-        const bgColor = s >= 71 ? '#f0fdf4' : s >= 41 ? '#fefce8' : '#fef2f2';
-        const borderColor = s >= 71 ? '#059669' : s >= 41 ? '#eab308' : '#ef4444';
-        const label = s >= 71 ? '🟢 Alta Compatibilidade' : s >= 41 ? '🟡 Média Compatibilidade' : '🔴 Baixa Compatibilidade';
-        const segLabel = seg ? ` <span class="seg-badge">${seg}</span>` : '';
-        const flagsHtml = flags && flags !== 'NONE'
-          ? `<div class="flags">${flags.split(',').map((f: string) => {
-              const ic = f === 'TRAD' ? '🚩' : f === 'LOCK' ? '🔒' : '⛔';
-              return `<span class="flag-badge">${ic} ${f}</span>`;
-            }).join('')}</div>`
-          : '';
-        return `<div class="porta-score" style="border:2px solid ${borderColor};background:${bgColor};">
-          <div class="header"><span class="label-porta">🎯 PORTA${segLabel}</span><span><span class="score-num" style="color:${color};">${score}</span><span class="score-max">/100</span></span></div>
-          <div class="bar-bg" style="background:${color}20;"><div class="bar-fill" style="width:${Math.min(s, 100)}%;background:${color};"></div></div>
-          <div class="compat" style="color:${color};">${label}</div>
-          ${flagsHtml}
-          <div class="pillars"><span class="pill"><b>P</b> ${p}</span><span class="pill"><b>O</b> ${o}</span><span class="pill"><b>R</b> ${r}</span><span class="pill"><b>T</b> ${t}</span><span class="pill"><b>A</b> ${a}</span></div>
+    .replace(PORTA_MARKER_ANY_REGEX, marker => {
+      const porta = parsePortaMarkerV2(marker);
+      if (!porta) return marker;
+
+      const compatibility = getPortaCompatibility(porta.score);
+      const bgColor = porta.score >= 71 ? '#f0fdf4' : porta.score >= 41 ? '#fefce8' : '#fef2f2';
+      const scoreDetail =
+        typeof porta.scoreBruto === 'number'
+          ? `Score final ${porta.score} (bruto: ${porta.scoreBruto}${porta.flags.length ? ` - penalizado por ${porta.flags.join(', ')}` : ''})`
+          : `Score final ${porta.score}`;
+      const flagsHtml = porta.flags.length
+        ? porta.flags
+            .map(flag => `<span class="pill">${PORTA_FLAG_META[flag].icon} ${PORTA_FLAG_META[flag].shortLabel}</span>`)
+            .join('')
+        : '<span class="pill">Flags: NONE</span>';
+
+      return `<div class="porta-score" style="border:2px solid ${compatibility.color};background:${bgColor};">
+          <div class="header"><span class="label-porta">🎯 PORTA v2</span><span><span class="score-num" style="color:${compatibility.color};">${porta.score}</span><span class="score-max">/100</span></span></div>
+          <div style="font-size:11px;color:#64748b;margin:6px 0 8px;">${scoreDetail}</div>
+          <div class="bar-bg" style="background:${compatibility.color}20;"><div class="bar-fill" style="width:${Math.min(porta.score, 100)}%;background:${compatibility.color};"></div></div>
+          <div class="compat" style="color:${compatibility.color};">${compatibility.emoji} ${compatibility.label}</div>
+          <div class="pillars"><span class="pill"><b>SEG</b> ${porta.segmento}</span>${flagsHtml}</div>
+          <div class="pillars"><span class="pill"><b>P</b> ${porta.p}</span><span class="pill"><b>O</b> ${porta.o}</span><span class="pill"><b>R</b> ${porta.r}</span><span class="pill"><b>T</b> ${porta.t}</span><span class="pill"><b>A</b> ${porta.a}</span></div>
+          <div style="font-size:11px;color:#64748b;margin-top:8px;">${PORTA_SEGMENT_LABELS[porta.segmento]}</div>
         </div>`;
-      }
-    )
+    })
     .replace(/^>\s*(.*$)/gm, '<blockquote>$1</blockquote>')
     .replace(/^#### (.*$)/gm, '<h4>$1</h4>')
     .replace(/^### (.*$)/gm, '<h3>$1</h3>')
@@ -45,7 +54,10 @@ export function convertMarkdownToHTML(md: string, includeSources: boolean = true
       }
       return `<a href="${url}" target="_blank" style="color:#059669;text-decoration:underline;">${text}</a>`;
     })
-    .replace(/\^(\d+)/g, '<sup style="background:#059669;color:#fff;padding:1px 5px;border-radius:8px;font-size:10px;margin:0 1px;">$1</sup>')
+    .replace(
+      /\^(\d+)/g,
+      '<sup style="background:#059669;color:#fff;padding:1px 5px;border-radius:8px;font-size:10px;margin:0 1px;">$1</sup>',
+    )
     .replace(/^[\-\*] (.*$)/gm, '<li>$1</li>')
     .replace(/^\d+\. (.*$)/gm, '<li>$1</li>')
     .replace(/\n\n/g, '</p><p>')
@@ -53,7 +65,7 @@ export function convertMarkdownToHTML(md: string, includeSources: boolean = true
     .replace(/^-----+$/gm, '<hr>')
     .replace(/^---+$/gm, '<hr>');
   html = html.replace(/(<li>[\s\S]*?<\/li>(?:\s*<li>[\s\S]*?<\/li>)*)/g, '<ul>$1</ul>');
-  html = html.replace(/(<blockquote>[\s\S]*?<\/blockquote>)(\s*<blockquote>[\s\S]*?<\/blockquote>)*/g, (match) => {
+  html = html.replace(/(<blockquote>[\s\S]*?<\/blockquote>)(\s*<blockquote>[\s\S]*?<\/blockquote>)*/g, match => {
     const content = match.replace(/<\/?blockquote>/g, '');
     return '<blockquote>' + content + '</blockquote>';
   });

@@ -1,11 +1,11 @@
-export const APP_NAME = "🦅 Senior Scout 360";
-export const APP_VERSION = "Investigação Completa v4.7";
+export const APP_NAME = '🦅 Senior Scout 360';
+export const APP_VERSION = 'Investigação Completa v4.7';
 
 export type ChatMode = 'operacao' | 'diretoria';
 
 export const DEFAULT_MODE: ChatMode = 'operacao';
 
-export const NOME_VENDEDOR_PLACEHOLDER = "{{NOME_VENDEDOR}}";
+export const NOME_VENDEDOR_PLACEHOLDER = '{{NOME_VENDEDOR}}';
 
 interface ModeTheme {
   bg: string;
@@ -23,8 +23,8 @@ export const MODE_LABELS: Record<ChatMode, { label: string; icon: string; descri
       bg: 'bg-[#8B4513]',
       text: 'text-[#FFD700]',
       border: 'border-orange-500',
-      hover: 'hover:bg-[#A0522D]'
-    }
+      hover: 'hover:bg-[#A0522D]',
+    },
   },
   diretoria: {
     label: 'Modo Diretoria',
@@ -34,19 +34,19 @@ export const MODE_LABELS: Record<ChatMode, { label: string; icon: string; descri
       bg: 'bg-[#1a365d]',
       text: 'text-[#63b3ed]',
       border: 'border-blue-500',
-      hover: 'hover:bg-[#2c5282]'
-    }
-  }
+      hover: 'hover:bg-[#2c5282]',
+    },
+  },
 };
 
 // ===================================================================
 // PORTAIS DE DOCUMENTAÇÃO (REFERÊNCIA OFICIAL)
 // ===================================================================
 const DOCUMENTATION_PORTALS = {
-  senior: "https://documentacao.senior.com.br/",
-  totvs: "https://centraldeatendimento.totvs.com/",
-  sap: "https://help.sap.com/",
-  sankhya: "https://ajuda.sankhya.com.br/"
+  senior: 'https://documentacao.senior.com.br/',
+  totvs: 'https://centraldeatendimento.totvs.com/',
+  sap: 'https://help.sap.com/',
+  sankhya: 'https://ajuda.sankhya.com.br/',
 };
 
 // ===================================================================
@@ -799,7 +799,9 @@ Quando investigar uma empresa, você DEVE verificar se ela JÁ É cliente Senior
 *Desenvolvido por Bruno Lima — Senior Sistemas — Cuiabá, MT*
 `;
 
-export const OPERACAO_PROMPT = BASE_SYSTEM_PROMPT + `
+export const OPERACAO_PROMPT =
+  BASE_SYSTEM_PROMPT +
+  `
 
 ### MODO OPERAÇÃO ATIVADO 🛻
 
@@ -813,7 +815,9 @@ export const OPERACAO_PROMPT = BASE_SYSTEM_PROMPT + `
 - Se a empresa é má oportunidade, diz sem rodeios. Se é boa, apresenta os números que provam.
 `;
 
-export const DIRETORIA_PROMPT = BASE_SYSTEM_PROMPT + `
+export const DIRETORIA_PROMPT =
+  BASE_SYSTEM_PROMPT +
+  `
 
 ### MODO DIRETORIA ATIVADO ✈️
 

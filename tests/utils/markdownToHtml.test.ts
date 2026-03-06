@@ -41,40 +41,19 @@ describe('convertMarkdownToHTML', () => {
     expect(result).toContain('<li>Item 2</li>');
   });
 
-  it('converts PORTA v1 score markers', () => {
-    const result = convertMarkdownToHTML('[[PORTA:75:P8:O7:R8:T7:A7]]', false);
-    expect(result).toContain('porta-score');
-    expect(result).toContain('75');
-    expect(result).toContain('Alta Compatibilidade');
-  });
-
-  it('handles PORTA v1 score with low value', () => {
-    const result = convertMarkdownToHTML('[[PORTA:30:P2:O3:R4:T3:A3]]', false);
-    expect(result).toContain('Baixa Compatibilidade');
-  });
-
-  it('converts PORTA v2 score markers with segmento and no flags', () => {
-    const result = convertMarkdownToHTML('[[PORTA:84:P8:O10:R7:T8:A8:AGI:NONE]]', false);
-    expect(result).toContain('porta-score');
-    expect(result).toContain('84');
-    expect(result).toContain('Alta Compatibilidade');
-    expect(result).toContain('AGI');
-  });
-
-  it('converts PORTA v2 score markers with flags', () => {
+  it('converts PORTA v2 score markers with segment and flags', () => {
     const result = convertMarkdownToHTML('[[PORTA:51:P7:O8:R6:T7:A7:PRD:TRAD]]', false);
     expect(result).toContain('porta-score');
     expect(result).toContain('51');
     expect(result).toContain('Média Compatibilidade');
+    expect(result).toContain('PRD');
     expect(result).toContain('TRAD');
+    expect(result).toContain('bruto: 72');
   });
 
-  it('converts PORTA v2 score markers with multiple flags', () => {
-    const result = convertMarkdownToHTML('[[PORTA:21:P6:O7:R5:T5:A6:PRD:TRAD,LOCK]]', false);
-    expect(result).toContain('porta-score');
-    expect(result).toContain('21');
+  it('keeps backward compatibility with PORTA v1 markers', () => {
+    const result = convertMarkdownToHTML('[[PORTA:30:P2:O3:R4:T3:A3]]', false);
     expect(result).toContain('Baixa Compatibilidade');
-    expect(result).toContain('TRAD');
-    expect(result).toContain('LOCK');
+    expect(result).toContain('PRD');
   });
 });

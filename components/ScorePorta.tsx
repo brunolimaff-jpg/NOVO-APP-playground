@@ -1,49 +1,51 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { ScorePortaData, PortaSegmento, PortaFlag } from '../types';
+import { ScorePortaData } from '../types';
+import { getPortaCompatibility, PORTA_FLAG_META, PORTA_SEGMENT_LABELS } from '../utils/porta';
 
 interface ScorePortaProps extends ScorePortaData {
   isDarkMode?: boolean;
 }
 
 const pillars = [
-  { key: 'p', letter: 'P', label: 'Porte (Massa Crítica)' },
-  { key: 'o', letter: 'O', label: 'Operação (Cadeia de Valor)' },
-  { key: 'r', letter: 'R', label: 'Retorno (Pressão Externa)' },
-  { key: 't', letter: 'T', label: 'Tecnologia (Pressão de Stack)' },
-  { key: 'a', letter: 'A', label: 'Adoção (Política + Temporal)' },
+  { key: 'p', letter: 'P', label: 'Porte / massa crítica' },
+  { key: 'o', letter: 'O', label: 'Operação / cadeia' },
+  { key: 'r', letter: 'R', label: 'Retorno / pressão externa' },
+  { key: 't', letter: 'T', label: 'Tecnologia / dor + troca' },
+  { key: 'a', letter: 'A', label: 'Adoção / governança + timing' },
 ];
 
-const SEGMENTO_LABELS: Record<PortaSegmento, string> = {
-  PRD: 'Produtor Rural',
-  AGI: 'Agroindústria',
-  COP: 'Cooperativa',
-};
+const ScorePorta: React.FC<ScorePortaProps> = ({
+  score,
+  p,
+  o,
+  r,
+  t,
+  a,
+  segmento,
+  flags,
+  scoreBruto,
+  isDarkMode = true,
+}) => {
+  const compatibility = getPortaCompatibility(score);
+  const barColor = compatibility.color;
+  const barBg = compatibility.background;
 
-const FLAG_DISPLAY: Record<PortaFlag, { icon: string; label: string; color: string }> = {
-  TRAD: { icon: '🚩', label: 'Trading', color: '#f97316' },
-  LOCK: { icon: '🔒', label: 'ERP Travado', color: '#8b5cf6' },
-  NOFIT: { icon: '⛔', label: 'Sem Fit', color: '#ef4444' },
-};
-
-const ScorePorta: React.FC<ScorePortaProps> = ({ score, p, o, r, t, a, segmento, flags, scoreBruto, isDarkMode = true }) => {
-  const isAlta  = score >= 71;
-  const isMedia = score >= 41 && score < 71;
-
-  const barColor = isAlta ? '#059669' : isMedia ? '#eab308' : '#ef4444';
-  const barBg    = isAlta ? 'rgba(5,150,105,0.15)' : isMedia ? 'rgba(234,179,8,0.15)' : 'rgba(239,68,68,0.15)';
-  const label    = isAlta ? 'Alta Compatibilidade'  : isMedia ? 'Média Compatibilidade'  : 'Baixa Compatibilidade';
-  const emoji    = isAlta ? '🟢' : isMedia ? '🟡' : '🔴';
-
-  const cardBg      = isDarkMode ? '#0f172a' : '#ffffff';
-  const pillBg      = isDarkMode ? '#1e293b' : '#f1f5f9';
-  const labelColor  = isDarkMode ? '#94a3b8' : '#64748b';
-  const valueColor  = isDarkMode ? '#e2e8f0' : '#334155';
-  const subColor    = isDarkMode ? '#475569' : '#94a3b8';
+  const cardBg = isDarkMode ? '#0f172a' : '#ffffff';
+  const pillBg = isDarkMode ? '#1e293b' : '#f1f5f9';
+  const labelColor = isDarkMode ? '#94a3b8' : '#64748b';
+  const valueColor = isDarkMode ? '#e2e8f0' : '#334155';
+  const subColor = isDarkMode ? '#475569' : '#94a3b8';
+  const badgeBg = isDarkMode ? '#111827' : '#e2e8f0';
+  const subtleBg = isDarkMode ? '#0b1220' : '#f8fafc';
+  const subtleBorder = isDarkMode ? 'rgba(148,163,184,0.12)' : '#e2e8f0';
 
   const values: Record<string, number> = { p, o, r, t, a };
-  const hasFlags = flags && flags.length > 0;
-  const hasPenalty = hasFlags && scoreBruto !== undefined && scoreBruto !== score;
+  const flagsText = flags.length > 0 ? flags.join(', ') : 'NONE';
+  const scoreSummary =
+    typeof scoreBruto === 'number'
+      ? `Score final ${score} (bruto: ${scoreBruto}${flags.length > 0 ? ` - penalizado por ${flagsText}` : ''})`
+      : `Score final ${score}`;
 
   return (
     <motion.div
@@ -58,29 +60,47 @@ const ScorePorta: React.FC<ScorePortaProps> = ({ score, p, o, r, t, a, segmento,
         background: cardBg,
       }}
     >
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span style={{ fontSize: '16px' }}>🎯</span>
-          <span
-            title="P = Porte · O = Operação · R = Retorno · T = Tecnologia · A = Adoção"
-            style={{ fontSize: '12px', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: labelColor, cursor: 'help' }}
-          >
-            PORTA
-          </span>
-          {segmento && (
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'flex-start',
+          justifyContent: 'space-between',
+          gap: '12px',
+          marginBottom: '10px',
+        }}
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: '16px' }}>🎯</span>
             <span
-              title={SEGMENTO_LABELS[segmento]}
+              title="P = Porte · O = Operação · R = Retorno · T = Tecnologia · A = Adoção"
               style={{
-                fontSize: '10px', fontWeight: 600, letterSpacing: '0.5px',
-                padding: '2px 8px', borderRadius: '10px',
-                background: isDarkMode ? '#334155' : '#e2e8f0',
-                color: isDarkMode ? '#cbd5e1' : '#475569',
+                fontSize: '12px',
+                fontWeight: 700,
+                letterSpacing: '1.5px',
+                textTransform: 'uppercase',
+                color: labelColor,
+                cursor: 'help',
+              }}
+            >
+              PORTA v2
+            </span>
+            <span
+              title={PORTA_SEGMENT_LABELS[segmento]}
+              style={{
+                padding: '3px 8px',
+                borderRadius: '999px',
+                background: `${barColor}14`,
+                color: barColor,
+                fontSize: '11px',
+                fontWeight: 700,
+                letterSpacing: '0.4px',
               }}
             >
               {segmento}
             </span>
-          )}
+          </div>
+          <span style={{ fontSize: '12px', color: subColor }}>{scoreSummary}</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
           <motion.span
@@ -95,15 +115,71 @@ const ScorePorta: React.FC<ScorePortaProps> = ({ score, p, o, r, t, a, segmento,
         </div>
       </div>
 
-      {/* Penalty info */}
-      {hasPenalty && (
-        <div style={{ fontSize: '11px', color: '#f97316', marginBottom: '8px', fontWeight: 500 }}>
-          Bruto: {scoreBruto} — penalizado por {flags.join(', ')}
-        </div>
-      )}
+      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '10px' }}>
+        <span
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px',
+            padding: '4px 10px',
+            borderRadius: '999px',
+            background: badgeBg,
+            color: valueColor,
+            fontSize: '11px',
+            fontWeight: 700,
+          }}
+        >
+          SEG {segmento}
+        </span>
+        {flags.length > 0 ? (
+          flags.map((flag) => (
+            <span
+              key={flag}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '4px 10px',
+                borderRadius: '999px',
+                background: badgeBg,
+                color: valueColor,
+                fontSize: '11px',
+                fontWeight: 700,
+              }}
+            >
+              {PORTA_FLAG_META[flag].icon} {PORTA_FLAG_META[flag].label}
+            </span>
+          ))
+        ) : (
+          <span
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '4px 10px',
+              borderRadius: '999px',
+              background: badgeBg,
+              color: labelColor,
+              fontSize: '11px',
+              fontWeight: 700,
+            }}
+          >
+            Sem flags
+          </span>
+        )}
+      </div>
 
       {/* Progress bar */}
-      <div style={{ width: '100%', height: '8px', borderRadius: '4px', background: barBg, marginBottom: '10px', overflow: 'hidden' }}>
+      <div
+        style={{
+          width: '100%',
+          height: '8px',
+          borderRadius: '4px',
+          background: barBg,
+          marginBottom: '10px',
+          overflow: 'hidden',
+        }}
+      >
         <motion.div
           initial={{ width: 0 }}
           animate={{ width: `${Math.min(score, 100)}%` }}
@@ -115,30 +191,50 @@ const ScorePorta: React.FC<ScorePortaProps> = ({ score, p, o, r, t, a, segmento,
       {/* Compatibility label */}
       <div style={{ marginBottom: '12px' }}>
         <span style={{ fontSize: '13px', fontWeight: 600, color: barColor }}>
-          {emoji} {label}
+          {compatibility.emoji} {compatibility.label}
         </span>
       </div>
 
-      {/* Flag badges */}
-      {hasFlags && (
-        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '10px' }}>
-          {flags.map((flag) => {
-            const d = FLAG_DISPLAY[flag];
-            return (
-              <span
-                key={flag}
-                style={{
-                  display: 'inline-flex', alignItems: 'center', gap: '4px',
-                  padding: '2px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: 600,
-                  background: `${d.color}18`, color: d.color, border: `1px solid ${d.color}40`,
-                }}
-              >
-                {d.icon} {d.label}
-              </span>
-            );
-          })}
-        </div>
-      )}
+      <div
+        style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: '8px',
+          marginBottom: '12px',
+          padding: '10px',
+          borderRadius: '10px',
+          background: subtleBg,
+          border: `1px solid ${subtleBorder}`,
+        }}
+      >
+        <span style={{ fontSize: '11px', fontWeight: 700, color: labelColor }}>
+          Segmento: {PORTA_SEGMENT_LABELS[segmento]}
+        </span>
+        {flags.length === 0 ? (
+          <span style={{ fontSize: '11px', fontWeight: 600, color: valueColor }}>Flags: NONE</span>
+        ) : (
+          flags.map(flag => (
+            <span
+              key={flag}
+              title={PORTA_FLAG_META[flag].description}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px',
+                padding: '3px 8px',
+                borderRadius: '999px',
+                background: pillBg,
+                color: valueColor,
+                fontSize: '11px',
+                fontWeight: 700,
+              }}
+            >
+              <span>{PORTA_FLAG_META[flag].icon}</span>
+              <span>{PORTA_FLAG_META[flag].shortLabel}</span>
+            </span>
+          ))
+        )}
+      </div>
 
       {/* Pillar pills */}
       <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
@@ -150,9 +246,13 @@ const ScorePorta: React.FC<ScorePortaProps> = ({ score, p, o, r, t, a, segmento,
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: 0.08 * (idx + 1), type: 'spring', stiffness: 300 }}
             style={{
-              display: 'flex', alignItems: 'center', gap: '4px',
-              padding: '3px 10px', borderRadius: '20px',
-              background: pillBg, fontSize: '12px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              padding: '3px 10px',
+              borderRadius: '20px',
+              background: pillBg,
+              fontSize: '12px',
               cursor: 'default',
             }}
           >
