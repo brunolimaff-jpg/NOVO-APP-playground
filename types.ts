@@ -140,6 +140,9 @@ export interface ChatInterfaceProps {
   pdfReportContent: string | null;
   onOpenEmailModal: () => void;
   onOpenFollowUpModal: () => void;
+  canAccessMiniCRM?: boolean;
+  canAccessDashboard?: boolean;
+  canAccessIntegrityCheck?: boolean;
   // Renomeado de userId para deixar claro que é um nó React, não uma string
   userHeaderNode: React.ReactNode;
   onLogout: () => void;
