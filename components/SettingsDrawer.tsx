@@ -20,6 +20,8 @@ interface SettingsDrawerProps {
   onSendEmail: () => void;
   onScheduleFollowUp: () => void;
   exportStatus: 'idle' | 'loading' | 'success' | 'error';
+  canAccessDashboard?: boolean;
+  canAccessIntegrityCheck?: boolean;
 }
 
 const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
@@ -36,7 +38,9 @@ const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
   onCopyMarkdown,
   onSendEmail,
   onScheduleFollowUp,
-  exportStatus
+  exportStatus,
+  canAccessDashboard = true,
+  canAccessIntegrityCheck = true
 }) => {
   const { canInstall, isInstalled, installApp } = usePWA();
   const [showHealthCheck, setShowHealthCheck] = useState(false);
@@ -197,37 +201,39 @@ const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                 </div>
               )}
 
-              {/* Dashboard */}
-              <button
-                onClick={() => { onOpenDashboard(); onClose(); }}
-                className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all text-left group ${
-                  isDarkMode
-                    ? 'bg-gray-800/30 border-gray-700/30 hover:bg-gray-800 hover:border-gray-600'
-                    : 'bg-gray-50 border-gray-200 hover:bg-gray-100 hover:border-gray-300'
-                }`}
-              >
-                <span className={`text-lg p-2 rounded-lg transition-colors ${isDarkMode ? 'bg-gray-700 group-hover:bg-gray-600' : 'bg-gray-200 group-hover:bg-gray-300'}`}>📊</span>
-                <div>
-                  <p className={`text-sm font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Dashboard</p>
-                  <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>Histórico e estatísticas</p>
-                </div>
-              </button>
+              {canAccessDashboard && (
+                <button
+                  onClick={() => { onOpenDashboard(); onClose(); }}
+                  className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all text-left group ${
+                    isDarkMode
+                      ? 'bg-gray-800/30 border-gray-700/30 hover:bg-gray-800 hover:border-gray-600'
+                      : 'bg-gray-50 border-gray-200 hover:bg-gray-100 hover:border-gray-300'
+                  }`}
+                >
+                  <span className={`text-lg p-2 rounded-lg transition-colors ${isDarkMode ? 'bg-gray-700 group-hover:bg-gray-600' : 'bg-gray-200 group-hover:bg-gray-300'}`}>📊</span>
+                  <div>
+                    <p className={`text-sm font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Dashboard</p>
+                    <p className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>Histórico e estatísticas</p>
+                  </div>
+                </button>
+              )}
 
-              {/* NOVO: Teste de Integridade */}
-              <button
-                onClick={() => setShowHealthCheck(true)}
-                className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all text-left group border-blue-500/40 ${
-                  isDarkMode
-                    ? 'bg-blue-900/20 hover:bg-blue-900/40'
-                    : 'bg-blue-50 hover:bg-blue-100'
-                }`}
-              >
-                <span className={`text-lg p-2 rounded-lg ${isDarkMode ? 'bg-blue-800/60' : 'bg-blue-200'}`}>🔧</span>
-                <div>
-                  <p className={`text-sm font-medium ${isDarkMode ? 'text-blue-300' : 'text-blue-800'}`}>Teste de Integridade</p>
-                  <p className={`text-xs ${isDarkMode ? 'text-blue-500' : 'text-blue-600'}`}>Verificar sistema completo</p>
-                </div>
-              </button>
+              {canAccessIntegrityCheck && (
+                <button
+                  onClick={() => setShowHealthCheck(true)}
+                  className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all text-left group border-blue-500/40 ${
+                    isDarkMode
+                      ? 'bg-blue-900/20 hover:bg-blue-900/40'
+                      : 'bg-blue-50 hover:bg-blue-100'
+                  }`}
+                >
+                  <span className={`text-lg p-2 rounded-lg ${isDarkMode ? 'bg-blue-800/60' : 'bg-blue-200'}`}>🔧</span>
+                  <div>
+                    <p className={`text-sm font-medium ${isDarkMode ? 'text-blue-300' : 'text-blue-800'}`}>Teste de Integridade</p>
+                    <p className={`text-xs ${isDarkMode ? 'text-blue-500' : 'text-blue-600'}`}>Verificar sistema completo</p>
+                  </div>
+                </button>
+              )}
             </div>
           </section>
 
@@ -243,7 +249,7 @@ const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
       </div>
 
       {/* Modal de Teste de Integridade */}
-      {showHealthCheck && (
+      {showHealthCheck && canAccessIntegrityCheck && (
         <React.Suspense fallback={null}>
           <SystemHealthCheck 
             isDarkMode={isDarkMode} 
