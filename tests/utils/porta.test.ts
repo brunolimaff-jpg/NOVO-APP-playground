@@ -42,6 +42,12 @@ describe('PORTA v2 helpers', () => {
     expect(stripPortaMarkers('Antes [[PORTA:45:P9:O9:R8:T6:A5:AGI:LOCK]] depois')).toBe('Antes  depois');
   });
 
+  it('strips PORTA feed markers from text', () => {
+    const text =
+      'Texto [[PORTA_FEED_O:7:ELOS:plantio,armazem]] mais [[PORTA_FLAG:NOFIT:SIM]] e [[PORTA_SEG:PRD]] fim';
+    expect(stripPortaMarkers(text)).toBe('Texto  mais  e  fim');
+  });
+
   it('calculates weights and penalties consistently', () => {
     expect(calculatePortaScoreBruto(9, 9, 8, 6, 5, 'AGI')).toBe(76);
     expect(calculatePortaFlagMultiplier(['TRAD', 'LOCK'])).toBe(0.3);
