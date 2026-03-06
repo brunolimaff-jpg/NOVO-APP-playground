@@ -140,7 +140,7 @@ const MessageRow = memo(({ index, data }: MessageRowProps) => {
           {isBot ? (
             <>
               {msg.scorePorta && (
-                <ScorePorta score={msg.scorePorta.score} p={msg.scorePorta.p} o={msg.scorePorta.o} r={msg.scorePorta.r} t={msg.scorePorta.t} a={msg.scorePorta.a} isDarkMode={isDarkMode} />
+                <ScorePorta score={msg.scorePorta.score} p={msg.scorePorta.p} o={msg.scorePorta.o} r={msg.scorePorta.r} t={msg.scorePorta.t} a={msg.scorePorta.a} segmento={msg.scorePorta.segmento} flags={msg.scorePorta.flags} scoreBruto={msg.scorePorta.scoreBruto} isDarkMode={isDarkMode} />
               )}
               <SectionalBotMessage
                 message={{ ...msg, groundingSources: msg.groundingSources || [] }}
