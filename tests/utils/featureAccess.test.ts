@@ -16,6 +16,7 @@ describe('featureAccess', () => {
       miniCRM: false,
       dashboard: false,
       integrityCheck: false,
+      clientLookup: false,
     });
   });
 
@@ -25,6 +26,44 @@ describe('featureAccess', () => {
       miniCRM: true,
       dashboard: true,
       integrityCheck: true,
+      clientLookup: true,
+    });
+  });
+
+  it('matches MVP lookup access cases from requirements', () => {
+    expect(
+      getFeatureAccessForUser({
+        displayName: 'Bruno Lima',
+        email: 'brunolff@hotmail.com',
+        id: '',
+        isGuest: false,
+      }).clientLookup,
+    ).toBe(true);
+
+    expect(
+      getFeatureAccessForUser({
+        displayName: 'João Silva',
+        email: 'joao@senior.com.br',
+        id: '',
+        isGuest: false,
+      }).clientLookup,
+    ).toBe(false);
+
+    expect(getFeatureAccessForUser(null).clientLookup).toBe(false);
+  });
+
+  it('keeps all restricted features disabled for guest-like users', () => {
+    const access = getFeatureAccessForUser({
+      displayName: 'Visitante',
+      email: '',
+      id: 'guest',
+      isGuest: true,
+    });
+    expect(access).toEqual({
+      miniCRM: false,
+      dashboard: false,
+      integrityCheck: false,
+      clientLookup: false,
     });
   });
 });

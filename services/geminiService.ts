@@ -22,6 +22,8 @@ import {
   benchmarkClientes,
   formatarBenchmarkParaPrompt,
   isConcorrenteOuPropria,
+  BenchmarkResponse,
+  LookupResponse,
 } from './clientLookupService';
 import { addInvestigation } from '../components/InvestigationDashboard';
 import { CompetitorDetection, getContextoConcorrentesRegionais } from './competitorService';
@@ -620,6 +622,7 @@ export const sendMessageToGemini = async (
   history: Message[],
   systemInstruction: string,
   options: GeminiRequestOptions = {},
+  canUseLookup: boolean = true,
 ): Promise<{
   text: string;
   sources: Array<{ title: string; url: string }>;
@@ -713,7 +716,9 @@ Use os links do RAG [Texto](URL). Nﾃグ inicie fluxos de investigaﾃｧﾃ｣o, Nﾃグ peﾃ
     if (empresa) {
       if (!isConcorrenteOuPropria(empresa)) {
         onStatus?.(`Buscando histﾃｳrico de ${empresa}...`);
-        const lookup = await lookupCliente(empresa);
+        const lookup: LookupResponse = canUseLookup
+          ? await lookupCliente(empresa)
+          : { ok: true, query: empresa, encontrado: false, total: 0, results: [] };
         enrichments.push(lookup.encontrado ? formatarParaPrompt(lookup) : `\n[Lookup: "${empresa}" nﾃ｣o encontrado]\n`);
       }
       enrichments.push(generateContextReminder(empresa, currentCompanyContext?.sessionId));
@@ -721,7 +726,9 @@ Use os links do RAG [Texto](URL). Nﾃグ inicie fluxos de investigaﾃｧﾃ｣o, Nﾃグ peﾃ
       if (competitorContext) enrichments.push(competitorContext);
       if (benchmark || message.includes('investigar')) {
         onStatus?.('Mapeando benchmarks...');
-        const bench = await benchmarkClientes(await generateBenchmarkKeywords(empresa, message));
+        const bench: BenchmarkResponse = canUseLookup
+          ? await benchmarkClientes(await generateBenchmarkKeywords(empresa, message))
+          : { ok: true, mode: 'benchmark', keywords: [], total: 0, results: [] };
         if (bench.ok) enrichments.push(formatarBenchmarkParaPrompt(bench, empresa));
       }
     }

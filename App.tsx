@@ -117,6 +117,7 @@ const App: React.FC = () => {
   const canAccessMiniCRM = featureAccess.miniCRM;
   const canAccessDashboard = featureAccess.dashboard;
   const canAccessIntegrityCheck = featureAccess.integrityCheck;
+  const canUseLookup = featureAccess.clientLookup;
 
   useEffect(() => {
     if (!canAccessMiniCRM && activeView === 'crm') {
@@ -360,36 +361,42 @@ const App: React.FC = () => {
         suggestions,
         scorePorta,
         ghostReason,
-      } = await sendMessageToGemini(text, historyToPass, systemInstruction, {
-        signal,
-        onText: () => {},
-        onStatus: newStatus => {
-          const normalizedStatus = normalizeLoadingStatus(newStatus);
-          if (!normalizedStatus) return;
-          const newKey = statusKey(normalizedStatus);
-          setLoadingStatus(prev => {
-            const normalizedPrev = normalizeLoadingStatus(prev) || prev;
-            if (normalizedPrev && normalizedPrev !== normalizedStatus) {
-              lastStatusRef.current = normalizedPrev;
-              lastStatusKeyRef.current = statusKey(normalizedPrev);
+      } = await sendMessageToGemini(
+        text,
+        historyToPass,
+        systemInstruction,
+        {
+          signal,
+          onText: () => {},
+          onStatus: newStatus => {
+            const normalizedStatus = normalizeLoadingStatus(newStatus);
+            if (!normalizedStatus) return;
+            const newKey = statusKey(normalizedStatus);
+            setLoadingStatus(prev => {
+              const normalizedPrev = normalizeLoadingStatus(prev) || prev;
+              if (normalizedPrev && normalizedPrev !== normalizedStatus) {
+                lastStatusRef.current = normalizedPrev;
+                lastStatusKeyRef.current = statusKey(normalizedPrev);
+              }
+              return normalizedStatus;
+            });
+            if (
+              lastStatusRef.current &&
+              lastStatusRef.current !== normalizedStatus &&
+              lastStatusKeyRef.current !== newKey
+            ) {
+              const statusToAdd = lastStatusRef.current;
+              setCompletedLoadingStatuses(completed =>
+                statusToAdd && !completed.some(existing => statusKey(existing) === statusKey(statusToAdd))
+                  ? [...completed, statusToAdd]
+                  : completed,
+              );
             }
-            return normalizedStatus;
-          });
-          if (
-            lastStatusRef.current &&
-            lastStatusRef.current !== normalizedStatus &&
-            lastStatusKeyRef.current !== newKey
-          ) {
-            const statusToAdd = lastStatusRef.current;
-            setCompletedLoadingStatuses(completed =>
-              statusToAdd && !completed.some(existing => statusKey(existing) === statusKey(statusToAdd))
-                ? [...completed, statusToAdd]
-                : completed,
-            );
-          }
+          },
+          nomeVendedor: typeof user?.displayName === 'string' ? user.displayName : 'Vendedor',
         },
-        nomeVendedor: typeof user?.displayName === 'string' ? user.displayName : 'Vendedor',
-      });
+        canUseLookup,
+      );
 
       if (activeGenerationRef.current[sessionId] !== botMessageId) return;
 

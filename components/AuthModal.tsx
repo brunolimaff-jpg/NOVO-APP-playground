@@ -1,6 +1,6 @@
 import React from 'react';
 import { SignIn } from '@clerk/clerk-react';
-import { useAuth } from '../contexts/AuthContext';
+import { REQUIRE_CLERK_AUTH, useAuth } from '../contexts/AuthContext';
 
 export const AuthModal: React.FC = () => {
   const { isAuthenticated, loading, continueAsGuest } = useAuth();
@@ -33,15 +33,19 @@ export const AuthModal: React.FC = () => {
           </div>
         )}
 
-        <button
-          onClick={continueAsGuest}
-          className="mt-4 text-sm font-semibold text-emerald-300 hover:text-emerald-200 transition-colors underline underline-offset-2"
-        >
-          Continuar sem login
-        </button>
-        <p className="mt-2 text-center text-[11px] text-slate-400 max-w-xs">
-          Se o login travar no navegador, entre como visitante e continue a análise normalmente.
-        </p>
+        {!REQUIRE_CLERK_AUTH && (
+          <>
+            <button
+              onClick={continueAsGuest}
+              className="mt-4 text-sm font-semibold text-emerald-300 hover:text-emerald-200 transition-colors underline underline-offset-2"
+            >
+              Continuar sem login
+            </button>
+            <p className="mt-2 text-center text-[11px] text-slate-400 max-w-xs">
+              Se o login travar no navegador, entre como visitante e continue a análise normalmente.
+            </p>
+          </>
+        )}
 
       </div>
     </div>
