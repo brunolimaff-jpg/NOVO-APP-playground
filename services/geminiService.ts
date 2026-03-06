@@ -2,7 +2,6 @@ import { AppError, Message, ParsedContent, ReportType, ScorePortaData, Sender } 
 import { ChatMode, NOME_VENDEDOR_PLACEHOLDER } from '../constants';
 import { normalizeAppError } from '../utils/errorHelpers';
 import { withAutoRetry } from '../utils/retry';
-import { Message } from '../types';
 import { parsePortaMarkerV2, stripPortaMarkers } from '../utils/porta';
 import {
   lookupCliente,
@@ -16,7 +15,6 @@ import { CompetitorDetection, getContextoConcorrentesRegionais } from './competi
 import { buscarContextoPinecone, buscarContextoDocsPinecone } from './ragService';
 import { scanInput, sanitizeExternalContent, CANARY_TOKEN } from '../utils/promptGuard';
 import { parseLoadingCuriosities } from '../utils/loadingCuriosities';
-import { parsePortaMarkerV2 } from '../utils/porta';
 import { proxyChatSendMessage, proxyGenerateContent } from './geminiProxy';
 
 export { parsePortaMarkerV2 } from '../utils/porta';
@@ -67,8 +65,6 @@ PROIBIÇÕES:
 
 Responda EXCLUSIVAMENTE em Português (Brasil) usando um Array JSON de strings.
 `;
-
-export { parsePortaMarkerV2 };
 
 function sanitizeStreamText(text: string): string {
   return stripPortaMarkers(

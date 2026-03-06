@@ -36,6 +36,7 @@ const ScorePorta: React.FC<ScorePortaProps> = ({
   const labelColor = isDarkMode ? '#94a3b8' : '#64748b';
   const valueColor = isDarkMode ? '#e2e8f0' : '#334155';
   const subColor = isDarkMode ? '#475569' : '#94a3b8';
+  const badgeBg = isDarkMode ? '#111827' : '#e2e8f0';
   const subtleBg = isDarkMode ? '#0b1220' : '#f8fafc';
   const subtleBorder = isDarkMode ? 'rgba(148,163,184,0.12)' : '#e2e8f0';
 
