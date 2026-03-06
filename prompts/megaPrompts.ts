@@ -64,6 +64,7 @@ Ceticismo absoluto. NÃO INVENTE NADA. Se um dado não for encontrado, declare: 
 
 3. INFRAESTRUTURA FÍSICA (alimenta P via proxy):
    Buscar "[Empresa]" AND ("pivô central" OR "capacidade estática" OR "silo" OR "armazém" OR "aeronave agrícola" OR "RAB/ANAC" OR "Finame BNDES" OR "colheitadeira" OR "maquinário").
+   REGRA: Se encontrar frota própria, citar o número exato de caminhões/bitrens/rodotrens. Se não encontrar, declarar "número não encontrado publicamente".
 
 4. SANGRIA OPERACIONAL (contexto de dor):
    Buscar "[Empresa]" AND ("apontamento manual" OR "quebra técnica" OR "perda de safra" OR "demurrage" OR "fila balança" OR "multa ANTT" OR "erro NFe").
@@ -210,6 +211,7 @@ Com base na investigação acima, preencha:
 - Frota própria identificada? [SIM/NÃO + quantidade]
 - Verticais diversificadas encontradas: [sementes / energia / piscicultura / aviação / imobiliária]
 - Certificações e programas ESG: [ABNT / PRO Carbono / RTRS / Sisbov / outras]
+REGRA: Liste as verticais individualmente. Não resuma apenas como "grupo diversificado".
 
 **Flag NOFIT:**
 - Atividade principal é pecuária pura sem agrícola? [SIM/NÃO]
@@ -260,6 +262,7 @@ Ceticismo absoluto. NÃO INVENTE TECNOLOGIAS. Se o software de uma área não fo
 
 2. DOR ATIVA — T2 (quanto sofrem):
    "[Empresa]" AND ("Vagas Analista ERP" OR "Suporte" OR "Desenvolvedor AdvPL" OR "ABAP" OR "Excel Avançado" OR "RPA" OR "Integração" OR "Apontamento Manual" OR "Erro NFe" OR "Autuação SEFAZ" OR "Horas Extras MPT" OR "Desenvolvedor Delphi" OR "Programador Delphi" OR "Analista Clipper" OR "Visual Basic" OR "FoxPro").
+   REGRA: Mesmo que TOTVS/AdvPL já apareça, continue buscando Delphi/Clipper/Visual Basic/FoxPro. O objetivo é detectar sistemas paralelos, não apenas o ERP oficial.
    
    SINAIS DE DOR POR GRAVIDADE:
    - 🔴 CRÍTICO: Contratação emergencial, vagas repetidas, incidentes públicos
@@ -384,6 +387,7 @@ graph TD
 
 ⚠️ Se identificar Delphi, Clipper, Visual Basic ou FoxPro, escreva explicitamente:
 "⚠️ SINAL DE SISTEMA LEGADO: [linguagem] identificada em vagas. Provável sistema paralelo ao ERP oficial. Dívida técnica alta."
+Se NÃO identificar linguagem legada, declare explicitamente: "Sistema legado paralelo não identificado nas fontes públicas."
 
 ### 🗡️ GATILHOS DE ABORDAGEM
 * **Gatilho 1 (Unificação RH/Acesso):** *"[Script com dados reais]"*
@@ -478,6 +482,7 @@ Ceticismo absoluto. NÃO INVENTE NADA. Se não encontrar, declare: "[Item] - Nã
 **Flag TRAD ativo?** [SIM/NÃO]
 Se SIM: "Score PORTA será penalizado em 40%. Faturamento alto no CNPJ não reflete complexidade operacional real — padrão similar aos casos Coperrede e Chicago Agro."
 Se NÃO e houver MISTA: "Trading/originação foi tratado como oportunidade OneClick + Commerce Log, pois existe produção/beneficiamento próprio."
+Se houver exportação direta + armazenagem + logística complexa, cite também Commerce Log como oportunidade explícita mesmo que o hedge não esteja confirmado.
 
 ---
 
@@ -580,6 +585,7 @@ PASSO 6 — INFERÊNCIA DE SEGMENTO:
 PASSO 6B — DIVERSIFICAÇÃO E VERTICAIS:
 - Buscar produção de sementes, geração de energia, piscicultura, aviação executiva, operação imobiliária, logística própria, trading/originação
 - Cada vertical relevante aumenta a complexidade e reforça migração de PRD para AGI
+- Na saída, liste cada vertical encontrada individualmente. Não escreva apenas "diversificado".
 
 PASSO 7 — DETECÇÃO DE LOCK:
 - É multinacional com matriz fora do Brasil?

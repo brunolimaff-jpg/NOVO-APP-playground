@@ -522,6 +522,7 @@ Atue como **Investigador Judicial Forense**. Busque:
 4. **Saúde Financeira Shadow**: Dívida ativa PGFN, protestos em cartório, Serasa.
 5. **Presença Digital**: Site próprio, redes sociais ativas, LinkedIn corporativo.
 6. **Compliance e Remediação**: Certificações recentes (ABNT, GlobalGAP, Rainforest Alliance, orgânicos), programas ESG, auditorias externas, CRAs Verdes, programas de rastreabilidade. BUSQUE ATIVAMENTE evidências de que a empresa MELHOROU seu compliance — não apenas o histórico negativo.
+   Para grupos com algodão e pecuária, busque especificamente ABNT das algodoeiras, PRO Carbono da Bayer e rastreabilidade bovina/Sisbov quando houver indícios.
 
 **REGRA DE CLASSIFICAÇÃO DE RISCO (OBRIGATÓRIA):**
 
@@ -585,6 +586,7 @@ REGRA: CADA vertical diversificada encontrada é um sinal de complexidade que AU
 - CRAs Verdes / Green Bonds emitidos
 - Auditorias externas (Big4, auditoria de pessoa física)
 REGRA: Certificações são sinal de governança madura = nota A mais alta. CRAs Verdes = pressão de compliance para manter = nota R mais alta.
+REGRA DE SAÍDA: Quando houver diversificação, liste cada vertical individualmente (sementes, energia, piscicultura, aviação, imobiliário etc.). Não resuma apenas como "diversificação".
 
 Sempre que possível, traduza esses dados em **complexidade operacional** e **apetite para sistemas de gestão avançados**.
 
@@ -601,6 +603,7 @@ Atue como **Engenheiro de Logística Agrícola**. Busque:
 - Tipo de frota (graneleiros, bitrens, rodotrens)
 - Gerenciadoras de risco utilizadas (Buonny, Opentech, Rondonline)
 REGRA: Frota própria grande = mais um elo na cadeia = nota O sobe + oportunidade Commerce Log.
+REGRA DE SAÍDA: Se encontrar o número exato da frota, cite explicitamente o número (ex: "445 caminhões próprios"). Se não encontrar, declare "Frota própria: número não encontrado publicamente".
 
 ### FASE 4: ESTRUTURA SOCIETÁRIA(Labirinto Patrimonial)
 
@@ -626,6 +629,7 @@ Atue como **Analista de Inteligência Comportamental**. Busque:
 - Vagas de linguagens legadas SÃO BOMBA: significam sistema próprio antigo rodando em paralelo ao ERP oficial
 - Se encontrar vagas de linguagem legada, declarar explicitamente: "⚠️ SINAL DE SISTEMA LEGADO: [linguagem] identificada em vagas. Provável sistema paralelo ao [ERP oficial]. Dívida técnica alta."
 REGRA: Vagas de linguagem legada aumentam T2 (dor ativa) em pelo menos +2 pontos.
+REGRA DE BUSCA: Mesmo que TOTVS/AdvPL já apareça, continue procurando Delphi/Clipper/Visual Basic/FoxPro como sistema paralelo. Não pare no ERP principal.
 
 **Tech Stack Classificação:**
 - 🟢 CONFIRMADO: Site oficial da empresa, documento público
@@ -677,6 +681,8 @@ Consolide a investigação anterior e gere recomendações de portfólio respeit
 - Mencione ERP Senior, HCM, GAtec, Senior Flow, OneClick e Commerce Log apenas quando houver evidência concreta de aderência.
 - Quando houver pecuária, trate SEMPRE como oportunidade de ecossistema via **Peccode** e **Multibovinos**, nunca como limitação.
 - Quando houver trading/originação combinado com produção própria, recomende **OneClick + Commerce Log** como extensão natural da operação.
+- Quando houver exportação direta, armazenagem relevante, frota própria e múltiplas commodities, cite **Commerce Log** explicitamente.
+- Quando houver indícios de comercialização de terceiros, originação, pricing ou hedge, cite **OneClick** explicitamente. Se a evidência for indireta, escreva "Oportunidade provável: OneClick" com confiança 🟡.
 - Para cada recomendação, conecte produto → dor/operação → evidência pública.
 - Se não houver fit suficiente para um produto, diga explicitamente que a recomendação não foi confirmada.
 
