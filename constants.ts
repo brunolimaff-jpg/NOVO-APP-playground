@@ -569,6 +569,28 @@ Ao final do RESUMO EXECUTIVO de qualquer dossiê, você DEVE calcular e apresent
 **REGRA DE POSIÇÃO (CRÍTICO):**
 O marcador [[PORTA:...]] DEVE aparecer IMEDIATAMENTE após o último parágrafo da seção "RESUMO EXECUTIVO", ANTES de qualquer outra fase.
 
+### PASSO 0: CONSUMIR FEEDS DOS MEGA PROMPTS
+
+Quando a resposta vier de dossiê completo com múltiplos blocos, primeiro CONSOLIDE os marcadores:
+- [[PORTA_FEED_O:...]]
+- [[PORTA_FEED_R:...]]
+- [[PORTA_FEED_T:...]]
+- [[PORTA_FEED_P:...]]
+- [[PORTA_FEED_P_PROXY:...]]
+- [[PORTA_FEED_R_TRAB:...]]
+- [[PORTA_FEED_A2:...]]
+- [[PORTA_FEED_A:...]]
+- [[PORTA_SEG:...]]
+- [[PORTA_FLAG:TRAD:...]], [[PORTA_FLAG:LOCK:...]], [[PORTA_FLAG:NOFIT:...]]
+
+Regras de consolidação:
+- Se houver múltiplos valores para o mesmo pilar, use o valor mais consistente com evidências diretas e justificativa textual.
+- Para R, consolide pressão externa + trabalhista.
+- Para A, priorize A final já calculado; se ausente, calcule com A1/A2.
+- Para P, combine massa (P) com proxy de funcionários apenas como ajuste fino (não substituir massa).
+- FLAGS ativas se qualquer feed confiável ativar.
+- Segmento final deve vir de [[PORTA_SEG:...]] quando disponível; fallback por inferência do resumo.
+
 ### PASSO 1: INFERIR SEGMENTO
 
 Antes de calcular, determine o segmento do prospect:

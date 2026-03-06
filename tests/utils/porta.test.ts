@@ -46,4 +46,30 @@ describe('PORTA v2 helpers', () => {
     expect(calculatePortaScoreBruto(9, 9, 8, 6, 5, 'AGI')).toBe(76);
     expect(calculatePortaFlagMultiplier(['TRAD', 'LOCK'])).toBe(0.3);
   });
+
+  it('simulates trading case with TRAD penalty', () => {
+    const scoreBruto = calculatePortaScoreBruto(7, 8, 6, 7, 7, 'PRD');
+    const multiplier = calculatePortaFlagMultiplier(['TRAD']);
+    const scoreFinal = Math.round(scoreBruto * multiplier);
+
+    expect(scoreBruto).toBe(72);
+    expect(multiplier).toBe(0.6);
+    expect(scoreFinal).toBe(43);
+
+    const parsed = parsePortaMarkerV2('[[PORTA:43:P7:O8:R6:T7:A7:PRD:TRAD]]');
+    expect(parsed?.score).toBe(scoreFinal);
+    expect(parsed?.flags).toEqual(['TRAD']);
+  });
+
+  it('simulates medium farm case without flags', () => {
+    const scoreBruto = calculatePortaScoreBruto(5, 4, 3, 9, 9, 'PRD');
+    const scoreFinal = Math.round(scoreBruto * calculatePortaFlagMultiplier([]));
+
+    expect(scoreBruto).toBe(68);
+    expect(scoreFinal).toBe(68);
+
+    const parsed = parsePortaMarkerV2('[[PORTA:68:P5:O4:R3:T9:A9:PRD:NONE]]');
+    expect(parsed?.score).toBe(scoreFinal);
+    expect(parsed?.flags).toEqual([]);
+  });
 });
