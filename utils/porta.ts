@@ -1,6 +1,7 @@
 import { PORTA_FLAG_PENALTIES, PORTA_WEIGHTS, PortaFlag, PortaSegmento, ScorePortaData } from '../types';
 
 export const PORTA_MARKER_ANY_REGEX = /\[\[PORTA:[^\]]*\]\]/g;
+export const PORTA_FEED_MARKER_REGEX = /\[\[PORTA_(?:FEED|FLAG|SEG)[^\]]*\]\]/g;
 export const PORTA_MARKER_V2_REGEX =
   /\[\[PORTA:(\d+):P(\d+):O(\d+):R(\d+):T(\d+):A(\d+):(PRD|AGI|COP):(NONE|(?:(?:TRAD|LOCK|NOFIT)(?:,(?:TRAD|LOCK|NOFIT))*))\]\]/;
 export const PORTA_MARKER_V1_REGEX = /\[\[PORTA:(\d+):P(\d+):O(\d+):R(\d+):T(\d+):A(\d+)\]\]/;
@@ -68,7 +69,7 @@ export function getPortaCompatibility(score: number): {
 }
 
 export function stripPortaMarkers(content: string): string {
-  return content.replace(PORTA_MARKER_ANY_REGEX, '');
+  return content.replace(PORTA_MARKER_ANY_REGEX, '').replace(PORTA_FEED_MARKER_REGEX, '');
 }
 
 export function calculatePortaScoreBruto(

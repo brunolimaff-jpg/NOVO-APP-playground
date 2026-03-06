@@ -46,4 +46,30 @@ describe('PORTA v2 helpers', () => {
     expect(calculatePortaScoreBruto(9, 9, 8, 6, 5, 'AGI')).toBe(76);
     expect(calculatePortaFlagMultiplier(['TRAD', 'LOCK'])).toBe(0.3);
   });
+
+  it('strips PORTA_FEED markers from text', () => {
+    const text = 'Análise\n[[PORTA_FEED_O:7:ELOS:plantio,armazenagem]]\n[[PORTA_FEED_R:5:PRESSOES:IBAMA,SEFAZ]]\nfim';
+    expect(stripPortaMarkers(text)).toBe('Análise\n\n\nfim');
+  });
+
+  it('strips PORTA_FLAG markers from text', () => {
+    const text = 'Antes [[PORTA_FLAG:TRAD:SIM:NATUREZA:TRADING]] depois';
+    expect(stripPortaMarkers(text)).toBe('Antes  depois');
+  });
+
+  it('strips PORTA_SEG markers from text', () => {
+    const text = 'Segmento [[PORTA_SEG:PRD]] identificado';
+    expect(stripPortaMarkers(text)).toBe('Segmento  identificado');
+  });
+
+  it('strips all feed markers together with the main PORTA marker', () => {
+    const text = [
+      '[[PORTA:84:P8:O10:R7:T8:A8:AGI:NONE]]',
+      '[[PORTA_FEED_O:10:ELOS:plantio,armazenagem,beneficiamento]]',
+      '[[PORTA_FEED_T:8:T1:6:T2:9:T3:7:STACK:TOTVS]]',
+      '[[PORTA_FLAG:LOCK:NAO]]',
+      '[[PORTA_SEG:AGI]]',
+    ].join('\n');
+    expect(stripPortaMarkers(text)).toBe('\n\n\n\n');
+  });
 });

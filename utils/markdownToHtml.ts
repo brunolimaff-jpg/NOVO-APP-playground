@@ -5,6 +5,7 @@ import { APP_NAME } from '../constants';
 import {
   getPortaCompatibility,
   parsePortaMarkerV2,
+  PORTA_FEED_MARKER_REGEX,
   PORTA_FLAG_META,
   PORTA_MARKER_ANY_REGEX,
   PORTA_SEGMENT_LABELS,
@@ -40,6 +41,7 @@ export function convertMarkdownToHTML(md: string, includeSources: boolean = true
           <div style="font-size:11px;color:#64748b;margin-top:8px;">${PORTA_SEGMENT_LABELS[porta.segmento]}</div>
         </div>`;
     })
+    .replace(PORTA_FEED_MARKER_REGEX, '')
     .replace(/^>\s*(.*$)/gm, '<blockquote>$1</blockquote>')
     .replace(/^#### (.*$)/gm, '<h4>$1</h4>')
     .replace(/^### (.*$)/gm, '<h3>$1</h3>')
