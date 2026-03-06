@@ -15,7 +15,7 @@ interface SessionsSidebarProps {
   isOpen: boolean;
   onCloseMobile: () => void;
   isDarkMode: boolean;
-  showCRMTools?: boolean;
+  canAccessMiniCRM?: boolean;
 }
 
 const SessionsSidebar: React.FC<SessionsSidebarProps> = ({
@@ -29,7 +29,7 @@ const SessionsSidebar: React.FC<SessionsSidebarProps> = ({
   isOpen,
   onCloseMobile,
   isDarkMode,
-  showCRMTools = true,
+  canAccessMiniCRM = true,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -114,7 +114,7 @@ const SessionsSidebar: React.FC<SessionsSidebarProps> = ({
                       <span>Nova</span>
                     </button>
 
-                    {showCRMTools && (
+                    {canAccessMiniCRM && (
                       <button
                         onClick={() => {
                             onOpenKanban();
@@ -195,7 +195,7 @@ const SessionsSidebar: React.FC<SessionsSidebarProps> = ({
 
                           {/* Botões de ação (CRM e Delete) */}
                           <div className="absolute right-2 top-1/2 transform -translate-y-1/2 flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity z-10">
-                            {showCRMTools && (
+                            {canAccessMiniCRM && (
                               <button
                                 type="button"
                                 onClick={(e) => {

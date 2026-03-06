@@ -42,7 +42,6 @@ const EmptyStateHome: React.FC<EmptyStateHomeProps> = ({ mode, onSendMessage, on
   const currentHero = heroContent[mode];
 
   const quickActions = [
-    { icon: "⚡", label: "Blitz", desc: "Dossiê rápido em 30s", prompt: "Blitz do Grupo " },
     { icon: "🔍", label: "Investigar", desc: "Dossiê completo", prompt: "Investigar a empresa " },
     { icon: "🔄", label: "Cross-sell", desc: "O que mais vender", prompt: "O que consigo vender de cross na " },
     { icon: "⚔️", label: "Competitivo", desc: "Ganhar da concorrência", prompt: "Estou concorrendo contra a TOTVS na empresa " },
@@ -169,10 +168,10 @@ const EmptyStateHome: React.FC<EmptyStateHomeProps> = ({ mode, onSendMessage, on
           </p>
         </div>
 
-        {/* Ações Rápidas */}
+        {/* Arsenal de Sugestões */}
         <div className="mb-8">
           <h2 className={`text-xs font-bold uppercase tracking-wider mb-3 px-1 ${theme.heading}`}>
-            ⚡ Ação Rápida
+            💡 Arsenal de Sugestões
           </h2>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
             {quickActions.map((action) => (

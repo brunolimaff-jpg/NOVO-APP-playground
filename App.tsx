@@ -32,7 +32,7 @@ import { BACKEND_URL } from './services/apiConfig';
 import { extractCompanyName } from './utils/companyNameExtractor';
 import { convertMarkdownToHTML, simpleMarkdownToHtml } from './utils/markdownToHtml';
 import { collectFullReport, detectInconsistencies, generateExecutiveSummary, normalizeMermaidBlocks } from './utils/reportUtils';
-import { canAccessInternalTools } from './utils/featureAccess';
+import { getFeatureAccessForUser } from './utils/featureAccess';
 
 const PAGE_SIZE = 20;
 
@@ -107,14 +107,17 @@ const App: React.FC = () => {
   const currentSession = sessions.find(s => s.id === currentSessionId) || null;
   const allMessages = currentSession ? currentSession.messages : [];
   const selectedCRMCard = selectedCRMCardId ? cards.find(c => c.id === selectedCRMCardId) || null : null;
-  const hasInternalToolsAccess = canAccessInternalTools(user);
+  const featureAccess = getFeatureAccessForUser(user);
+  const canAccessMiniCRM = featureAccess.miniCRM;
+  const canAccessDashboard = featureAccess.dashboard;
+  const canAccessIntegrityCheck = featureAccess.integrityCheck;
 
   useEffect(() => {
-    if (!hasInternalToolsAccess && activeView === 'crm') {
+    if (!canAccessMiniCRM && activeView === 'crm') {
       setActiveView('chat');
       setSelectedCRMCardId(null);
     }
-  }, [hasInternalToolsAccess, activeView]);
+  }, [activeView, canAccessMiniCRM]);
 
   const updateSessionById = useCallback(
     (sessionId: string, updater: (session: ChatSession) => ChatSession) => {
@@ -679,7 +682,7 @@ const App: React.FC = () => {
 
   // --- CRM ---
   const handleSaveToCRM = async (sessionId: string) => {
-    if (!hasInternalToolsAccess) {
+    if (!canAccessMiniCRM) {
       toast.error('Mini CRM indisponível no modo MVP.');
       return;
     }
@@ -731,7 +734,7 @@ const App: React.FC = () => {
   };
 
   const handleOpenKanbanSafe = () => {
-    if (!hasInternalToolsAccess) {
+    if (!canAccessMiniCRM) {
       toast.error('Mini CRM indisponível no modo MVP.');
       return;
     }
@@ -803,7 +806,7 @@ const App: React.FC = () => {
         </header>
 
         <div className="flex-1 min-h-0">
-          {activeView === 'chat' || !hasInternalToolsAccess ? (
+          {activeView === 'chat' || !canAccessMiniCRM ? (
             <ChatInterface
               currentSession={currentSession}
               sessions={sessions}
@@ -846,12 +849,14 @@ const App: React.FC = () => {
               onSaveRemote={handleSaveRemote}
               isSavingRemote={isSavingRemote}
               remoteSaveStatus={remoteSaveStatus}
+              canAccessMiniCRM={canAccessMiniCRM}
+              canAccessDashboard={canAccessDashboard}
+              canAccessIntegrityCheck={canAccessIntegrityCheck}
               userHeaderNode={renderUserHeader()}
               onLogout={logout}
               lastUserQuery={lastQuery}
               processing={{ stage: loadingStatus, completedStages: completedLoadingStatuses }}
               onDeleteMessage={handleDeleteMessage}
-              canAccessInternalTools={hasInternalToolsAccess}
             />
           ) : (
             <div className={`flex h-full w-full ${isDarkMode ? 'bg-slate-950' : 'bg-slate-50'}`}>
@@ -899,7 +904,7 @@ const App: React.FC = () => {
         </div>
       </div>
 
-      {hasInternalToolsAccess && selectedCRMCard && (
+      {selectedCRMCard && canAccessMiniCRM && (
         <React.Suspense fallback={null}>
           <CRMDetail
             card={selectedCRMCard} sessions={sessions} onClose={handleCloseCRMDetail}

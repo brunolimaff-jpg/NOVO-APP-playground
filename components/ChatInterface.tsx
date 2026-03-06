@@ -44,7 +44,6 @@ type ExtendedChatInterfaceProps = ChatInterfaceProps & {
   onDeleteMessage?: (id: string) => void;
   onSaveToCRM?: (sessionId: string) => void;
   onOpenKanban?: () => void;
-  canAccessInternalTools?: boolean;
 };
 
 const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
@@ -56,7 +55,8 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
   remoteSaveStatus, isDarkMode, onToggleTheme, onToggleMessageSources,
   exportStatus, exportError, pdfReportContent, onOpenEmailModal,
   onOpenFollowUpModal, userHeaderNode, onLogout, lastUserQuery, processing,
-  onDeepDive, onDeleteMessage, onSaveToCRM, onOpenKanban, canAccessInternalTools = true,
+  onDeepDive, onDeleteMessage, onSaveToCRM, onOpenKanban,
+  canAccessMiniCRM = true, canAccessDashboard = true, canAccessIntegrityCheck = true,
 }) => {
   const { mode, setMode } = useMode();
   const { user, userId, updateName } = useAuth();
@@ -218,7 +218,7 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
         isOpen={isSidebarOpen}
         onCloseMobile={onToggleSidebar}
         isDarkMode={isDarkMode}
-        showCRMTools={canAccessInternalTools}
+        canAccessMiniCRM={canAccessMiniCRM}
       />
 
       <main className="flex-1 flex flex-col h-full min-h-0 relative w-full transition-all duration-300">
@@ -274,15 +274,16 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
             <SettingsDrawer
               isOpen={showSettings} onClose={() => setShowSettings(false)} userName={user?.displayName || ''}
               onUpdateName={updateName} mode={mode} onSetMode={setMode} isDarkMode={isDarkMode}
-              onToggleTheme={onToggleTheme} onOpenDashboard={() => canAccessInternalTools && setShowDashboard(true)}
+              onToggleTheme={onToggleTheme} onOpenDashboard={() => canAccessDashboard && setShowDashboard(true)}
               onExportPDF={onExportPDF} onCopyMarkdown={handleCopyMarkdown}
               onSendEmail={onOpenEmailModal} onScheduleFollowUp={onOpenFollowUpModal} exportStatus={exportStatus}
-              showInternalTools={canAccessInternalTools}
+              canAccessDashboard={canAccessDashboard}
+              canAccessIntegrityCheck={canAccessIntegrityCheck}
             />
           </React.Suspense>
         )}
 
-        {canAccessInternalTools && showDashboard && (
+        {showDashboard && canAccessDashboard && (
           <React.Suspense fallback={null}>
             <InvestigationDashboard
               onClose={() => setShowDashboard(false)}
