@@ -24,11 +24,27 @@ describe('PORTA v2 mega prompts', () => {
     expect(PROMPT_RAIO_X_OPERACIONAL_ATAQUE).toContain('[[PORTA_FLAG:NOFIT:[SIM/NAO]]]');
   });
 
+  it('strengthens the operational prompt for pecuária, frota and ESG signals', () => {
+    expect(PROMPT_RAIO_X_OPERACIONAL_ATAQUE).toContain('Peccode');
+    expect(PROMPT_RAIO_X_OPERACIONAL_ATAQUE).toContain('Multibovinos');
+    expect(PROMPT_RAIO_X_OPERACIONAL_ATAQUE).toContain('PRO Carbono');
+    expect(PROMPT_RAIO_X_OPERACIONAL_ATAQUE).toContain('hidrelétrica');
+    expect(PROMPT_RAIO_X_OPERACIONAL_ATAQUE).toContain('Pecuária + agrícola = FIT via parceiros');
+  });
+
   it('includes T and LOCK markers in the tech stack prompt', () => {
     expect(PROMPT_TECH_STACK_GOD_MODE_ATAQUE).toContain(
       '[[PORTA_FEED_T:[NOTA_FINAL]:T1:[NOTA]:T2:[NOTA]:T3:[NOTA]:STACK:[ERP_IDENTIFICADO]]]',
     );
     expect(PROMPT_TECH_STACK_GOD_MODE_ATAQUE).toContain('[[PORTA_FLAG:LOCK:[SIM/NAO]]]');
+  });
+
+  it('flags Delphi and other legacy languages as strong tech debt signals', () => {
+    expect(PROMPT_TECH_STACK_GOD_MODE_ATAQUE).toContain('Desenvolvedor Delphi');
+    expect(PROMPT_TECH_STACK_GOD_MODE_ATAQUE).toContain('Analista Clipper');
+    expect(PROMPT_TECH_STACK_GOD_MODE_ATAQUE).toContain('Visual Basic');
+    expect(PROMPT_TECH_STACK_GOD_MODE_ATAQUE).toContain('FoxPro');
+    expect(PROMPT_TECH_STACK_GOD_MODE_ATAQUE).toContain('⚠️ SINAL DE SISTEMA LEGADO');
   });
 
   it('includes R and TRAD markers in the compliance prompt', () => {
@@ -38,12 +54,26 @@ describe('PORTA v2 mega prompts', () => {
     );
   });
 
+  it('treats originação plus produção as opportunity instead of TRAD penalty', () => {
+    expect(PROMPT_RISCOS_COMPLIANCE_GOD_MODE).toContain('Originação + produção própria é OPORTUNIDADE de OneClick + Commerce Log e NÃO deve ser penalizada.');
+    expect(PROMPT_RISCOS_COMPLIANCE_GOD_MODE).toContain('ABNT');
+    expect(PROMPT_RISCOS_COMPLIANCE_GOD_MODE).toContain('PRO Carbono');
+    expect(PROMPT_RISCOS_COMPLIANCE_GOD_MODE).toContain('CONTRAPESOS DE COMPLIANCE E GOVERNANÇA');
+  });
+
   it('includes P, segment and LOCK markers in the expansion prompt', () => {
     expect(PROMPT_RADAR_EXPANSAO_GOD_MODE).toContain(
       '[[PORTA_FEED_P:[NOTA]:HA:[HECTARES]:CNPJS:[TOTAL]:FAT:[FATURAMENTO]]]',
     );
     expect(PROMPT_RADAR_EXPANSAO_GOD_MODE).toContain('[[PORTA_SEG:[PRD/AGI/COP]]]');
     expect(PROMPT_RADAR_EXPANSAO_GOD_MODE).toContain('[[PORTA_FLAG:LOCK:[SIM/NAO]]]');
+  });
+
+  it('uses the stricter COP → AGI → PRD segment logic and diversified verticals', () => {
+    expect(PROMPT_RADAR_EXPANSAO_GOD_MODE).toContain('COP → AGI → PRD');
+    expect(PROMPT_RADAR_EXPANSAO_GOD_MODE).toContain('Qualquer cooperativa agrícola tem prioridade absoluta');
+    expect(PROMPT_RADAR_EXPANSAO_GOD_MODE).toContain('mais de 3 verticais');
+    expect(PROMPT_RADAR_EXPANSAO_GOD_MODE).toContain('produção de sementes, geração de energia, piscicultura, aviação executiva, operação imobiliária');
   });
 
   it('includes P proxy, R trabalhista and A2 markers in the RH prompt', () => {

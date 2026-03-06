@@ -157,10 +157,10 @@ Conversão em oportunidade (CRM Kanban)
 | `VITE_CLERK_PUBLISHABLE_KEY` | Sim (produção) | Chave pública do Clerk |
 | `VITE_BACKEND_URL` | Não | Endpoint Apps Script principal |
 | `VITE_LOOKUP_URL` | Não | Endpoint Apps Script de lookup |
-| `VITE_ROUTER_MODEL` | Não | Modelo de roteamento (default: `gemini-2.5-flash`) |
-| `VITE_TACTICAL_MODEL` | Não | Modelo tático (default: `gemini-2.5-flash`) |
-| `VITE_DEEP_CHAT_MODEL` | Não | Modelo deep chat |
-| `VITE_DEEP_RESEARCH_MODEL` | Não | Modelo deep research |
+| `VITE_ROUTER_MODEL` | Não | Modelo de roteamento (default: `gemini-3.1-pro-preview`) |
+| `VITE_TACTICAL_MODEL` | Não | Modelo tático (default: `gemini-3.1-pro-preview`) |
+| `VITE_DEEP_CHAT_MODEL` | Não | Modelo deep chat (default: `gemini-3.1-pro-preview`) |
+| `VITE_DEEP_RESEARCH_MODEL` | Não | Modelo deep research (default: `gemini-3.1-pro-preview`) |
 
 ### Backend / Serverless (`api/*.ts`)
 

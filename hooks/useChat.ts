@@ -507,8 +507,8 @@ export const useChat = () => {
       currentSession?.empresaAlvo ||
       currentSession?.title ||
       "a empresa desta conversa";
-    // "Dossiê completo" é o gatilho reconhecido pelo router para escalar ao modelo PROFUNDA (gemini-2.5-pro).
-    // Sem ele, o router classifica como 'tatica' e usa gemini-2.5-flash, que alucina com o mega-prompt de 100+ linhas.
+    // "Dossiê completo" é o gatilho reconhecido pelo router para escalar ao modelo profundo (gemini-3.1-pro-preview).
+    // Sem ele, o router pode classificar como "tatica" e reduzir a profundidade da resposta.
     await handleSendMessage(
       `Dossiê completo de [${empresaContext}]. Protocolo de investigação forense especializada:\n\n${finalPrompt}`,
       displayMessage,

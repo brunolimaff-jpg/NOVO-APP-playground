@@ -6,6 +6,7 @@ export const config = {
 };
 
 export const maxDuration = 60;
+const DEFAULT_GEMINI_MODEL = 'gemini-3.1-pro-preview';
 
 function getRequiredEnv(name: string): string {
   const value = process.env[name];
@@ -53,7 +54,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (action === 'health') {
       const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
+        model: DEFAULT_GEMINI_MODEL,
         contents: 'Responda apenas: OK',
         config: { temperature: 0, maxOutputTokens: 10 }
       });
@@ -64,7 +65,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     if (action === 'generateContent') {
-      const model = toStringSafe((body as any).model, 'gemini-2.5-flash');
+      const model = toStringSafe((body as any).model, DEFAULT_GEMINI_MODEL);
       const contents = (body as any).contents;
       if (!contents) {
         return res.status(400).json({ error: 'Missing contents' });
@@ -93,7 +94,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     if (action === 'chatSendMessage') {
-      const model = toStringSafe((body as any).model, 'gemini-2.5-flash');
+      const model = toStringSafe((body as any).model, DEFAULT_GEMINI_MODEL);
       const systemInstruction = toStringSafe((body as any).systemInstruction, '');
       const history = normalizeHistory((body as any).history);
       const message = toStringSafe((body as any).message, '');

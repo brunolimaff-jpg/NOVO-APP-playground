@@ -26,7 +26,7 @@ export interface WarRoomQueryOptions {
 }
 
 // ─── CONFIG ───────────────────────────────────────
-const MODEL_ID = 'gemini-2.5-flash';
+const MODEL_ID = 'gemini-3.1-pro-preview';
 const DEFAULT_COMPETITOR_TARGET = 'concorrente principal';
 const MODEL_TIMEOUT_MS = 30000;
 const MAX_HISTORY_TURNS = 8;
