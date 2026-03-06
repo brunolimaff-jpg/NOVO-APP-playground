@@ -67,6 +67,10 @@ Responda EXCLUSIVAMENTE em Português (Brasil) usando um Array JSON de strings.
 
 export { parsePortaMarkerV2 };
 
+export function shouldExposeScorePorta(empresa?: string | null): boolean {
+  return !!empresa && !isConcorrenteOuPropria(empresa);
+}
+
 function sanitizeStreamText(text: string): string {
   return stripPortaMarkers(
     text
@@ -535,7 +539,7 @@ Use os links do RAG [Texto](URL). NÃO inicie fluxos de investigação, NÃO pe�
       text: finalText,
       sources,
       suggestions: [],
-      scorePorta: !rawEmpresa || isConcorrenteOuPropria(rawEmpresa) ? undefined : finalParsed.scorePorta,
+      scorePorta: shouldExposeScorePorta(empresa) ? finalParsed.scorePorta : undefined,
       statuses: finalParsed.statuses,
       empresa,
       ghostReason: !rawAccumulator.trim() ? 'Timeout' : undefined,

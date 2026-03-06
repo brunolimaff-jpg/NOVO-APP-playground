@@ -40,17 +40,30 @@ interface GeminiHealthResponse {
   text?: string;
 }
 
-const GEMINI_API_ENDPOINT = '/api/gemini';
+const PROD_GEMINI_API_ENDPOINT = 'https://scoutagro.vercel.app/api/gemini';
+
+export function resolveGeminiApiEndpoint(locationHost?: string): string {
+  const configured = import.meta.env.VITE_GEMINI_PROXY_URL?.trim();
+  if (configured) return configured;
+
+  const host = locationHost ?? (typeof window !== 'undefined' ? window.location.hostname : '');
+  const isLocalDevHost =
+    host.length > 0
+      ? host === 'localhost' || host === '127.0.0.1' || host === '0.0.0.0' || host.endsWith('.local')
+      : import.meta.env.DEV;
+
+  return isLocalDevHost ? PROD_GEMINI_API_ENDPOINT : '/api/gemini';
+}
 
 async function callGeminiApi<TResponse>(
   payload: GeminiGenerateRequest | GeminiChatRequest | GeminiHealthRequest,
-  signal?: AbortSignal
+  signal?: AbortSignal,
 ): Promise<TResponse> {
-  const response = await fetch(GEMINI_API_ENDPOINT, {
+  const response = await fetch(resolveGeminiApiEndpoint(), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
-    signal
+    signal,
   });
 
   if (!response.ok) {
@@ -63,14 +76,14 @@ async function callGeminiApi<TResponse>(
 
 export async function proxyGenerateContent(
   params: Omit<GeminiGenerateRequest, 'action'>,
-  signal?: AbortSignal
+  signal?: AbortSignal,
 ): Promise<GeminiGenerateResponse> {
   return callGeminiApi<GeminiGenerateResponse>({ action: 'generateContent', ...params }, signal);
 }
 
 export async function proxyChatSendMessage(
   params: Omit<GeminiChatRequest, 'action'>,
-  signal?: AbortSignal
+  signal?: AbortSignal,
 ): Promise<GeminiChatResponse> {
   return callGeminiApi<GeminiChatResponse>({ action: 'chatSendMessage', ...params }, signal);
 }
