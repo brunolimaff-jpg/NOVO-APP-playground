@@ -8,17 +8,25 @@ export function convertMarkdownToHTML(md: string, includeSources: boolean = true
   const markdownHttpLinkRegex = /\[([^\]]+)\]\((https?:\/\/(?:[^\s()]+|\([^\s()]*\))+)\)/g;
   let html = md
     .replace(
-      /\[\[PORTA:(\d+):P(\d+):O(\d+):R(\d+):T(\d+):A(\d+)\]\]/g,
-      (_, score, p, o, r, t, a) => {
+      /\[\[PORTA:(\d+):P(\d+):O(\d+):R(\d+):T(\d+):A(\d+)(?::(PRD|AGI|COP):(NONE|(?:(?:TRAD|LOCK|NOFIT)(?:,(?:TRAD|LOCK|NOFIT))*)))?\]\]/g,
+      (_, score, p, o, r, t, a, seg, flags) => {
         const s = parseInt(score);
         const color = s >= 71 ? '#059669' : s >= 41 ? '#eab308' : '#ef4444';
         const bgColor = s >= 71 ? '#f0fdf4' : s >= 41 ? '#fefce8' : '#fef2f2';
         const borderColor = s >= 71 ? '#059669' : s >= 41 ? '#eab308' : '#ef4444';
         const label = s >= 71 ? '🟢 Alta Compatibilidade' : s >= 41 ? '🟡 Média Compatibilidade' : '🔴 Baixa Compatibilidade';
+        const segLabel = seg ? ` <span class="seg-badge">${seg}</span>` : '';
+        const flagsHtml = flags && flags !== 'NONE'
+          ? `<div class="flags">${flags.split(',').map((f: string) => {
+              const ic = f === 'TRAD' ? '🚩' : f === 'LOCK' ? '🔒' : '⛔';
+              return `<span class="flag-badge">${ic} ${f}</span>`;
+            }).join('')}</div>`
+          : '';
         return `<div class="porta-score" style="border:2px solid ${borderColor};background:${bgColor};">
-          <div class="header"><span class="label-porta">🎯 PORTA</span><span><span class="score-num" style="color:${color};">${score}</span><span class="score-max">/100</span></span></div>
+          <div class="header"><span class="label-porta">🎯 PORTA${segLabel}</span><span><span class="score-num" style="color:${color};">${score}</span><span class="score-max">/100</span></span></div>
           <div class="bar-bg" style="background:${color}20;"><div class="bar-fill" style="width:${Math.min(s, 100)}%;background:${color};"></div></div>
           <div class="compat" style="color:${color};">${label}</div>
+          ${flagsHtml}
           <div class="pillars"><span class="pill"><b>P</b> ${p}</span><span class="pill"><b>O</b> ${o}</span><span class="pill"><b>R</b> ${r}</span><span class="pill"><b>T</b> ${t}</span><span class="pill"><b>A</b> ${a}</span></div>
         </div>`;
       }

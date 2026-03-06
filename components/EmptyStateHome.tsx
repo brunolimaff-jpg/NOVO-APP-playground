@@ -132,11 +132,11 @@ const EmptyStateHome: React.FC<EmptyStateHomeProps> = ({ mode, onSendMessage, on
           </p>
           <div className="space-y-2.5 mb-5">
             {[
-              { letter: 'P', label: 'Porte Real', desc: 'Estrutura societária + hectares' },
-              { letter: 'O', label: 'Operação', desc: 'Verticalização e complexidade' },
-              { letter: 'R', label: 'Retorno', desc: 'Risco fiscal e custo do erro' },
-              { letter: 'T', label: 'Tecnologia', desc: 'Integração e conectividade' },
-              { letter: 'A', label: 'Adoção', desc: 'Governança, sponsor e mudança' },
+              { letter: 'P', label: 'Porte', desc: 'Massa crítica: hectares, CNPJs, faturamento' },
+              { letter: 'O', label: 'Operação', desc: 'Elos da cadeia de valor controlados' },
+              { letter: 'R', label: 'Retorno', desc: 'Pressão externa: regulatória, compliance' },
+              { letter: 'T', label: 'Tecnologia', desc: 'Stack, dor ativa e liberdade de troca' },
+              { letter: 'A', label: 'Adoção', desc: 'Perfil cultural + timing/janela' },
             ].map(({ letter, label, desc }) => (
               <div key={letter} className="flex items-center gap-3">
                 <span className="flex-shrink-0 w-7 h-7 rounded-full bg-emerald-600 text-white flex items-center justify-center text-xs font-bold shadow-sm">

@@ -1,20 +1,32 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { ScorePortaData } from '../types';
+import { ScorePortaData, PortaSegmento, PortaFlag } from '../types';
 
 interface ScorePortaProps extends ScorePortaData {
   isDarkMode?: boolean;
 }
 
 const pillars = [
-  { key: 'p', letter: 'P', label: 'Porte Financeiro' },
-  { key: 'o', letter: 'O', label: 'Operação (escala)' },
-  { key: 'r', letter: 'R', label: 'Retorno esperado' },
-  { key: 't', letter: 'T', label: 'Tecnologia (maturidade)' },
-  { key: 'a', letter: 'A', label: 'Adoção / Cultura' },
+  { key: 'p', letter: 'P', label: 'Porte (Massa Crítica)' },
+  { key: 'o', letter: 'O', label: 'Operação (Cadeia de Valor)' },
+  { key: 'r', letter: 'R', label: 'Retorno (Pressão Externa)' },
+  { key: 't', letter: 'T', label: 'Tecnologia (Pressão de Stack)' },
+  { key: 'a', letter: 'A', label: 'Adoção (Política + Temporal)' },
 ];
 
-const ScorePorta: React.FC<ScorePortaProps> = ({ score, p, o, r, t, a, isDarkMode = true }) => {
+const SEGMENTO_LABELS: Record<PortaSegmento, string> = {
+  PRD: 'Produtor Rural',
+  AGI: 'Agroindústria',
+  COP: 'Cooperativa',
+};
+
+const FLAG_DISPLAY: Record<PortaFlag, { icon: string; label: string; color: string }> = {
+  TRAD: { icon: '🚩', label: 'Trading', color: '#f97316' },
+  LOCK: { icon: '🔒', label: 'ERP Travado', color: '#8b5cf6' },
+  NOFIT: { icon: '⛔', label: 'Sem Fit', color: '#ef4444' },
+};
+
+const ScorePorta: React.FC<ScorePortaProps> = ({ score, p, o, r, t, a, segmento, flags, scoreBruto, isDarkMode = true }) => {
   const isAlta  = score >= 71;
   const isMedia = score >= 41 && score < 71;
 
@@ -30,6 +42,8 @@ const ScorePorta: React.FC<ScorePortaProps> = ({ score, p, o, r, t, a, isDarkMod
   const subColor    = isDarkMode ? '#475569' : '#94a3b8';
 
   const values: Record<string, number> = { p, o, r, t, a };
+  const hasFlags = flags && flags.length > 0;
+  const hasPenalty = hasFlags && scoreBruto !== undefined && scoreBruto !== score;
 
   return (
     <motion.div
@@ -54,6 +68,19 @@ const ScorePorta: React.FC<ScorePortaProps> = ({ score, p, o, r, t, a, isDarkMod
           >
             PORTA
           </span>
+          {segmento && (
+            <span
+              title={SEGMENTO_LABELS[segmento]}
+              style={{
+                fontSize: '10px', fontWeight: 600, letterSpacing: '0.5px',
+                padding: '2px 8px', borderRadius: '10px',
+                background: isDarkMode ? '#334155' : '#e2e8f0',
+                color: isDarkMode ? '#cbd5e1' : '#475569',
+              }}
+            >
+              {segmento}
+            </span>
+          )}
         </div>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
           <motion.span
@@ -67,6 +94,13 @@ const ScorePorta: React.FC<ScorePortaProps> = ({ score, p, o, r, t, a, isDarkMod
           <span style={{ fontSize: '14px', fontWeight: 600, color: subColor }}>/100</span>
         </div>
       </div>
+
+      {/* Penalty info */}
+      {hasPenalty && (
+        <div style={{ fontSize: '11px', color: '#f97316', marginBottom: '8px', fontWeight: 500 }}>
+          Bruto: {scoreBruto} — penalizado por {flags.join(', ')}
+        </div>
+      )}
 
       {/* Progress bar */}
       <div style={{ width: '100%', height: '8px', borderRadius: '4px', background: barBg, marginBottom: '10px', overflow: 'hidden' }}>
@@ -84,6 +118,27 @@ const ScorePorta: React.FC<ScorePortaProps> = ({ score, p, o, r, t, a, isDarkMod
           {emoji} {label}
         </span>
       </div>
+
+      {/* Flag badges */}
+      {hasFlags && (
+        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '10px' }}>
+          {flags.map((flag) => {
+            const d = FLAG_DISPLAY[flag];
+            return (
+              <span
+                key={flag}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: '4px',
+                  padding: '2px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: 600,
+                  background: `${d.color}18`, color: d.color, border: `1px solid ${d.color}40`,
+                }}
+              >
+                {d.icon} {d.label}
+              </span>
+            );
+          })}
+        </div>
+      )}
 
       {/* Pillar pills */}
       <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
