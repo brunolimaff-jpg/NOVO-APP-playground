@@ -17,6 +17,8 @@ describe('featureAccess', () => {
       dashboard: false,
       integrityCheck: false,
       clientLookup: false,
+      deepDive: false,
+      warRoom: false,
     });
   });
 
@@ -27,6 +29,8 @@ describe('featureAccess', () => {
       dashboard: true,
       integrityCheck: true,
       clientLookup: true,
+      deepDive: true,
+      warRoom: true,
     });
   });
 
@@ -64,6 +68,8 @@ describe('featureAccess', () => {
       dashboard: false,
       integrityCheck: false,
       clientLookup: false,
+      deepDive: false,
+      warRoom: false,
     });
   });
 });
