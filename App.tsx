@@ -118,6 +118,8 @@ const App: React.FC = () => {
   const canAccessDashboard = featureAccess.dashboard;
   const canAccessIntegrityCheck = featureAccess.integrityCheck;
   const canUseLookup = featureAccess.clientLookup;
+  const canDeepDive = featureAccess.deepDive;
+  const canWarRoom = featureAccess.warRoom;
 
   useEffect(() => {
     if (!canAccessMiniCRM && activeView === 'crm') {
@@ -1064,6 +1066,8 @@ const App: React.FC = () => {
               canAccessMiniCRM={canAccessMiniCRM}
               canAccessDashboard={canAccessDashboard}
               canAccessIntegrityCheck={canAccessIntegrityCheck}
+              canDeepDive={canDeepDive}
+              canWarRoom={canWarRoom}
               userHeaderNode={renderUserHeader()}
               onLogout={logout}
               lastUserQuery={lastQuery}

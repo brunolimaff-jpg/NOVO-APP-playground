@@ -92,6 +92,8 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
   canAccessMiniCRM = true,
   canAccessDashboard = true,
   canAccessIntegrityCheck = true,
+  canDeepDive = false,
+  canWarRoom = false,
 }) => {
   const { mode, setMode } = useMode();
   const { user, userId, updateName } = useAuth();
@@ -262,7 +264,7 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
       onFeedback,
       onSendFeedback,
       onToggleMessageSources,
-      onDeepDive,
+      onDeepDive: canDeepDive ? onDeepDive : undefined,
       onRegenerateSuggestions,
       handleDeleteWithUndo,
       pendingDeleteId,
@@ -288,6 +290,7 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
       onSendFeedback,
       onToggleMessageSources,
       onDeepDive,
+      canDeepDive,
       onRegenerateSuggestions,
       pendingDeleteId,
       hideSuggestionsForMessageId,
@@ -371,17 +374,19 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
                 <div className={`w-px h-4 mx-1 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-300'}`} />
               </>
             )}
-            <button
-              onClick={() => setShowWarRoom(true)}
-              className={`p-2 rounded-lg transition-all ${
-                isDarkMode
-                  ? 'text-gray-500 hover:text-red-400 hover:bg-gray-800'
-                  : 'text-gray-400 hover:text-red-500 hover:bg-gray-100'
-              }`}
-              title="War Room: Inteligência Competitiva"
-            >
-              ⚔️
-            </button>
+            {canWarRoom && (
+              <button
+                onClick={() => setShowWarRoom(true)}
+                className={`p-2 rounded-lg transition-all ${
+                  isDarkMode
+                    ? 'text-gray-500 hover:text-red-400 hover:bg-gray-800'
+                    : 'text-gray-400 hover:text-red-500 hover:bg-gray-100'
+                }`}
+                title="War Room: Inteligência Competitiva"
+              >
+                ⚔️
+              </button>
+            )}
             <button
               onClick={() => setShowSettings(true)}
               className={`p-2 rounded-lg transition-all ${
@@ -636,7 +641,7 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
           </div>
         </div>
 
-        {showWarRoom && (
+        {canWarRoom && showWarRoom && (
           <React.Suspense
             fallback={
               <div

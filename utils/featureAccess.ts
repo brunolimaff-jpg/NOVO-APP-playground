@@ -5,6 +5,8 @@ export interface UserFeatureAccess {
   dashboard: boolean;
   integrityCheck: boolean;
   clientLookup: boolean;
+  deepDive: boolean;
+  warRoom: boolean;
 }
 
 const MVP_LOCK_RESTRICTED_FEATURES = true;
@@ -15,6 +17,8 @@ const FULL_ACCESS: UserFeatureAccess = {
   dashboard: true,
   integrityCheck: true,
   clientLookup: true,
+  deepDive: true,
+  warRoom: true,
 };
 
 function normalizeValue(value: string): string {
@@ -58,5 +62,7 @@ export function getFeatureAccessForUser(user: Pick<AuthUser, 'displayName' | 'em
     dashboard: hasRestrictedAccess,
     integrityCheck: hasRestrictedAccess,
     clientLookup: hasRestrictedAccess,
+    deepDive: hasRestrictedAccess,
+    warRoom: hasRestrictedAccess,
   };
 }
