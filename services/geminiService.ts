@@ -418,7 +418,7 @@ function getLastUserQuestion(history: Message[]): string | null {
 
 function looksLikeMissedOpenQuestionAnswer(text: string): boolean {
   if (!text) return false;
-  return /(comando\s+de\s+busca\s+veio\s+vazio|(sua\s+)?mensagem\s+veio\s+(vazi[ao]|em\s+branco)|sem\s+direcionamento\s+espec[ií]fico|(digite|mande)\s+sua\s+d[uú]vida\s+espec[ií]fica)/i.test(
+  return /((seu|sua)?\s*comando(\s+atual)?\s+veio\s+(vazi[ao]|em\s+branco)|comando\s+de\s+busca\s+veio\s+vazio|(sua\s+)?mensagem(\s+atual)?\s+veio\s+(vazi[ao]|em\s+branco)|sem\s+direcionamento(\s+espec[ií]fico)?|(digite|mande)\s+sua\s+d[uú]vida\s+espec[ií]fica)/i.test(
     text,
   );
 }
@@ -1017,16 +1017,18 @@ MODO LOCALIZAÇÃO (OBRIGATÓRIO):
             : 'fallback',
       );
       onStatus?.('Ajustando foco para a pergunta atual...');
-      const recoveryContextBlock =
-        enrichments.length > 0
-          ? `## CONTEXTO\n${enrichments.join('\n')}`
-          : '## CONTEXTO\nSem contexto adicional confirmado.';
+      const recoveryContextBlock = [
+        `Empresa em foco: ${empresa || hintedCompany || 'não identificada'}.`,
+        previousUserQuestion ? `Pergunta anterior (somente referência): "${previousUserQuestion}"` : '',
+      ]
+        .filter(Boolean)
+        .join('\n');
       response = await proxyChatSendMessage(
         {
           model: isDeepResearch ? DEEP_CHAT_MODEL_ID : TACTICAL_MODEL_ID,
           history: sdkHistory,
           systemInstruction: `${CANARY_TOKEN}\n${finalInstruction}\nMODO RECOVERY (OBRIGATÓRIO):\nO usuário fez uma pergunta válida. É PROIBIDO responder que a mensagem está vazia ou sem direcionamento. Responda objetivamente a PERGUNTA_ATUAL primeiro.`,
-          message: `${questionPriorityBlock}\n\nINSTRUÇÃO CRÍTICA:\n- Responda somente a PERGUNTA_ATUAL.\n- Não diga que o comando/mensagem veio vazio, em branco ou sem direcionamento.\n- Se faltar dado, diga \"Não confirmado publicamente\" e informe o que é confirmado.\n- Entregue resposta objetiva em até 6 bullets.\n\n---\n${recoveryContextBlock}`,
+          message: `${questionPriorityBlock}\n\nINSTRUÇÃO CRÍTICA:\n- Responda somente a PERGUNTA_ATUAL.\n- Não diga que o comando/mensagem veio vazio, em branco ou sem direcionamento.\n- Se faltar dado, diga \"Não confirmado publicamente\" e informe o que é confirmado.\n- Entregue resposta objetiva em até 6 bullets.\n\n---\n## CONTEXTO ESSENCIAL\n${recoveryContextBlock}`,
           useGrounding,
           thinkingMode,
         },
@@ -1040,6 +1042,30 @@ MODO LOCALIZAÇÃO (OBRIGATÓRIO):
       finalText = enforceOpeningWithSeller(finalParsed.text, nomeParaInjetar);
       finalText = cleanPortaFeedMarkers(finalText);
       if (finalParsed.scorePorta) onScorePorta?.(finalParsed.scorePorta);
+
+      // Segunda camada: se ainda vier "vazio", faz chamada limpa (sem histórico) para quebrar loop.
+      if (isOpenQuestion && looksLikeMissedOpenQuestionAnswer(finalText)) {
+        onStatus?.('Refinando resposta da pergunta atual...');
+        const hardRecovery = await proxyGenerateContent(
+          {
+            model: TACTICAL_MODEL_ID,
+            contents: `PERGUNTA_ATUAL: "${effectiveUserMessage}"\nEMPRESA_EM_FOCO: "${empresa || hintedCompany || 'não identificada'}"\n\nResponda diretamente a pergunta atual. É proibido dizer que a mensagem/comando veio vazio.\nSe faltar dado, diga "Não confirmado publicamente".`,
+            config: {
+              systemInstruction: finalInstruction,
+              temperature: 0.1,
+              maxOutputTokens: 4096,
+            },
+          },
+          signal,
+        );
+        const fallbackText = hardRecovery.text || '';
+        if (fallbackText.trim().length > 0) {
+          finalText = enforceOpeningWithSeller(
+            cleanPortaFeedMarkers(parseMarkers(fallbackText).text),
+            nomeParaInjetar,
+          );
+        }
+      }
     }
 
     const inlineLinks: Array<{ title: string; url: string }> = [];
