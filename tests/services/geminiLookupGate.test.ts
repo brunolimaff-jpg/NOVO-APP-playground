@@ -60,6 +60,7 @@ vi.mock('../../components/InvestigationDashboard', () => ({
 
 describe('sendMessageToGemini lookup gate', () => {
   beforeEach(() => {
+    window.localStorage.removeItem('scout360_debug_recovery');
     lookupClienteMock.mockReset();
     benchmarkClientesMock.mockReset();
     proxyGenerateContentMock.mockReset();
@@ -124,6 +125,9 @@ describe('sendMessageToGemini lookup gate', () => {
   });
 
   it('forces hard recovery when standby fallback appears on location question', async () => {
+    window.localStorage.setItem('scout360_debug_recovery', '1');
+    const consoleInfoSpy = vi.spyOn(console, 'info').mockImplementation(() => {});
+
     proxyGenerateContentMock
       .mockResolvedValueOnce({
         text: JSON.stringify({
@@ -165,5 +169,11 @@ describe('sendMessageToGemini lookup gate', () => {
     expect(proxyChatSendMessageMock).toHaveBeenCalledTimes(2);
     expect(proxyGenerateContentMock).toHaveBeenCalledTimes(3);
     expect(result.text).toContain('Sapezal (MT)');
+    expect(
+      consoleInfoSpy.mock.calls.some(call =>
+        typeof call[0] === 'string' && call[0].includes('[RecoveryDebug] triggered'),
+      ),
+    ).toBe(true);
+    consoleInfoSpy.mockRestore();
   });
 });

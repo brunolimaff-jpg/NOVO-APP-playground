@@ -78,6 +78,7 @@ const TACTICAL_MODEL_ID = MODEL_IDS.tactical;
 const DEEP_CHAT_MODEL_ID = MODEL_IDS.deepChat;
 const DEEP_RESEARCH_MODEL_ID = MODEL_IDS.deepResearch;
 const OPEN_QUESTION_RECOVERY_METRIC_KEY = 'scout360_open_question_recovery_count';
+const RECOVERY_DEBUG_FLAG_KEY = 'scout360_debug_recovery';
 
 const CONTINUITY_SYSTEM = `
 Você é o estrategista de continuidade do 🦅 Senior Scout 360.
@@ -94,6 +95,27 @@ PROIBIÇÕES:
 
 Responda EXCLUSIVAMENTE em Português (Brasil) usando um Array JSON de strings.
 `;
+
+function isRecoveryDebugEnabled(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    return (
+      window.localStorage.getItem(RECOVERY_DEBUG_FLAG_KEY) === '1' ||
+      window.localStorage.getItem(RECOVERY_DEBUG_FLAG_KEY) === 'true'
+    );
+  } catch {
+    return false;
+  }
+}
+
+function debugRecovery(stage: string, payload: Record<string, unknown>): void {
+  if (!isRecoveryDebugEnabled()) return;
+  try {
+    console.info(`[RecoveryDebug] ${stage}`, payload);
+  } catch {
+    // no-op
+  }
+}
 
 function sanitizeStreamText(text: string): string {
   return stripPortaMarkers(
@@ -1001,6 +1023,16 @@ MODO LOCALIZAÇÃO (OBRIGATÓRIO):
       );
     }
 
+    debugRecovery('pre-check', {
+      question: effectiveUserMessage.slice(0, 220),
+      isOpenQuestion,
+      isLocationQuestion,
+      shouldRecoverByFallback,
+      shouldRecoverByLocationMismatch,
+      shouldRecoverBySemanticMismatch,
+      firstAnswerPreview: finalText.slice(0, 260),
+    });
+
     if (
       shouldRecoverByFallback ||
       shouldRecoverByLocationMismatch ||
@@ -1016,6 +1048,16 @@ MODO LOCALIZAÇÃO (OBRIGATÓRIO):
             ? 'semantic_mismatch'
             : 'fallback',
       );
+      const recoveryReason = shouldRecoverByLocationMismatch
+        ? 'location_mismatch'
+        : shouldRecoverBySemanticMismatch
+          ? 'semantic_mismatch'
+          : 'fallback';
+      debugRecovery('triggered', {
+        reason: recoveryReason,
+        sessionId,
+        empresa: empresa || hintedCompany || null,
+      });
       onStatus?.('Ajustando foco para a pergunta atual...');
       const recoveryContextBlock = [
         `Empresa em foco: ${empresa || hintedCompany || 'não identificada'}.`,
@@ -1042,9 +1084,15 @@ MODO LOCALIZAÇÃO (OBRIGATÓRIO):
       finalText = enforceOpeningWithSeller(finalParsed.text, nomeParaInjetar);
       finalText = cleanPortaFeedMarkers(finalText);
       if (finalParsed.scorePorta) onScorePorta?.(finalParsed.scorePorta);
+      debugRecovery('after-recovery-call', {
+        textPreview: finalText.slice(0, 260),
+      });
 
       // Segunda camada: se ainda vier "vazio", faz chamada limpa (sem histórico) para quebrar loop.
       if (isOpenQuestion && looksLikeMissedOpenQuestionAnswer(finalText)) {
+        debugRecovery('hard-recovery-triggered', {
+          reason: 'fallback_persisted_after_recovery',
+        });
         onStatus?.('Refinando resposta da pergunta atual...');
         const hardRecovery = await proxyGenerateContent(
           {
@@ -1064,6 +1112,9 @@ MODO LOCALIZAÇÃO (OBRIGATÓRIO):
             cleanPortaFeedMarkers(parseMarkers(fallbackText).text),
             nomeParaInjetar,
           );
+          debugRecovery('hard-recovery-success', {
+            textPreview: finalText.slice(0, 260),
+          });
         }
       }
     }
