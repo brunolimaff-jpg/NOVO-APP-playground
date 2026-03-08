@@ -31,6 +31,7 @@ import { buscarContextoPinecone, buscarContextoDocsPinecone } from './ragService
 import { scanInput, sanitizeExternalContent, CANARY_TOKEN } from '../utils/promptGuard';
 import { parseLoadingCuriosities } from '../utils/loadingCuriosities';
 import { proxyChatSendMessage, proxyGenerateContent } from './geminiProxy';
+import { BACKEND_URL } from './apiConfig';
 import {
   addFeedAdjustment,
   addFlagFeed,
@@ -76,6 +77,7 @@ const ROUTER_MODEL_ID = MODEL_IDS.router;
 const TACTICAL_MODEL_ID = MODEL_IDS.tactical;
 const DEEP_CHAT_MODEL_ID = MODEL_IDS.deepChat;
 const DEEP_RESEARCH_MODEL_ID = MODEL_IDS.deepResearch;
+const OPEN_QUESTION_RECOVERY_METRIC_KEY = 'scout360_open_question_recovery_count';
 
 const CONTINUITY_SYSTEM = `
 Você é o estrategista de continuidade do 🦅 Senior Scout 360.
@@ -412,6 +414,46 @@ function getLastUserQuestion(history: Message[]): string | null {
     }
   }
   return null;
+}
+
+function looksLikeMissedOpenQuestionAnswer(text: string): boolean {
+  if (!text) return false;
+  return /(comando\s+de\s+busca\s+veio\s+vazio|mensagem\s+veio\s+vazi[ao]|sem\s+direcionamento\s+espec[ií]fico)/i.test(
+    text,
+  );
+}
+
+function trackOpenQuestionRecovery(
+  question: string,
+  sessionId?: string,
+  empresa?: string | null,
+): void {
+  try {
+    if (typeof window !== 'undefined') {
+      const raw = window.localStorage.getItem(OPEN_QUESTION_RECOVERY_METRIC_KEY);
+      const prev = raw ? Number.parseInt(raw, 10) : 0;
+      const next = Number.isFinite(prev) ? prev + 1 : 1;
+      window.localStorage.setItem(OPEN_QUESTION_RECOVERY_METRIC_KEY, String(next));
+    }
+  } catch {
+    // noop: métrica local não pode quebrar fluxo
+  }
+
+  // Fire-and-forget backend telemetry (best effort)
+  fetch(BACKEND_URL, {
+    method: 'POST',
+    redirect: 'follow',
+    headers: { 'Content-Type': 'text/plain' },
+    body: JSON.stringify({
+      action: 'logOpenQuestionRecovery',
+      sessionId: sessionId || 'unknown',
+      empresa: empresa || null,
+      questionSnippet: (question || '').slice(0, 180),
+      timestamp: new Date().toISOString(),
+    }),
+  }).catch(() => {
+    // noop: falha de telemetria não deve impactar resposta
+  });
 }
 
 export function parseMarkers(content: string): ParsedContent {
@@ -834,7 +876,7 @@ MODO LOCALIZAÇÃO (OBRIGATÓRIO):
       .filter(msg => !msg.isError)
       .map(msg => ({ role: msg.sender === Sender.User ? ('user' as const) : ('model' as const), text: msg.text }));
 
-    const response = await proxyChatSendMessage(
+    let response = await proxyChatSendMessage(
       {
         model: isDeepResearch ? DEEP_CHAT_MODEL_ID : TACTICAL_MODEL_ID,
         history: sdkHistory,
@@ -846,11 +888,11 @@ MODO LOCALIZAÇÃO (OBRIGATÓRIO):
       signal,
     );
 
-    const rawAccumulator = response.text || '';
-    const groundingChunks = Array.isArray(response.groundingChunks) ? response.groundingChunks : [];
+    let rawAccumulator = response.text || '';
+    let groundingChunks = Array.isArray(response.groundingChunks) ? response.groundingChunks : [];
     onText?.(sanitizeStreamText(rawAccumulator));
 
-    const finalParsed = parseMarkers(rawAccumulator);
+    let finalParsed = parseMarkers(rawAccumulator);
     finalParsed.statuses.forEach(status => onStatus?.(status));
     const competitorDetection = parseCompetitorMarker(rawAccumulator);
     if (competitorDetection) onCompetitor?.(competitorDetection);
@@ -877,6 +919,32 @@ MODO LOCALIZAÇÃO (OBRIGATÓRIO):
     let finalText = enforceOpeningWithSeller(finalParsed.text, nomeParaInjetar);
     finalText = cleanPortaFeedMarkers(finalText);
     if (finalParsed.scorePorta) onScorePorta?.(finalParsed.scorePorta);
+
+    // Recovery anti "resposta de uma atrás":
+    // se for pergunta aberta válida e a IA responder com fallback de vazio/sem direção, reexecuta com foco estrito.
+    if (isOpenQuestion && looksLikeMissedOpenQuestionAnswer(finalText)) {
+      trackOpenQuestionRecovery(effectiveUserMessage, sessionId, empresa);
+      onStatus?.('Ajustando foco para a pergunta atual...');
+      response = await proxyChatSendMessage(
+        {
+          model: isDeepResearch ? DEEP_CHAT_MODEL_ID : TACTICAL_MODEL_ID,
+          history: sdkHistory,
+          systemInstruction: `${CANARY_TOKEN}\n${finalInstruction}\nMODO RECOVERY (OBRIGATÓRIO):\nO usuário fez uma pergunta válida. É PROIBIDO responder que a mensagem está vazia ou sem direcionamento. Responda objetivamente a PERGUNTA_ATUAL primeiro.`,
+          message: `${questionPriorityBlock}\n\nINSTRUÇÃO CRÍTICA:\n- Responda somente a PERGUNTA_ATUAL.\n- Não diga que o comando/mensagem veio vazio.\n- Entregue resposta objetiva em até 6 bullets.\n\n---\n## CONTEXTO\n${enrichments.join('\n')}`,
+          useGrounding,
+          thinkingMode,
+        },
+        signal,
+      );
+      rawAccumulator = response.text || '';
+      groundingChunks = Array.isArray(response.groundingChunks) ? response.groundingChunks : [];
+      onText?.(sanitizeStreamText(rawAccumulator));
+      finalParsed = parseMarkers(rawAccumulator);
+      finalParsed.statuses.forEach(status => onStatus?.(status));
+      finalText = enforceOpeningWithSeller(finalParsed.text, nomeParaInjetar);
+      finalText = cleanPortaFeedMarkers(finalText);
+      if (finalParsed.scorePorta) onScorePorta?.(finalParsed.scorePorta);
+    }
 
     const inlineLinks: Array<{ title: string; url: string }> = [];
     const linkRegex = /\[([^\]\n]{1,120})\]\((https?:\/\/[^)\s]{4,})\)/g;
