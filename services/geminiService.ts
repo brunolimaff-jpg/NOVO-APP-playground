@@ -31,6 +31,7 @@ import { buscarContextoPinecone, buscarContextoDocsPinecone } from './ragService
 import { scanInput, sanitizeExternalContent, CANARY_TOKEN } from '../utils/promptGuard';
 import { parseLoadingCuriosities } from '../utils/loadingCuriosities';
 import { proxyChatSendMessage, proxyGenerateContent } from './geminiProxy';
+import { BACKEND_URL } from './apiConfig';
 import {
   addFeedAdjustment,
   addFlagFeed,
@@ -76,6 +77,7 @@ const ROUTER_MODEL_ID = MODEL_IDS.router;
 const TACTICAL_MODEL_ID = MODEL_IDS.tactical;
 const DEEP_CHAT_MODEL_ID = MODEL_IDS.deepChat;
 const DEEP_RESEARCH_MODEL_ID = MODEL_IDS.deepResearch;
+const OPEN_QUESTION_RECOVERY_METRIC_KEY = 'scout360_open_question_recovery_count';
 
 const CONTINUITY_SYSTEM = `
 Você é o estrategista de continuidade do 🦅 Senior Scout 360.
@@ -419,6 +421,39 @@ function looksLikeMissedOpenQuestionAnswer(text: string): boolean {
   return /(comando\s+de\s+busca\s+veio\s+vazio|mensagem\s+veio\s+vazi[ao]|sem\s+direcionamento\s+espec[ií]fico)/i.test(
     text,
   );
+}
+
+function trackOpenQuestionRecovery(
+  question: string,
+  sessionId?: string,
+  empresa?: string | null,
+): void {
+  try {
+    if (typeof window !== 'undefined') {
+      const raw = window.localStorage.getItem(OPEN_QUESTION_RECOVERY_METRIC_KEY);
+      const prev = raw ? Number.parseInt(raw, 10) : 0;
+      const next = Number.isFinite(prev) ? prev + 1 : 1;
+      window.localStorage.setItem(OPEN_QUESTION_RECOVERY_METRIC_KEY, String(next));
+    }
+  } catch {
+    // noop: métrica local não pode quebrar fluxo
+  }
+
+  // Fire-and-forget backend telemetry (best effort)
+  fetch(BACKEND_URL, {
+    method: 'POST',
+    redirect: 'follow',
+    headers: { 'Content-Type': 'text/plain' },
+    body: JSON.stringify({
+      action: 'logOpenQuestionRecovery',
+      sessionId: sessionId || 'unknown',
+      empresa: empresa || null,
+      questionSnippet: (question || '').slice(0, 180),
+      timestamp: new Date().toISOString(),
+    }),
+  }).catch(() => {
+    // noop: falha de telemetria não deve impactar resposta
+  });
 }
 
 export function parseMarkers(content: string): ParsedContent {
@@ -888,6 +923,7 @@ MODO LOCALIZAÇÃO (OBRIGATÓRIO):
     // Recovery anti "resposta de uma atrás":
     // se for pergunta aberta válida e a IA responder com fallback de vazio/sem direção, reexecuta com foco estrito.
     if (isOpenQuestion && looksLikeMissedOpenQuestionAnswer(finalText)) {
+      trackOpenQuestionRecovery(effectiveUserMessage, sessionId, empresa);
       onStatus?.('Ajustando foco para a pergunta atual...');
       response = await proxyChatSendMessage(
         {
