@@ -81,7 +81,6 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
   pdfReportContent,
   onOpenEmailModal,
   onOpenFollowUpModal,
-  userHeaderNode,
   onLogout,
   lastUserQuery,
   processing,
@@ -417,6 +416,7 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
               onCopyMarkdown={handleCopyMarkdown}
               onSendEmail={onOpenEmailModal}
               onScheduleFollowUp={onOpenFollowUpModal}
+              onLogout={onLogout}
               exportStatus={exportStatus}
               canAccessDashboard={canAccessDashboard}
               canAccessIntegrityCheck={canAccessIntegrityCheck}

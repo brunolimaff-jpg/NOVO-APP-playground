@@ -19,6 +19,7 @@ interface SettingsDrawerProps {
   onCopyMarkdown: () => void;
   onSendEmail: () => void;
   onScheduleFollowUp: () => void;
+  onLogout?: () => void;
   exportStatus: 'idle' | 'loading' | 'success' | 'error';
   canAccessDashboard?: boolean;
   canAccessIntegrityCheck?: boolean;
@@ -38,6 +39,7 @@ const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
   onCopyMarkdown,
   onSendEmail,
   onScheduleFollowUp,
+  onLogout,
   exportStatus,
   canAccessDashboard = true,
   canAccessIntegrityCheck = true
@@ -234,6 +236,24 @@ const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                   </div>
                 </button>
               )}
+
+              <button
+                onClick={() => {
+                  onClose();
+                  onLogout?.();
+                }}
+                className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all text-left group border-red-500/40 ${
+                  isDarkMode
+                    ? 'bg-red-900/20 hover:bg-red-900/40'
+                    : 'bg-red-50 hover:bg-red-100'
+                }`}
+              >
+                <span className={`text-lg p-2 rounded-lg ${isDarkMode ? 'bg-red-800/60' : 'bg-red-200'}`}>🚪</span>
+                <div>
+                  <p className={`text-sm font-medium ${isDarkMode ? 'text-red-300' : 'text-red-800'}`}>Sair da conta</p>
+                  <p className={`text-xs ${isDarkMode ? 'text-red-500' : 'text-red-600'}`}>Encerrar sessão atual</p>
+                </div>
+              </button>
             </div>
           </section>
 

@@ -53,6 +53,8 @@ export interface GeminiRequestOptions {
   onScorePorta?: (score: ScorePortaData) => void;
   onCompetitor?: (detection: CompetitorDetection) => void;
   nomeVendedor?: string;
+  sessionId?: string;
+  hintedCompany?: string | null;
 }
 
 export interface SpotterExtractedData {
@@ -641,6 +643,8 @@ export const sendMessageToGemini = async (
     onScorePorta,
     onCompetitor,
     nomeVendedor,
+    sessionId,
+    hintedCompany,
   } = options;
 
   const guardResult = scanInput(message);
@@ -664,7 +668,9 @@ export const sendMessageToGemini = async (
     if (isMegaPromptMessage) {
       const match = message.match(/^Dossiê completo de \[([^\]]+)\]/);
       if (match) embeddedCompany = match[1];
-      if (embeddedCompany === 'a empresa desta conversa') embeddedCompany = currentCompanyContext?.empresa || null;
+      if (embeddedCompany === 'a empresa desta conversa') {
+        embeddedCompany = hintedCompany || currentCompanyContext?.empresa || null;
+      }
     }
 
     const ragQuery = isMegaPromptMessage ? embeddedCompany || 'Empresa Alvo' : message;
@@ -679,11 +685,23 @@ export const sendMessageToGemini = async (
       empresa = embeddedCompany;
     }
 
-    if (!empresa && currentCompanyContext?.empresa) {
+    if (
+      !empresa &&
+      hintedCompany &&
+      !isConcorrenteOuPropria(hintedCompany)
+    ) {
+      empresa = hintedCompany;
+    }
+
+    if (
+      !empresa &&
+      currentCompanyContext?.empresa &&
+      (!sessionId || currentCompanyContext.sessionId === sessionId)
+    ) {
       empresa = currentCompanyContext.empresa;
     }
 
-    const currentSessionId = currentCompanyContext?.sessionId || 'unknown';
+    const currentSessionId = sessionId || currentCompanyContext?.sessionId || 'unknown';
     const portaState = getPortaState();
     if (
       empresa &&
@@ -721,7 +739,7 @@ Use os links do RAG [Texto](URL). NÃO inicie fluxos de investigação, NÃO pe�
           : { ok: true, query: empresa, encontrado: false, total: 0, results: [] };
         enrichments.push(lookup.encontrado ? formatarParaPrompt(lookup) : `\n[Lookup: "${empresa}" não encontrado]\n`);
       }
-      enrichments.push(generateContextReminder(empresa, currentCompanyContext?.sessionId));
+      enrichments.push(generateContextReminder(empresa, currentSessionId));
       const competitorContext = getContextoConcorrentesRegionais(extractEstadoFromMessage(message));
       if (competitorContext) enrichments.push(competitorContext);
       if (benchmark || message.includes('investigar')) {

@@ -291,11 +291,15 @@ export const useChat = () => {
     lastActionRef.current = { type: "sendMessage", payload: { text } };
 
     let historyToPass: Message[] = [];
+    let hintedCompany: string | null = null;
     if (explicitHistory) {
       historyToPass = explicitHistory;
+      const explicitSession = sessionsRef.current.find((s) => s.id === sessionId);
+      hintedCompany = explicitSession?.empresaAlvo || null;
     } else {
       const session = sessionsRef.current.find((s) => s.id === sessionId);
       if (session) {
+        hintedCompany = session.empresaAlvo || null;
         const msgs = session.messages;
         historyToPass =
           msgs.length > 0 &&
@@ -360,6 +364,8 @@ export const useChat = () => {
         },
         nomeVendedor:
           typeof user?.displayName === "string" ? user.displayName : "Vendedor",
+        sessionId,
+        hintedCompany,
       });
 
       if (activeGenerationRef.current[sessionId] !== botMessageId) return;
