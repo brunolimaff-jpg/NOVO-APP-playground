@@ -440,11 +440,54 @@ function looksLikeLocationFocusedAnswer(text: string): boolean {
   return hasLocationIntentTokens && hasBrazilianGeoToken(text);
 }
 
+async function shouldRecoverOpenQuestionByJudge(
+  question: string,
+  answer: string,
+): Promise<boolean> {
+  if (!question.trim() || !answer.trim()) return false;
+  try {
+    const response = await proxyGenerateContent({
+      model: ROUTER_MODEL_ID,
+      contents: `Você é um validador de alinhamento entre PERGUNTA e RESPOSTA.
+
+PERGUNTA:
+"${question}"
+
+RESPOSTA:
+"${answer.slice(0, 2500)}"
+
+Retorne EXCLUSIVAMENTE JSON:
+{
+  "shouldRetry": boolean,
+  "confidence": number,
+  "reason": "..."
+}
+
+Use shouldRetry=true quando a RESPOSTA:
+- não responde objetivamente a pergunta;
+- desvia para outro tema;
+- responde uma pergunta anterior;
+- diz que mensagem/comando veio vazio sem a pergunta estar vazia.`,
+      config: { temperature: 0, responseMimeType: 'application/json', maxOutputTokens: 400 },
+    });
+    const parsed = JSON.parse(
+      (response.text || '{}')
+        .replace(/^```json\s*/i, '')
+        .replace(/```\s*$/i, '')
+        .trim(),
+    );
+    const confidence = Number(parsed?.confidence ?? 0);
+    return parsed?.shouldRetry === true && confidence >= 0.55;
+  } catch {
+    return false;
+  }
+}
+
 function trackOpenQuestionRecovery(
   question: string,
   sessionId?: string,
   empresa?: string | null,
-  reason?: 'fallback' | 'location_mismatch',
+  reason?: 'fallback' | 'location_mismatch' | 'semantic_mismatch',
 ): void {
   try {
     if (typeof window !== 'undefined') {
@@ -945,13 +988,33 @@ MODO LOCALIZAÇÃO (OBRIGATÓRIO):
       isOpenQuestion && looksLikeMissedOpenQuestionAnswer(finalText);
     const shouldRecoverByLocationMismatch =
       isLocationQuestion && !looksLikeLocationFocusedAnswer(finalText);
+    let shouldRecoverBySemanticMismatch = false;
+    if (
+      isOpenQuestion &&
+      !shouldRecoverByFallback &&
+      !shouldRecoverByLocationMismatch &&
+      finalText.trim().length > 0
+    ) {
+      shouldRecoverBySemanticMismatch = await shouldRecoverOpenQuestionByJudge(
+        effectiveUserMessage,
+        finalText,
+      );
+    }
 
-    if (shouldRecoverByFallback || shouldRecoverByLocationMismatch) {
+    if (
+      shouldRecoverByFallback ||
+      shouldRecoverByLocationMismatch ||
+      shouldRecoverBySemanticMismatch
+    ) {
       trackOpenQuestionRecovery(
         effectiveUserMessage,
         sessionId,
         empresa,
-        shouldRecoverByLocationMismatch ? 'location_mismatch' : 'fallback',
+        shouldRecoverByLocationMismatch
+          ? 'location_mismatch'
+          : shouldRecoverBySemanticMismatch
+            ? 'semantic_mismatch'
+            : 'fallback',
       );
       onStatus?.('Ajustando foco para a pergunta atual...');
       const recoveryContextBlock =
