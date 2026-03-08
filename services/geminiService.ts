@@ -418,7 +418,7 @@ function getLastUserQuestion(history: Message[]): string | null {
 
 function looksLikeMissedOpenQuestionAnswer(text: string): boolean {
   if (!text) return false;
-  return /(comando\s+de\s+busca\s+veio\s+vazio|mensagem\s+veio\s+vazi[ao]|sem\s+direcionamento\s+espec[ií]fico)/i.test(
+  return /(comando\s+de\s+busca\s+veio\s+vazio|(sua\s+)?mensagem\s+veio\s+(vazi[ao]|em\s+branco)|sem\s+direcionamento\s+espec[ií]fico|(digite|mande)\s+sua\s+d[uú]vida\s+espec[ií]fica)/i.test(
     text,
   );
 }
@@ -925,12 +925,16 @@ MODO LOCALIZAÇÃO (OBRIGATÓRIO):
     if (isOpenQuestion && looksLikeMissedOpenQuestionAnswer(finalText)) {
       trackOpenQuestionRecovery(effectiveUserMessage, sessionId, empresa);
       onStatus?.('Ajustando foco para a pergunta atual...');
+      const recoveryContextBlock =
+        enrichments.length > 0
+          ? `## CONTEXTO\n${enrichments.join('\n')}`
+          : '## CONTEXTO\nSem contexto adicional confirmado.';
       response = await proxyChatSendMessage(
         {
           model: isDeepResearch ? DEEP_CHAT_MODEL_ID : TACTICAL_MODEL_ID,
           history: sdkHistory,
           systemInstruction: `${CANARY_TOKEN}\n${finalInstruction}\nMODO RECOVERY (OBRIGATÓRIO):\nO usuário fez uma pergunta válida. É PROIBIDO responder que a mensagem está vazia ou sem direcionamento. Responda objetivamente a PERGUNTA_ATUAL primeiro.`,
-          message: `${questionPriorityBlock}\n\nINSTRUÇÃO CRÍTICA:\n- Responda somente a PERGUNTA_ATUAL.\n- Não diga que o comando/mensagem veio vazio.\n- Entregue resposta objetiva em até 6 bullets.\n\n---\n## CONTEXTO\n${enrichments.join('\n')}`,
+          message: `${questionPriorityBlock}\n\nINSTRUÇÃO CRÍTICA:\n- Responda somente a PERGUNTA_ATUAL.\n- Não diga que o comando/mensagem veio vazio, em branco ou sem direcionamento.\n- Se faltar dado, diga \"Não confirmado publicamente\" e informe o que é confirmado.\n- Entregue resposta objetiva em até 6 bullets.\n\n---\n${recoveryContextBlock}`,
           useGrounding,
           thinkingMode,
         },
