@@ -442,6 +442,7 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
               <EmptyStateHome
                 mode={mode}
                 onPreFill={text => setInput(text)}
+                onQuickStart={text => onSendMessage(text)}
                 isDarkMode={isDarkMode}
               />
             </div>

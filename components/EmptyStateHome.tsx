@@ -5,10 +5,11 @@ import { ChatMode, APP_NAME } from '../constants';
 interface EmptyStateHomeProps {
   mode: ChatMode;
   onPreFill: (text: string) => void;
+  onQuickStart?: (text: string) => void;
   isDarkMode: boolean;
 }
 
-const EmptyStateHome: React.FC<EmptyStateHomeProps> = ({ mode, onPreFill, isDarkMode }) => {
+const EmptyStateHome: React.FC<EmptyStateHomeProps> = ({ mode, onPreFill, onQuickStart, isDarkMode }) => {
   const { user } = useAuth();
   const userName = user?.displayName;
 
@@ -78,18 +79,35 @@ const EmptyStateHome: React.FC<EmptyStateHomeProps> = ({ mode, onPreFill, isDark
           <h2 className={`text-xs font-bold uppercase tracking-wider mb-3 px-1 ${theme.heading}`}>
             💡 Arsenal de Sugestões
           </h2>
+          <p className={`text-xs mb-3 px-1 ${theme.textSecondary}`}>
+            Clique no card para preencher ou em <strong>Enviar agora</strong> para iniciar em 1 clique.
+          </p>
           <div className="space-y-2">
             {godModeExamples.map((ex, i) => (
-              <button
+              <div
                 key={i}
-                onClick={() => onPreFill(ex.text)}
-                className={`w-full ${isDarkMode ? 'bg-gray-800/30 border-gray-700/50 hover:bg-gray-800/60' : 'bg-slate-50 border-slate-200 hover:bg-slate-100'} border rounded-xl px-4 py-3 text-left ${theme.cardHoverBorder} transition-all flex items-center gap-3 group`}
+                className={`w-full ${isDarkMode ? 'bg-gray-800/30 border-gray-700/50 hover:bg-gray-800/60' : 'bg-slate-50 border-slate-200 hover:bg-slate-100'} border rounded-xl px-4 py-3 ${theme.cardHoverBorder} transition-all`}
               >
-                <span className="text-xl flex-shrink-0">{ex.icon}</span>
-                <span className={`text-sm font-medium ${theme.textSecondary} transition-colors`}>
-                  "{ex.text}"
-                </span>
-              </button>
+                <button
+                  onClick={() => onPreFill(ex.text)}
+                  className="w-full text-left flex items-center gap-3 group"
+                >
+                  <span className="text-xl flex-shrink-0">{ex.icon}</span>
+                  <span className={`text-sm font-medium ${theme.textSecondary} transition-colors`}>
+                    "{ex.text}"
+                  </span>
+                </button>
+                {onQuickStart && (
+                  <div className="mt-2 pl-10">
+                    <button
+                      onClick={() => onQuickStart(ex.text)}
+                      className={`text-xs font-semibold ${isDarkMode ? 'text-emerald-300 hover:text-emerald-200' : 'text-emerald-700 hover:text-emerald-800'} transition-colors`}
+                    >
+                      Enviar agora
+                    </button>
+                  </div>
+                )}
+              </div>
             ))}
           </div>
         </div>

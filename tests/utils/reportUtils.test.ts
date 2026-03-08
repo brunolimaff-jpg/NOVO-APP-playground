@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { detectInconsistencies, generateExecutiveSummary, normalizeMermaidBlocks } from '../../utils/reportUtils';
+import {
+  collectFullReport,
+  detectInconsistencies,
+  generateExecutiveSummary,
+  normalizeMermaidBlocks,
+} from '../../utils/reportUtils';
+import { Sender, type Message } from '../../types';
 
 describe('detectInconsistencies', () => {
   it('returns empty string for single section', () => {
@@ -57,5 +63,30 @@ describe('report export helpers', () => {
     expect(summary).toContain('Validação obrigatória');
     expect(summary).toContain('precisa validar');
     expect(summary).toContain('Diagramas mermaid');
+  });
+
+  it('includes grounding sources from bot messages in exported links', () => {
+    const messages: Message[] = [
+      {
+        id: 'u1',
+        sender: Sender.User,
+        text: 'Investigar empresa X',
+        timestamp: new Date(),
+      },
+      {
+        id: 'b1',
+        sender: Sender.Bot,
+        text: 'Relatório base com conteúdo extenso o suficiente para exportar.'.repeat(2),
+        timestamp: new Date(),
+        groundingSources: [
+          { title: 'Fonte Oficial', url: 'https://example.com/source' },
+          { title: 'Fonte Oficial duplicada', url: 'https://example.com/source/' },
+        ],
+      },
+    ];
+
+    const result = collectFullReport(messages);
+    expect(result.allLinks.some(link => link.url === 'https://example.com/source')).toBe(true);
+    expect(result.allLinks.filter(link => link.url === 'https://example.com/source')).toHaveLength(1);
   });
 });

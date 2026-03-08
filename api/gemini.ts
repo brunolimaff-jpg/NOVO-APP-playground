@@ -99,6 +99,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const history = normalizeHistory((body as any).history);
       const message = toStringSafe((body as any).message, '');
       const useGrounding = toBooleanSafe((body as any).useGrounding, true);
+      const thinkingMode = toBooleanSafe((body as any).thinkingMode, false);
 
       if (!message.trim()) {
         return res.status(400).json({ error: 'Missing message' });
@@ -109,7 +110,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         history,
         config: {
           systemInstruction,
-          temperature: 0.15,
+          // Thinking mode trades creativity for deterministic factual output.
+          temperature: thinkingMode ? 0.1 : 0.15,
           maxOutputTokens: 65536,
           tools: useGrounding ? [{ googleSearch: {} }] : undefined
         }

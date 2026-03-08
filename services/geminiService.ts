@@ -28,7 +28,7 @@ import {
 import { addInvestigation } from '../components/InvestigationDashboard';
 import { CompetitorDetection, getContextoConcorrentesRegionais } from './competitorService';
 import { buscarContextoPinecone, buscarContextoDocsPinecone } from './ragService';
-import { scanInput, sanitizeExternalContent, CANARY_TOKEN } from '../utils/promptGuard';
+import { scanInput, sanitizeExternalContent, wrapUserInput, CANARY_TOKEN } from '../utils/promptGuard';
 import { parseLoadingCuriosities } from '../utils/loadingCuriosities';
 import { proxyChatSendMessage, proxyGenerateContent } from './geminiProxy';
 import { BACKEND_URL } from './apiConfig';
@@ -913,9 +913,9 @@ MODO LOCALIZAÇÃO (OBRIGATÓRIO):
     const previousUserQuestion = getLastUserQuestion(history);
     const questionPriorityBlock = [
       '## PERGUNTA_ATUAL (RESPONDER PRIMEIRO)',
-      `"${effectiveUserMessage}"`,
+      wrapUserInput(effectiveUserMessage),
       previousUserQuestion
-        ? `## PERGUNTA_ANTERIOR (NÃO RESPONDER AGORA)\n"${previousUserQuestion}"`
+        ? `## PERGUNTA_ANTERIOR (NÃO RESPONDER AGORA)\n${wrapUserInput(previousUserQuestion)}`
         : '',
     ]
       .filter(Boolean)
@@ -940,7 +940,7 @@ MODO LOCALIZAÇÃO (OBRIGATÓRIO):
 
     let response = await proxyChatSendMessage(
       {
-        model: isDeepResearch ? DEEP_CHAT_MODEL_ID : TACTICAL_MODEL_ID,
+        model: isDeepResearch ? DEEP_RESEARCH_MODEL_ID : TACTICAL_MODEL_ID,
         history: sdkHistory,
         systemInstruction: `${CANARY_TOKEN}\n${finalInstruction}\nMODO LIVE STATUS (OBRIGATÓRIO):\nEmita marcadores [[STATUS: Mensagem]] a cada etapa da análise. Use links markdown [texto](URL).`,
         message: messageToSend,
@@ -1025,7 +1025,7 @@ MODO LOCALIZAÇÃO (OBRIGATÓRIO):
         .join('\n');
       response = await proxyChatSendMessage(
         {
-          model: isDeepResearch ? DEEP_CHAT_MODEL_ID : TACTICAL_MODEL_ID,
+          model: isDeepResearch ? DEEP_RESEARCH_MODEL_ID : TACTICAL_MODEL_ID,
           history: sdkHistory,
           systemInstruction: `${CANARY_TOKEN}\n${finalInstruction}\nMODO RECOVERY (OBRIGATÓRIO):\nO usuário fez uma pergunta válida. É PROIBIDO responder que a mensagem está vazia ou sem direcionamento. Responda objetivamente a PERGUNTA_ATUAL primeiro.`,
           message: `${questionPriorityBlock}\n\nINSTRUÇÃO CRÍTICA:\n- Responda somente a PERGUNTA_ATUAL.\n- Não diga que o comando/mensagem veio vazio, em branco ou sem direcionamento.\n- Se faltar dado, diga \"Não confirmado publicamente\" e informe o que é confirmado.\n- Entregue resposta objetiva em até 6 bullets.\n\n---\n## CONTEXTO ESSENCIAL\n${recoveryContextBlock}`,
