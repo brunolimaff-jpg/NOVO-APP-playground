@@ -418,15 +418,33 @@ function getLastUserQuestion(history: Message[]): string | null {
 
 function looksLikeMissedOpenQuestionAnswer(text: string): boolean {
   if (!text) return false;
-  return /(comando\s+de\s+busca\s+veio\s+vazio|mensagem\s+veio\s+vazi[ao]|sem\s+direcionamento\s+espec[ií]fico)/i.test(
+  return /(comando\s+de\s+busca\s+veio\s+vazio|(sua\s+)?mensagem\s+veio\s+(vazi[ao]|em\s+branco)|sem\s+direcionamento\s+espec[ií]fico|(digite|mande)\s+sua\s+d[uú]vida\s+espec[ií]fica)/i.test(
     text,
   );
+}
+
+function hasBrazilianGeoToken(text: string): boolean {
+  if (!text) return false;
+  const ufSiglas =
+    /\b(AC|AL|AP|AM|BA|CE|DF|ES|GO|MA|MT|MS|MG|PA|PB|PR|PE|PI|RJ|RN|RS|RO|RR|SC|SP|SE|TO)\b/i;
+  const ufNames =
+    /\b(mato\s+grosso|mato\s+grosso\s+do\s+sul|minas\s+gerais|rio\s+grande\s+do\s+sul|s[aã]o\s+paulo|paran[aá]|maranh[aã]o|goi[aá]s|par[aá]|bahia|tocantins)\b/i;
+  return ufSiglas.test(text) || ufNames.test(text);
+}
+
+function looksLikeLocationFocusedAnswer(text: string): boolean {
+  if (!text) return false;
+  if (looksLikeMissedOpenQuestionAnswer(text)) return false;
+  const hasLocationIntentTokens =
+    /(localiza(?:ç|c)[aã]o|fica(?:m)?\s+em|est[aã]o\s+em|munic[ií]pio|cidade|estado|polo)/i.test(text);
+  return hasLocationIntentTokens && hasBrazilianGeoToken(text);
 }
 
 function trackOpenQuestionRecovery(
   question: string,
   sessionId?: string,
   empresa?: string | null,
+  reason?: 'fallback' | 'location_mismatch',
 ): void {
   try {
     if (typeof window !== 'undefined') {
@@ -446,6 +464,7 @@ function trackOpenQuestionRecovery(
     headers: { 'Content-Type': 'text/plain' },
     body: JSON.stringify({
       action: 'logOpenQuestionRecovery',
+      reason: reason || 'fallback',
       sessionId: sessionId || 'unknown',
       empresa: empresa || null,
       questionSnippet: (question || '').slice(0, 180),
@@ -922,15 +941,29 @@ MODO LOCALIZAÇÃO (OBRIGATÓRIO):
 
     // Recovery anti "resposta de uma atrás":
     // se for pergunta aberta válida e a IA responder com fallback de vazio/sem direção, reexecuta com foco estrito.
-    if (isOpenQuestion && looksLikeMissedOpenQuestionAnswer(finalText)) {
-      trackOpenQuestionRecovery(effectiveUserMessage, sessionId, empresa);
+    const shouldRecoverByFallback =
+      isOpenQuestion && looksLikeMissedOpenQuestionAnswer(finalText);
+    const shouldRecoverByLocationMismatch =
+      isLocationQuestion && !looksLikeLocationFocusedAnswer(finalText);
+
+    if (shouldRecoverByFallback || shouldRecoverByLocationMismatch) {
+      trackOpenQuestionRecovery(
+        effectiveUserMessage,
+        sessionId,
+        empresa,
+        shouldRecoverByLocationMismatch ? 'location_mismatch' : 'fallback',
+      );
       onStatus?.('Ajustando foco para a pergunta atual...');
+      const recoveryContextBlock =
+        enrichments.length > 0
+          ? `## CONTEXTO\n${enrichments.join('\n')}`
+          : '## CONTEXTO\nSem contexto adicional confirmado.';
       response = await proxyChatSendMessage(
         {
           model: isDeepResearch ? DEEP_CHAT_MODEL_ID : TACTICAL_MODEL_ID,
           history: sdkHistory,
           systemInstruction: `${CANARY_TOKEN}\n${finalInstruction}\nMODO RECOVERY (OBRIGATÓRIO):\nO usuário fez uma pergunta válida. É PROIBIDO responder que a mensagem está vazia ou sem direcionamento. Responda objetivamente a PERGUNTA_ATUAL primeiro.`,
-          message: `${questionPriorityBlock}\n\nINSTRUÇÃO CRÍTICA:\n- Responda somente a PERGUNTA_ATUAL.\n- Não diga que o comando/mensagem veio vazio.\n- Entregue resposta objetiva em até 6 bullets.\n\n---\n## CONTEXTO\n${enrichments.join('\n')}`,
+          message: `${questionPriorityBlock}\n\nINSTRUÇÃO CRÍTICA:\n- Responda somente a PERGUNTA_ATUAL.\n- Não diga que o comando/mensagem veio vazio, em branco ou sem direcionamento.\n- Se faltar dado, diga \"Não confirmado publicamente\" e informe o que é confirmado.\n- Entregue resposta objetiva em até 6 bullets.\n\n---\n${recoveryContextBlock}`,
           useGrounding,
           thinkingMode,
         },
