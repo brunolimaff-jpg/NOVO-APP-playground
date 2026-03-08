@@ -43,19 +43,6 @@ const EmptyStateHome: React.FC<EmptyStateHomeProps> = ({ mode, onPreFill, isDark
 
   const currentHero = heroContent[mode];
 
-  const quickActions = [
-    { icon: '🔍', label: 'Investigar', desc: 'Dossiê completo', prompt: 'Investigar a empresa ' },
-    { icon: '🔄', label: 'Cross-sell', desc: 'O que mais vender', prompt: 'O que consigo vender de cross na ' },
-    {
-      icon: '⚔️',
-      label: 'Competitivo',
-      desc: 'Ganhar da concorrência',
-      prompt: 'Estou concorrendo contra a TOTVS na empresa ',
-    },
-    { icon: '📡', label: 'Radar', desc: 'Panorama do setor', prompt: 'Me dá o radar do setor de ' },
-    { icon: '🔔', label: 'Alertas', desc: 'O que mudou', prompt: 'Verificar alertas e novidades da ' },
-  ];
-
   const godModeExamples = [
     { icon: '🤠', text: 'Levanta a capivara completa do Grupo Scheffer' },
     { icon: '🚛', text: 'Onde a COFCO está perdendo eficiência logística?' },
@@ -71,9 +58,6 @@ const EmptyStateHome: React.FC<EmptyStateHomeProps> = ({ mode, onPreFill, isDark
     textPrimary: isDarkMode ? 'text-white' : 'text-slate-900',
     textSecondary: isDarkMode ? 'text-gray-400' : 'text-slate-500',
     heading: isDarkMode ? 'text-gray-500' : 'text-slate-400',
-    cardBg: isDarkMode ? 'bg-gray-800/50' : 'bg-white shadow-sm',
-    cardBorder: isDarkMode ? 'border-gray-700' : 'border-slate-200',
-    cardHover: isDarkMode ? 'hover:bg-gray-800' : 'hover:bg-slate-50',
     cardHoverBorder: isDarkMode ? 'hover:border-green-600' : 'hover:border-emerald-500',
     highlight: mode === 'operacao' ? 'text-orange-500' : 'text-green-500',
   };
@@ -87,30 +71,6 @@ const EmptyStateHome: React.FC<EmptyStateHomeProps> = ({ mode, onPreFill, isDark
           <h1 className={`text-2xl font-bold mb-1 ${theme.textPrimary}`}>{currentHero.title}</h1>
           <p className={`${theme.textSecondary} text-sm`}>{currentHero.subtitle}</p>
           <p className={`${theme.highlight} font-medium text-sm mt-2`}>{displayGreeting}</p>
-        </div>
-
-        {/* Ações Rápidas */}
-        <div className="mb-8">
-          <h2 className={`text-xs font-bold uppercase tracking-wider mb-3 px-1 ${theme.heading}`}>
-            ✦ Por onde começar
-          </h2>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-            {quickActions.map(action => (
-              <button
-                key={action.label}
-                onClick={() => onPreFill(action.prompt)}
-                className={`${theme.cardBg} border ${theme.cardBorder} rounded-xl p-3 text-left ${theme.cardHoverBorder} ${theme.cardHover} transition-all group`}
-              >
-                <div className="text-xl mb-1">{action.icon}</div>
-                <div
-                  className={`text-sm font-bold ${mode === 'operacao' ? 'group-hover:text-orange-500' : 'group-hover:text-green-500'} transition-colors ${theme.textPrimary}`}
-                >
-                  {action.label}
-                </div>
-                <div className={`text-xs ${theme.textSecondary}`}>{action.desc}</div>
-              </button>
-            ))}
-          </div>
         </div>
 
         {/* Arsenal de Sugestões */}
