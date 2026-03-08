@@ -441,7 +441,6 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
             <div className="h-full p-4 md:p-6">
               <EmptyStateHome
                 mode={mode}
-                onSendMessage={onSendMessage}
                 onPreFill={text => setInput(text)}
                 isDarkMode={isDarkMode}
               />
