@@ -398,6 +398,16 @@ function isOpenQuestionMessage(message: string): boolean {
   return /^(onde|como|qual|quais|quem|quando|por que|porque|quanto)\b/.test(text);
 }
 
+function getLastUserQuestion(history: Message[]): string | null {
+  for (let i = history.length - 1; i >= 0; i--) {
+    if (history[i].sender === Sender.User) {
+      const text = (history[i].text || '').trim();
+      if (text) return text;
+    }
+  }
+  return null;
+}
+
 export function parseMarkers(content: string): ParsedContent {
   let text = content;
   const statuses: string[] = [];
@@ -779,10 +789,20 @@ MODO RESPOSTA DIRETA (PERGUNTA ABERTA):
 
     const isTechnicalMode =
       !empresa && !history.some(h => h.sender === 'bot' && (h.scorePorta || h.text.includes('PORTA:')));
+    const previousUserQuestion = getLastUserQuestion(history);
+    const questionPriorityBlock = [
+      '## PERGUNTA_ATUAL (RESPONDER PRIMEIRO)',
+      `"${effectiveUserMessage}"`,
+      previousUserQuestion
+        ? `## PERGUNTA_ANTERIOR (NÃO RESPONDER AGORA)\n"${previousUserQuestion}"`
+        : '',
+    ]
+      .filter(Boolean)
+      .join('\n\n');
     let messageToSend =
       enrichments.length > 0
-        ? `## PERGUNTA\n"${effectiveUserMessage}"\n\n---\n## CONTEXTO\n${enrichments.join('\n')}\n---\nO usuário perguntou: "${effectiveUserMessage}"`
-        : effectiveUserMessage;
+        ? `${questionPriorityBlock}\n\n---\n## CONTEXTO\n${enrichments.join('\n')}\n---\nResponda estritamente a PERGUNTA_ATUAL.`
+        : `${questionPriorityBlock}\n\nResponda estritamente a PERGUNTA_ATUAL.`;
 
     if (isDeepDive) {
       const deepDiveSource = getDeepDiveSource(message);
