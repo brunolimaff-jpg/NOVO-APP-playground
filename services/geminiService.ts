@@ -414,6 +414,13 @@ function getLastUserQuestion(history: Message[]): string | null {
   return null;
 }
 
+function looksLikeMissedOpenQuestionAnswer(text: string): boolean {
+  if (!text) return false;
+  return /(comando\s+de\s+busca\s+veio\s+vazio|mensagem\s+veio\s+vazi[ao]|sem\s+direcionamento\s+espec[ií]fico)/i.test(
+    text,
+  );
+}
+
 export function parseMarkers(content: string): ParsedContent {
   let text = content;
   const statuses: string[] = [];
@@ -834,7 +841,7 @@ MODO LOCALIZAÇÃO (OBRIGATÓRIO):
       .filter(msg => !msg.isError)
       .map(msg => ({ role: msg.sender === Sender.User ? ('user' as const) : ('model' as const), text: msg.text }));
 
-    const response = await proxyChatSendMessage(
+    let response = await proxyChatSendMessage(
       {
         model: isDeepResearch ? DEEP_CHAT_MODEL_ID : TACTICAL_MODEL_ID,
         history: sdkHistory,
@@ -846,11 +853,11 @@ MODO LOCALIZAÇÃO (OBRIGATÓRIO):
       signal,
     );
 
-    const rawAccumulator = response.text || '';
-    const groundingChunks = Array.isArray(response.groundingChunks) ? response.groundingChunks : [];
+    let rawAccumulator = response.text || '';
+    let groundingChunks = Array.isArray(response.groundingChunks) ? response.groundingChunks : [];
     onText?.(sanitizeStreamText(rawAccumulator));
 
-    const finalParsed = parseMarkers(rawAccumulator);
+    let finalParsed = parseMarkers(rawAccumulator);
     finalParsed.statuses.forEach(status => onStatus?.(status));
     const competitorDetection = parseCompetitorMarker(rawAccumulator);
     if (competitorDetection) onCompetitor?.(competitorDetection);
@@ -877,6 +884,31 @@ MODO LOCALIZAÇÃO (OBRIGATÓRIO):
     let finalText = enforceOpeningWithSeller(finalParsed.text, nomeParaInjetar);
     finalText = cleanPortaFeedMarkers(finalText);
     if (finalParsed.scorePorta) onScorePorta?.(finalParsed.scorePorta);
+
+    // Recovery anti "resposta de uma atrás":
+    // se for pergunta aberta válida e a IA responder com fallback de vazio/sem direção, reexecuta com foco estrito.
+    if (isOpenQuestion && looksLikeMissedOpenQuestionAnswer(finalText)) {
+      onStatus?.('Ajustando foco para a pergunta atual...');
+      response = await proxyChatSendMessage(
+        {
+          model: isDeepResearch ? DEEP_CHAT_MODEL_ID : TACTICAL_MODEL_ID,
+          history: sdkHistory,
+          systemInstruction: `${CANARY_TOKEN}\n${finalInstruction}\nMODO RECOVERY (OBRIGATÓRIO):\nO usuário fez uma pergunta válida. É PROIBIDO responder que a mensagem está vazia ou sem direcionamento. Responda objetivamente a PERGUNTA_ATUAL primeiro.`,
+          message: `${questionPriorityBlock}\n\nINSTRUÇÃO CRÍTICA:\n- Responda somente a PERGUNTA_ATUAL.\n- Não diga que o comando/mensagem veio vazio.\n- Entregue resposta objetiva em até 6 bullets.\n\n---\n## CONTEXTO\n${enrichments.join('\n')}`,
+          useGrounding,
+          thinkingMode,
+        },
+        signal,
+      );
+      rawAccumulator = response.text || '';
+      groundingChunks = Array.isArray(response.groundingChunks) ? response.groundingChunks : [];
+      onText?.(sanitizeStreamText(rawAccumulator));
+      finalParsed = parseMarkers(rawAccumulator);
+      finalParsed.statuses.forEach(status => onStatus?.(status));
+      finalText = enforceOpeningWithSeller(finalParsed.text, nomeParaInjetar);
+      finalText = cleanPortaFeedMarkers(finalText);
+      if (finalParsed.scorePorta) onScorePorta?.(finalParsed.scorePorta);
+    }
 
     const inlineLinks: Array<{ title: string; url: string }> = [];
     const linkRegex = /\[([^\]\n]{1,120})\]\((https?:\/\/[^)\s]{4,})\)/g;
