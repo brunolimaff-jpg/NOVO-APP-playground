@@ -122,4 +122,48 @@ describe('sendMessageToGemini lookup gate', () => {
     expect(lookupClienteMock).toHaveBeenCalledTimes(1);
     expect(benchmarkClientesMock).toHaveBeenCalledTimes(1);
   });
+
+  it('forces hard recovery when standby fallback appears on location question', async () => {
+    proxyGenerateContentMock
+      .mockResolvedValueOnce({
+        text: JSON.stringify({
+          empresa: 'Grupo Scheffer',
+          benchmark: false,
+          rota: 'tatica',
+        }),
+      })
+      .mockResolvedValueOnce({
+        text: 'As algodoeiras do Grupo Scheffer ficam em Sapezal (MT), Campo Novo do Parecis (MT) e Diamantino (MT).',
+      })
+      .mockResolvedValue({
+        text: JSON.stringify([
+          'Onde ficam os CDs dessa empresa?',
+          'Qual a capacidade mensal de beneficiamento?',
+          'Quem decide logística no grupo?',
+        ]),
+      });
+
+    proxyChatSendMessageMock
+      .mockResolvedValueOnce({
+        text: 'Como você não enviou um novo comando, o radar está em stand-by.',
+        groundingChunks: [],
+      })
+      .mockResolvedValueOnce({
+        text: 'Como você não enviou um novo comando, o radar está em stand-by.',
+        groundingChunks: [],
+      });
+
+    const { sendMessageToGemini } = await import('../../services/geminiService');
+    const result = await sendMessageToGemini(
+      'onde ficam as algodoeiras?',
+      [],
+      'Instrução de sistema',
+      {},
+      false,
+    );
+
+    expect(proxyChatSendMessageMock).toHaveBeenCalledTimes(2);
+    expect(proxyGenerateContentMock).toHaveBeenCalledTimes(3);
+    expect(result.text).toContain('Sapezal (MT)');
+  });
 });
