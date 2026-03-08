@@ -391,6 +391,13 @@ function extractEstadoFromMessage(message: string): string {
   return 'MT';
 }
 
+function isOpenQuestionMessage(message: string): boolean {
+  const text = (message || '').trim().toLowerCase();
+  if (!text) return false;
+  if (text.endsWith('?')) return true;
+  return /^(onde|como|qual|quais|quem|quando|por que|porque|quanto)\b/.test(text);
+}
+
 export function parseMarkers(content: string): ParsedContent {
   let text = content;
   const statuses: string[] = [];
@@ -652,6 +659,7 @@ export const sendMessageToGemini = async (
     throw normalizeAppError(new Error(`Mensagem bloqueada: ${guardResult.reason}.`), 'GUARD');
 
   const safeMessage = guardResult.sanitized;
+  const isOpenQuestion = isOpenQuestionMessage(safeMessage);
 
   // AQUI FOI CORRIGIDO: Recoloquei a variável que tinha sumido
   const nomeParaInjetar = nomeVendedor?.trim() || 'Vendedor';
@@ -715,6 +723,15 @@ export const sendMessageToGemini = async (
       finalInstruction = `Você é o Especialista Técnico da Senior Sistemas.
 SUA ÚNICA MISSÃO: Responder a pergunta técnica de forma DIRETA. 
 Use os links do RAG [Texto](URL). NÃO inicie fluxos de investigação, NÃO peça CNPJ.`;
+    }
+
+    if (isOpenQuestion) {
+      finalInstruction = `${finalInstruction}
+
+MODO RESPOSTA DIRETA (PERGUNTA ABERTA):
+- Responda PRIMEIRO exatamente o que foi perguntado, de forma objetiva.
+- NUNCA diga que a mensagem está vazia ou sem direcionamento quando houver pergunta.
+- Só depois complemente com contexto adicional, se realmente útil.`;
     }
 
     let effectiveUserMessage = safeMessage;

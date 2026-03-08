@@ -112,20 +112,20 @@ interface AttackPattern {
 const ATTACK_PATTERNS: AttackPattern[] = [
   // ── Jailbreak clássico (EN) ──────────────────
   { pattern: /ignore\s+(all\s+)?(previous|prior|above)\s+(instructions?|rules?|prompts?)/i, weight: 90, label: 'jailbreak:ignore-previous' },
-  { pattern: /you\s+are\s+now\s+(a|an|the)?\s*\[?[A-Za-z]/i, weight: 80, label: 'jailbreak:role-reassign' },
+  { pattern: /you\s+are\s+now\s+(a|an|the)?\s*\[?[A-Za-z]/i, weight: 60, label: 'jailbreak:role-reassign' },
   { pattern: /forget\s+(everything|all|your|the)\s+(instructions?|rules?|training|context)/i, weight: 85, label: 'jailbreak:forget' },
   { pattern: /disregard\s+(all\s+)?(previous|prior|above|your)/i, weight: 85, label: 'jailbreak:disregard' },
   { pattern: /act\s+as\s+if\s+you\s+(have\s+no|don.t\s+have|without)/i, weight: 75, label: 'jailbreak:act-as' },
   { pattern: /do\s+anything\s+now|DAN\s+mode|developer\s+mode/i, weight: 90, label: 'jailbreak:DAN' },
   { pattern: /\bDAN\b.*\bjailbreak\b|\bjailbreak\b.*\bDAN\b/i, weight: 95, label: 'jailbreak:DAN-explicit' },
-  { pattern: /new\s+instruction[s]?\s*:/i, weight: 80, label: 'injection:new-instruction' },
+  { pattern: /new\s+instruction[s]?\s*:/i, weight: 60, label: 'injection:new-instruction' },
   { pattern: /system\s*:\s*you\s+are/i, weight: 85, label: 'injection:fake-system' },
 
   // ── Jailbreak em Português ───────────────────
   { pattern: /ignore\s+(todas?\s+as?\s+)?(instru[çc][õo]es?|regras?|contexto)\s*(anteriores?|acima|anteriores)/i, weight: 90, label: 'jailbreak:pt-ignore' },
   { pattern: /esque[çc][ae]\s+(tudo|todas?|suas?)\s*(instru[çc][õo]es?|regras?|treinamento)/i, weight: 85, label: 'jailbreak:pt-forget' },
-  { pattern: /voc[eê]\s+agora\s+[eé]\s+(um|uma)?/i, weight: 80, label: 'jailbreak:pt-role-reassign' },
-  { pattern: /nova[s]?\s+instru[çc][õo]es?\s*:/i, weight: 80, label: 'injection:pt-new-instruction' },
+  { pattern: /voc[eê]\s+agora\s+[eé]\s+(um|uma)?/i, weight: 60, label: 'jailbreak:pt-role-reassign' },
+  { pattern: /nova[s]?\s+instru[çc][õo]es?\s*:/i, weight: 60, label: 'injection:pt-new-instruction' },
   { pattern: /finja\s+que\s+(voc[eê]\s+[eé]|n[aã]o\s+tem)/i, weight: 75, label: 'jailbreak:pt-finja' },
   { pattern: /desconsider[ea]\s+(o\s+contexto|as\s+instru)/i, weight: 80, label: 'jailbreak:pt-disregard' },
 
@@ -314,7 +314,9 @@ export function scanInput(rawInput: string): GuardResult {
   // 5. Deny-list de padrões
   const { maxWeight, label } = scoreAttackPatterns(sanitized);
 
-  if (maxWeight >= 80) {
+  // Bloqueio apenas para sinais de alta confiança (>=90).
+  // Sinais moderados passam como "suspicious" para evitar travar perguntas abertas legítimas.
+  if (maxWeight >= 90) {
     const entry: AuditEntry = {
       ts: new Date().toISOString(),
       level: 'blocked',
