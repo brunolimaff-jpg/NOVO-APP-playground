@@ -31,7 +31,7 @@ function normalizeHistory(input: unknown): Array<{ role: 'user' | 'model'; parts
   return input
     .slice(-40)
     .map((item) => {
-      const role = item && typeof item === 'object' && (item as any).role === 'model' ? 'model' : 'user';
+      const role = (item && typeof item === 'object' && (item as any).role === 'model' ? 'model' : 'user') as 'user' | 'model';
       const text = item && typeof item === 'object' ? toStringSafe((item as any).text, '') : '';
       return { role, parts: [{ text }] };
     })
