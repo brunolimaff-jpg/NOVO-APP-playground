@@ -398,6 +398,12 @@ function isOpenQuestionMessage(message: string): boolean {
   return /^(onde|como|qual|quais|quem|quando|por que|porque|quanto)\b/.test(text);
 }
 
+function isLocationQuestionMessage(message: string): boolean {
+  const text = (message || '').trim().toLowerCase();
+  if (!text) return false;
+  return /(onde\s+fica(?:m)?|localiza(?:ç|c)[aã]o|localizad[ao]s?|em\s+que\s+cidade|qual\s+endere[çc]o)/.test(text);
+}
+
 function getLastUserQuestion(history: Message[]): string | null {
   for (let i = history.length - 1; i >= 0; i--) {
     if (history[i].sender === Sender.User) {
@@ -670,6 +676,7 @@ export const sendMessageToGemini = async (
 
   const safeMessage = guardResult.sanitized;
   const isOpenQuestion = isOpenQuestionMessage(safeMessage);
+  const isLocationQuestion = isLocationQuestionMessage(safeMessage);
 
   // AQUI FOI CORRIGIDO: Recoloquei a variável que tinha sumido
   const nomeParaInjetar = nomeVendedor?.trim() || 'Vendedor';
@@ -742,6 +749,16 @@ MODO RESPOSTA DIRETA (PERGUNTA ABERTA):
 - Responda PRIMEIRO exatamente o que foi perguntado, de forma objetiva.
 - NUNCA diga que a mensagem está vazia ou sem direcionamento quando houver pergunta.
 - Só depois complemente com contexto adicional, se realmente útil.`;
+    }
+
+    if (isLocationQuestion) {
+      finalInstruction = `${finalInstruction}
+
+MODO LOCALIZAÇÃO (OBRIGATÓRIO):
+- A resposta DEVE começar com "Localização:".
+- Traga municípios/estados primeiro, em bullets curtos.
+- Se não houver confirmação pública exata, escreva explicitamente "Localização específica não confirmada publicamente" e informe apenas o que é confirmado.
+- Não priorize recomendação comercial antes de responder a localização pedida.`;
     }
 
     let effectiveUserMessage = safeMessage;
