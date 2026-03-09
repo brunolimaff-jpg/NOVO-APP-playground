@@ -369,6 +369,15 @@ function enforceOpeningWithSeller(rawText: string, nomeVendedor: string): string
   return (match ? match[0] : '') + text;
 }
 
+function stripDossierLeadIn(rawText: string): string {
+  if (!rawText) return rawText;
+  return rawText
+    .replace(/^\s*[^,\n]{1,40},\s*segue o dossi[eê] completo[^\n]*\n?/i, '')
+    .replace(/^\s*visitante,\s*segue o dossi[eê] completo[^\n]*\n?/i, '')
+    .replace(/^\s*visitante,\s*/i, '')
+    .trimStart();
+}
+
 function parseCompetitorMarker(content: string): CompetitorDetection | null {
   const match = content.match(/\[\[COMPETITOR:([^:\]]+):([^:\]]+):([^:\]]+):([^\]]+)\]\]/);
   if (!match) return null;
@@ -766,7 +775,6 @@ ${querySnippet}
 Retorne EXCLUSIVAMENTE um JSON com este formato:
 {
   "empresa": ["..."],
-  "senior": ["..."],
   "setor": ["..."],
   "regional": ["..."]
 }
@@ -774,10 +782,10 @@ Retorne EXCLUSIVAMENTE um JSON com este formato:
 REGRAS:
 - Gere entre 1 e 3 itens por chave.
 - "empresa": fatos/sinais específicos da empresa-alvo ou do alvo da consulta.
-- "senior": fatos sobre Senior Sistemas e aderência da oferta (ERP/HCM/GAtec).
 - "setor"/"regional": contexto de mercado e região para reforçar diagnóstico.
 - Frases curtas (máx 170 chars), concretas e sem linguagem genérica.
 - Priorize evidências públicas verificáveis com sinais da web.
+- Evite frases institucionais/genéricas sobre a Senior; foque no alvo investigado.
 - Sempre que possível, termine com "— Fonte: <origem>" usando origem curta (ex.: IBGE, CONAB, Embrapa, Senior, GAtec).
 - Se não houver dado confiável, use formulação prudente (ex: "sinal de expansão em apuração").`,
       config: {
@@ -1121,7 +1129,7 @@ MODO LOCALIZAÇÃO (OBRIGATÓRIO):
     }
 
     // Agora o nomeParaInjetar existe e não dará mais erro!
-    let finalText = enforceOpeningWithSeller(finalParsed.text, nomeParaInjetar);
+    let finalText = stripDossierLeadIn(enforceOpeningWithSeller(finalParsed.text, nomeParaInjetar));
     finalText = cleanPortaFeedMarkers(finalText);
     if (finalParsed.scorePorta) onScorePorta?.(finalParsed.scorePorta);
 
@@ -1202,7 +1210,7 @@ MODO LOCALIZAÇÃO (OBRIGATÓRIO):
       onText?.(sanitizeStreamText(rawAccumulator));
       finalParsed = parseMarkers(rawAccumulator);
       finalParsed.statuses.forEach(status => onStatus?.(status));
-      finalText = enforceOpeningWithSeller(finalParsed.text, nomeParaInjetar);
+      finalText = stripDossierLeadIn(enforceOpeningWithSeller(finalParsed.text, nomeParaInjetar));
       finalText = cleanPortaFeedMarkers(finalText);
       if (finalParsed.scorePorta) onScorePorta?.(finalParsed.scorePorta);
       debugRecovery('after-recovery-call', {
@@ -1229,10 +1237,10 @@ MODO LOCALIZAÇÃO (OBRIGATÓRIO):
         );
         const fallbackText = hardRecovery.text || '';
         if (fallbackText.trim().length > 0) {
-          finalText = enforceOpeningWithSeller(
+          finalText = stripDossierLeadIn(enforceOpeningWithSeller(
             cleanPortaFeedMarkers(parseMarkers(fallbackText).text),
             nomeParaInjetar,
-          );
+          ));
           debugRecovery('hard-recovery-success', {
             textPreview: finalText.slice(0, 260),
           });

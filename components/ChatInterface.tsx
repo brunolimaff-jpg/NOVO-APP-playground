@@ -245,11 +245,7 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
     const prompt = `Conta alvo:
 - Empresa: ${payload.companyName}
 - CNPJ: ${payload.cnpj || 'não informado'}
-- Localização: ${payload.city}/${payload.state}
-
-Objetivo:
-Executar investigação completa e mapeamento profundo desta conta com foco comercial B2B.
-Entregar diagnóstico integrado e riscos/oportunidades acionáveis.`;
+- Localização: ${payload.city}/${payload.state}`;
 
     const hiddenPrompt = [
       'INVESTIGACAO_COMPLETA_INTEGRADA (MVP):',

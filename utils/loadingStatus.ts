@@ -7,11 +7,37 @@ const STATUS_PHASES = {
   hooks: 'Preparando próximos passos...',
 } as const;
 
+const LIVE_PHASE_LABELS: Record<number, string> = {
+  [-1]: 'Riscos Ocultos',
+  1: 'Incentivos Fiscais',
+  2: 'Intel Territorial',
+  3: 'Logística & Supply',
+  4: 'Donos e Sócios',
+  5: 'Executivos',
+  6: 'Sinais de Venda',
+  7: 'Storytelling',
+  8: 'Recomendações de Produtos Senior',
+};
+
+function parseLivePhaseStatus(status: string): string | null {
+  const match = status.match(/^Executando Fase\s*(-?\d+)\b/i);
+  if (!match) return null;
+  const phaseNumber = Number.parseInt(match[1], 10);
+  const phaseLabel = LIVE_PHASE_LABELS[phaseNumber];
+  if (!Number.isFinite(phaseNumber) || !phaseLabel) return null;
+  return `Fase ${phaseNumber}: ${phaseLabel}`;
+}
+
+export function isPhaseTimelineStatus(status: string): boolean {
+  return /^Fase\s*-?\d+\s*:/i.test(status.trim());
+}
+
 export function normalizeLoadingStatus(rawStatus?: string | null): string | null {
   const status = rawStatus?.trim();
   if (!status) return null;
 
-  if (/^Executando Fase\s+\d+/i.test(status)) return null;
+  const livePhaseStatus = parseLivePhaseStatus(status);
+  if (livePhaseStatus) return livePhaseStatus;
   if (/^(Analisando complexidade do pedido|Entendendo sua necessidade)/i.test(status)) return STATUS_PHASES.complexity;
   if (/^(Deep Research ativado|Sinais externos em análise)/i.test(status)) return STATUS_PHASES.deepResearch;
   if (/^Buscando histórico de/i.test(status)) return status;
@@ -24,6 +50,8 @@ export function normalizeLoadingStatus(rawStatus?: string | null): string | null
 }
 
 export function statusKey(status: string): string {
+  const phaseMatch = status.match(/^Fase\s*(-?\d+)\s*:/i);
+  if (phaseMatch) return `fase_${phaseMatch[1]}`;
   if (/^(Analisando complexidade do pedido|Entendendo sua necessidade)/i.test(status)) return 'complexidade';
   if (/^(Deep Research ativado|Sinais externos em análise)/i.test(status)) return 'deep_research';
   if (/^Buscando histórico de/i.test(status)) return 'historico';

@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeLoadingStatus, statusKey } from '../../utils/loadingStatus';
+import { isPhaseTimelineStatus, normalizeLoadingStatus, statusKey } from '../../utils/loadingStatus';
 
 describe('loadingStatus', () => {
-  it('ignora fases inventadas pelo modelo', () => {
-    expect(normalizeLoadingStatus('Executando Fase 7: Psicologia & Storytelling...')).toBeNull();
+  it('normaliza status live de fase para trilha padronizada', () => {
+    expect(normalizeLoadingStatus('Executando Fase 7: Psicologia & Storytelling...')).toBe('Fase 7: Storytelling');
+    expect(statusKey('Fase 7: Storytelling')).toBe('fase_7');
+    expect(isPhaseTimelineStatus('Fase 7: Storytelling')).toBe(true);
   });
 
   it('normaliza etapas canônicas', () => {

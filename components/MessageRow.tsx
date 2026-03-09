@@ -214,7 +214,7 @@ const MessageRow = memo(({ index, data }: MessageRowProps) => {
                   >
                     📚 Fontes
                   </p>
-                  <ul className="space-y-1.5">
+                  <ol className="space-y-2 list-decimal pl-4">
                     {auditableSources.map((s, i) => {
                       const status = s.url ? linkStatuses[s.url] || linkStatuses[normalizeSourceUrl(s.url)] : undefined;
                       const statusLabel = !s.url
@@ -234,7 +234,7 @@ const MessageRow = memo(({ index, data }: MessageRowProps) => {
                         <li key={s.key || i} className="text-xs">
                           <div className="flex items-center gap-1 flex-wrap">
                             <span className="font-semibold text-[10px] opacity-80">
-                              {s.citationIndex ? `[${s.citationIndex}]` : '[inferida]'}
+                              {s.citationIndex ? `^${s.citationIndex}` : '^?'}
                             </span>
                             {s.url ? (
                               <a
@@ -243,7 +243,7 @@ const MessageRow = memo(({ index, data }: MessageRowProps) => {
                                 rel="noopener noreferrer"
                                 className="text-emerald-600 hover:underline break-all"
                               >
-                                {s.title || s.url}
+                                {s.title || 'Fonte'}
                               </a>
                             ) : (
                               <span className={`${isDarkMode ? 'text-slate-300' : 'text-slate-700'}`}>{s.title}</span>
@@ -262,6 +262,11 @@ const MessageRow = memo(({ index, data }: MessageRowProps) => {
                               {statusLabel}
                             </span>
                           </div>
+                          {s.url ? (
+                            <p className={`mt-1 text-[10px] break-all ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                              {s.url}
+                            </p>
+                          ) : null}
                           <p
                             className={`mt-1 text-[10px] leading-snug ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}
                           >
@@ -270,7 +275,7 @@ const MessageRow = memo(({ index, data }: MessageRowProps) => {
                         </li>
                       );
                     })}
-                  </ul>
+                  </ol>
                 </div>
               )}
             </>

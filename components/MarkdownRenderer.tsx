@@ -213,7 +213,7 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
         if (!citationIndex) {
           return `<a href="${fullUrl}" target="_blank" rel="noopener noreferrer">${displayDomain}</a>`;
         }
-        return `<sup><a href="${fullUrl}" target="_blank" rel="noopener noreferrer" class="citation-link" title="${displayDomain}">[${citationIndex}]</a></sup>`;
+        return `<sup><a href="${fullUrl}" target="_blank" rel="noopener noreferrer" class="citation-link" title="${displayDomain}">^${citationIndex}</a></sup>`;
       }
     );
 
@@ -255,10 +255,12 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
       }
 
       const textContent = String(children || '');
+      const cleanText = textContent.trim();
 
       // Se ainda sobrou algum link markdown com emoji da IA que não foi capturado
       const isBadgeMatch = textContent.match(/^(🟢|🟡|🟠|🔴)/);
       const citationIndex = href ? citationMap.get(normalizeSourceUrl(href)) : undefined;
+      const isDomainLike = /^(?:https?:\/\/)?(?:www\.)?[a-z0-9.-]+\.[a-z]{2,}(?:\/[^\s]*)?$/i.test(cleanText);
 
       if (isBadgeMatch) {
         const displayDomain = href.replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0];
@@ -273,7 +275,24 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
               title={displayDomain}
               {...props}
             >
-              [{citationIndex ?? '?'}]
+              ^{citationIndex ?? '?'}
+            </a>
+          </sup>
+        );
+      }
+
+      if (citationIndex && isDomainLike) {
+        return (
+          <sup className="ml-0.5">
+            <a
+              href={href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[11px] text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline no-underline"
+              title={cleanText}
+              {...props}
+            >
+              ^{citationIndex}
             </a>
           </sup>
         );
@@ -286,7 +305,7 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
             {children}
           </a>
           {citationIndex ? (
-            <sup className="ml-1 text-[10px] text-blue-600 dark:text-blue-400">[{citationIndex}]</sup>
+            <sup className="ml-1 text-[10px] text-blue-600 dark:text-blue-400">^{citationIndex}</sup>
           ) : null}
         </span>
       );

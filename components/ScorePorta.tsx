@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { ScorePortaData } from '../types';
-import { getPortaCompatibility, PORTA_FLAG_META, PORTA_SEGMENT_LABELS } from '../utils/porta';
+import { getPortaCompatibility, PORTA_FLAG_META } from '../utils/porta';
 
 interface ScorePortaProps extends ScorePortaData {
   isDarkMode?: boolean;
@@ -47,7 +47,6 @@ const ScorePorta: React.FC<ScorePortaProps> = ({
   a,
   segmento,
   flags,
-  scoreBruto,
   isDarkMode = true,
 }) => {
   const [activePillar, setActivePillar] = useState<string | null>(null);
@@ -65,11 +64,6 @@ const ScorePorta: React.FC<ScorePortaProps> = ({
   const subtleBorder = isDarkMode ? 'rgba(148,163,184,0.12)' : '#e2e8f0';
 
   const values: Record<string, number> = { p, o, r, t, a };
-  const flagsText = flags.length > 0 ? flags.join(', ') : 'NONE';
-  const scoreSummary =
-    typeof scoreBruto === 'number'
-      ? `Score final ${score} (bruto: ${scoreBruto}${flags.length > 0 ? ` - penalizado por ${flagsText}` : ''})`
-      : `Score final ${score}`;
   const activeExplanation = useMemo(
     () => (activePillar ? PILLAR_EXPLANATIONS[activePillar] : null),
     [activePillar],
@@ -111,10 +105,10 @@ const ScorePorta: React.FC<ScorePortaProps> = ({
                 cursor: 'help',
               }}
             >
-              PORTA v2
+              PORTA
             </span>
             <span
-              title={PORTA_SEGMENT_LABELS[segmento]}
+              title={segmento}
               style={{
                 padding: '3px 8px',
                 borderRadius: '999px',
@@ -128,7 +122,6 @@ const ScorePorta: React.FC<ScorePortaProps> = ({
               {segmento}
             </span>
           </div>
-          <span style={{ fontSize: '12px', color: subColor }}>{scoreSummary}</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
           <motion.span
@@ -167,25 +160,20 @@ const ScorePorta: React.FC<ScorePortaProps> = ({
         </span>
       </div>
 
-      <div
-        style={{
-          display: 'flex',
-          flexWrap: 'wrap',
-          gap: '8px',
-          marginBottom: '10px',
-          padding: '8px 10px',
-          borderRadius: '10px',
-          background: subtleBg,
-          border: `1px solid ${subtleBorder}`,
-        }}
-      >
-        <span style={{ fontSize: '11px', fontWeight: 700, color: labelColor }}>
-          Segmento: {PORTA_SEGMENT_LABELS[segmento]}
-        </span>
-        {flags.length === 0 ? (
-          <span style={{ fontSize: '11px', fontWeight: 600, color: valueColor }}>Flags: NONE</span>
-        ) : (
-          flags.map(flag => (
+      {flags.length > 0 && (
+        <div
+          style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: '8px',
+            marginBottom: '10px',
+            padding: '8px 10px',
+            borderRadius: '10px',
+            background: subtleBg,
+            border: `1px solid ${subtleBorder}`,
+          }}
+        >
+          {flags.map(flag => (
             <span
               key={flag}
               title={PORTA_FLAG_META[flag].description}
@@ -204,9 +192,9 @@ const ScorePorta: React.FC<ScorePortaProps> = ({
               <span>{PORTA_FLAG_META[flag].icon}</span>
               <span>{PORTA_FLAG_META[flag].shortLabel}</span>
             </span>
-          ))
-        )}
-      </div>
+          ))}
+        </div>
+      )}
 
       <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
         {pillars.map(({ key, letter, short, label }, idx) => (

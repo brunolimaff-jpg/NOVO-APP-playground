@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { ChatMode } from '../constants';
 import { generateLoadingCuriosities } from '../services/geminiService';
 import { buildLoadingCuriositiesFallback } from '../utils/loadingCuriosities';
+import { isPhaseTimelineStatus } from '../utils/loadingStatus';
 
 const FADE_DURATION = 400;
 const SOURCE_LINKS: Record<string, string> = {
@@ -191,7 +192,14 @@ const LoadingSmart: React.FC<LoadingSmartProps> = ({
 
   const displayStage = processing?.stage || (companyFocus ? `Investigando ${companyFocus}...` : 'Investigação em andamento...');
   const completedStages = processing?.completedStages || [];
-  const totalSteps = completedStages.length + 1;
+  const hasPhaseTimeline = [...completedStages, displayStage].some(isPhaseTimelineStatus);
+  const visibleCompletedStages = hasPhaseTimeline
+    ? completedStages.filter(isPhaseTimelineStatus)
+    : completedStages;
+  const visibleCurrentStage = hasPhaseTimeline && !isPhaseTimelineStatus(displayStage)
+    ? 'Consolidando saída da fase atual...'
+    : displayStage;
+  const totalSteps = visibleCompletedStages.length + 1;
 
   return (
     <div className={`
@@ -216,7 +224,7 @@ const LoadingSmart: React.FC<LoadingSmartProps> = ({
           <span className={`text-xs font-semibold uppercase tracking-wider ${
             isDarkMode ? 'text-slate-500' : 'text-slate-600'
           }`}>
-            {completedStages.length > 0 ? `Passo ${totalSteps} em andamento` : 'Análise em andamento'}
+            {hasPhaseTimeline ? `Fase ${totalSteps} em andamento` : (visibleCompletedStages.length > 0 ? `Passo ${totalSteps} em andamento` : 'Análise em andamento')}
           </span>
         </div>
 
@@ -233,7 +241,7 @@ const LoadingSmart: React.FC<LoadingSmartProps> = ({
       {/* PROGRESS STEPS */}
       <div className="flex flex-col gap-1.5 mb-4">
         {/* Completed steps */}
-        {completedStages.map((stage, index) => (
+        {visibleCompletedStages.map((stage, index) => (
           <div key={index} className="flex items-center gap-3 animate-fade-in">
             <div className={`flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center ${
               isDarkMode ? 'bg-emerald-500/20' : 'bg-emerald-100'
@@ -260,7 +268,7 @@ const LoadingSmart: React.FC<LoadingSmartProps> = ({
           <span className={`text-sm font-semibold ${
             isDarkMode ? 'text-emerald-400' : 'text-emerald-600'
           }`}>
-            {displayStage}
+            {visibleCurrentStage}
           </span>
         </div>
       </div>

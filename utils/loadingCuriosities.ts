@@ -40,6 +40,10 @@ function interleaveGroups(groups: string[][], limit = MAX_ITEMS): string[] {
   return out;
 }
 
+function removeInstitutionalSeniorLines(lines: string[]): string[] {
+  return lines.filter((line) => !/senior sistemas|proposta de valor da senior/i.test(line));
+}
+
 export function buildLoadingCuriositiesFallback(context: string): string[] {
   const company = context?.trim();
   if (!company) {
@@ -54,8 +58,8 @@ export function buildLoadingCuriositiesFallback(context: string): string[] {
   return [
     `Buscando evidências públicas de ${company} para conectar dor operacional com proposta de valor...`,
     `Levantando movimentos recentes, expansão e sinais públicos de ${company}...`,
-    'Senior Sistemas combina ERP, HCM e GAtec para reduzir retrabalho entre áreas.',
-    `Cruzando ${company} com benchmarks operacionais para identificar lacunas de gestão...`
+    `Cruzando ${company} com benchmarks operacionais para identificar lacunas de gestão...`,
+    `Mapeando sinais de risco e oportunidade em ${company} com base em fontes públicas.`
   ];
 }
 
@@ -71,17 +75,16 @@ export function parseLoadingCuriosities(rawText: string, context: string): strin
     const parsed = JSON.parse(cleaned);
 
     if (Array.isArray(parsed)) {
-      const generic = toLines(parsed);
+      const generic = context?.trim() ? removeInstitutionalSeniorLines(toLines(parsed)) : toLines(parsed);
       return generic.length > 0 ? [...generic, ...fallback].slice(0, MAX_ITEMS) : fallback;
     }
 
     if (parsed && typeof parsed === 'object') {
       const empresa = toLines((parsed as Record<string, unknown>).empresa);
-      const senior = toLines((parsed as Record<string, unknown>).senior);
       const setor = toLines((parsed as Record<string, unknown>).setor);
       const regional = toLines((parsed as Record<string, unknown>).regional);
 
-      const merged = interleaveGroups([empresa, senior, setor, regional], MAX_ITEMS);
+      const merged = interleaveGroups([empresa, setor, regional], MAX_ITEMS);
       return merged.length > 0 ? [...merged, ...fallback].slice(0, MAX_ITEMS) : fallback;
     }
 
