@@ -421,11 +421,31 @@ function extractEstadoFromMessage(message: string): string {
   return 'MT';
 }
 
-function isOpenQuestionMessage(message: string): boolean {
+function isSubstantiveUserMessage(message: string): boolean {
+  const text = (message || '').trim();
+  if (!text) return false;
+
+  const alphaCount = (text.match(/[A-Za-zÀ-ÿ]/g) || []).length;
+  const wordCount = text.split(/\s+/).filter(Boolean).length;
+
+  return alphaCount >= 12 && wordCount >= 4;
+}
+
+function isOpenQuestionMessage(message: string, hasActiveContext: boolean = false): boolean {
   const text = (message || '').trim().toLowerCase();
   if (!text) return false;
   if (text.endsWith('?')) return true;
-  return /^(onde|como|qual|quais|quem|quando|por que|porque|quanto)\b/.test(text);
+  if (/^(onde|como|qual|quais|quem|quando|por que|porque|quanto)\b/.test(text)) return true;
+
+  if (
+    hasActiveContext &&
+    isSubstantiveUserMessage(text) &&
+    /(implant|implementa[cç][aã]o|licen[cç]a|servi[cç]o|integra[cç][aã]o|legad|mudan[cç]a|fases?|rollout|verticais?|escopo|cronograma|budget|or[çc]amento|custo)/i.test(text)
+  ) {
+    return true;
+  }
+
+  return false;
 }
 
 function isLocationQuestionMessage(message: string): boolean {
@@ -437,7 +457,9 @@ function isLocationQuestionMessage(message: string): boolean {
 function isBudgetQuestionMessage(message: string): boolean {
   const text = (message || '').trim().toLowerCase();
   if (!text) return false;
-  return /(budget|or[çc]amento|investimento|custo|faixa\s+de\s+valor|quanto\s+(custa|ficaria)|ticket\s+m[eé]dio)/i.test(text);
+  return /(budget|or[çc]amento|investimento|custo|faixa\s+de\s+valor|quanto\s+(custa|ficaria)|ticket\s+m[eé]dio|implant[açc][aã]o|implementa[cç][aã]o|licen[çc]as?|licenciamento|servi[çc]os?|integra[cç][aã]o|sistemas?\s+legados?|gest[aã]o\s+da\s+mudan[cç]a|rollout|fases?|verticais?|consolida[cç][aã]o|escopo\s+de\s+projeto|cronograma\s+de\s+implanta[cç][aã]o)/i.test(
+    text,
+  );
 }
 
 function getLastUserQuestion(history: Message[]): string | null {
@@ -462,7 +484,7 @@ function getLastAssistantAnswer(history: Message[]): string | null {
 
 function looksLikeMissedOpenQuestionAnswer(text: string): boolean {
   if (!text) return false;
-  return /((seu|sua)?\s*comando(\s+atual)?\s+veio\s+(vazi[ao]|em\s+branco)|comando\s+de\s+busca\s+veio\s+vazio|(sua\s+)?mensagem(\s+atual)?\s+veio\s+(vazi[ao]|em\s+branco)|sem\s+direcionamento(\s+espec[ií]fico)?|(digite|mande)\s+sua\s+d[uú]vida\s+espec[ií]fica|n[aã]o\s+enviou\s+um\s+novo\s+comando|radar\s+est[aá]\s+em\s+stand-?by|basta\s+mandar\s+o\s+nome\s+da\s+pr[oó]xima\s+empresa|n[aã]o\s+continha\s+texto\s+v[aá]lido|apenas\s+pontua[cç][õo]es|somente\s+pontua[cç][õo]es)/i.test(
+  return /((seu|sua)?\s*comando(\s+atual)?\s+veio\s+(vazi[ao]|em\s+branco)|comando\s+de\s+busca\s+veio\s+vazio|(sua\s+)?mensagem(\s+atual)?\s+veio\s+(vazi[ao]|em\s+branco)|sem\s+direcionamento(\s+espec[ií]fico)?|(digite|mande)\s+sua\s+d[uú]vida\s+espec[ií]fica|n[aã]o\s+enviou\s+um\s+novo\s+comando|radar\s+est[aá]\s+em\s+stand-?by|basta\s+mandar\s+o\s+nome\s+da\s+pr[oó]xima\s+empresa|n[aã]o\s+continha\s+texto\s+v[aá]lido|apenas\s+pontua[cç][õo]es|somente\s+pontua[cç][õo]es|n[aã]o\s+recebi\s+um\s+comando\s+claro|n[aã]o\s+ficou\s+claro\s+o\s+pedido|faltou\s+um\s+comando\s+claro|n[aã]o\s+entendi\s+o\s+que\s+voc[eê]\s+quis\s+(pedir|solicitar))/i.test(
     text,
   );
 }
@@ -491,7 +513,7 @@ function looksLikeBudgetFocusedAnswer(text: string): boolean {
     /(r\$\s*\d|milh(?:[õo]es?)?|mil\b|faixa|estimativa|or[çc]amento|investimento|não\s+confirmado\s+publicamente)/i.test(
       text,
     );
-  const hasBudgetIntent = /(budget|or[çc]amento|investimento|custo|implanta(?:ç|c)[aã]o|licen[çc]a|servi[çc]o)/i.test(
+  const hasBudgetIntent = /(budget|or[çc]amento|investimento|custo|implanta(?:ç|c)[aã]o|implementa(?:ç|c)[aã]o|licen[çc]a|servi[çc]o|integra[cç][aã]o|legad|mudan[cç]a|rollout|verticais?)/i.test(
     text,
   );
   return hasMoneySignal && hasBudgetIntent;
@@ -602,7 +624,8 @@ Use shouldRetry=true quando a RESPOSTA:
 - não responde objetivamente a pergunta;
 - desvia para outro tema;
 - responde uma pergunta anterior;
-- diz que mensagem/comando veio vazio sem a pergunta estar vazia.`,
+- diz que mensagem/comando veio vazio sem a pergunta estar vazia;
+- diz que faltou comando claro, texto válido ou direcionamento quando a pergunta é substantiva.`,
       config: { temperature: 0, responseMimeType: 'application/json', maxOutputTokens: 400 },
     });
     const parsed = JSON.parse(
@@ -913,6 +936,7 @@ export const sendMessageToGemini = async (
   const guardResult = scanInput(message);
   const safeMessage = guardResult.sanitized?.trim() ? guardResult.sanitized : message;
   const activeCompanyForGuard = (hintedCompany || currentCompanyContext?.empresa || '').trim();
+  const hasActiveContextHint = !!activeCompanyForGuard;
   const canApplyContextGuard = !!activeCompanyForGuard && !isContextSwitchIntent(safeMessage);
   if (canApplyContextGuard && hasPotentialOutOfScopeTopic(safeMessage)) {
     const shouldBlock = await shouldBlockOutOfContextByJudge(safeMessage, activeCompanyForGuard, history);
@@ -933,9 +957,12 @@ export const sendMessageToGemini = async (
     }
   }
 
-  const isOpenQuestion = isOpenQuestionMessage(safeMessage);
+  const isOpenQuestion = isOpenQuestionMessage(safeMessage, hasActiveContextHint);
   const isLocationQuestion = isLocationQuestionMessage(safeMessage);
   const isBudgetQuestion = isBudgetQuestionMessage(safeMessage);
+  const isSubstantiveFollowUp = hasActiveContextHint && isSubstantiveUserMessage(safeMessage);
+  const shouldForceDirectAnswer =
+    isOpenQuestion || isLocationQuestion || isBudgetQuestion || isSubstantiveFollowUp;
 
   const nomeParaInjetar = nomeVendedor?.trim() || 'Vendedor';
   const systemInstructionFinal = systemInstruction.replace(
@@ -1007,13 +1034,22 @@ SUA ÚNICA MISSÃO: Responder a pergunta técnica de forma DIRETA.
 Use os links do RAG [Texto](URL). NÃO inicie fluxos de investigação, NÃO peça CNPJ.`;
     }
 
-    if (isOpenQuestion) {
+    if (shouldForceDirectAnswer) {
       finalInstruction = `${finalInstruction}
 
-MODO RESPOSTA DIRETA (PERGUNTA ABERTA):
-- Responda PRIMEIRO exatamente o que foi perguntado, de forma objetiva.
-- NUNCA diga que a mensagem está vazia, inválida, só com pontuação ou sem direcionamento quando houver pergunta.
+MODO RESPOSTA DIRETA (OBRIGATÓRIO):
+- Responda PRIMEIRO exatamente o que foi pedido na mensagem atual, de forma objetiva.
+- NUNCA diga que a mensagem está vazia, inválida, só com pontuação, sem texto válido, sem comando claro ou sem direcionamento quando houver uma mensagem substantiva.
 - Só depois complemente com contexto adicional, se realmente útil.`;
+    }
+
+    if (isSubstantiveFollowUp) {
+      finalInstruction = `${finalInstruction}
+
+MODO FOLLOW-UP CONTEXTUAL (OBRIGATÓRIO):
+- Interprete a mensagem atual como continuação natural da conta já em análise.
+- Use o contexto acumulado da conta e a última resposta relevante como base.
+- É proibido pedir reformulação, novo comando ou esclarecimento genérico se o contexto ativo já permitir responder.`;
     }
 
     if (isLocationQuestion) {
@@ -1084,10 +1120,9 @@ MODO BUDGET (OBRIGATÓRIO):
       !empresa && !history.some(h => h.sender === 'bot' && (h.scorePorta || h.text.includes('PORTA:')));
     const previousUserQuestion = getLastUserQuestion(history);
     const lastAssistantAnswer = getLastAssistantAnswer(history);
-    const relevantAssistantContext =
-      isOpenQuestion || isLocationQuestion || isBudgetQuestion
-        ? lastAssistantAnswer?.slice(0, 4000) || ''
-        : '';
+    const relevantAssistantContext = shouldForceDirectAnswer
+      ? lastAssistantAnswer?.slice(0, 4000) || ''
+      : '';
     const questionPriorityBlock = [
       '## PERGUNTA_ATUAL (RESPONDER PRIMEIRO)',
       wrapUserInput(effectiveUserMessage),
@@ -1166,14 +1201,14 @@ MODO BUDGET (OBRIGATÓRIO):
     if (finalParsed.scorePorta) onScorePorta?.(finalParsed.scorePorta);
 
     const shouldRecoverByFallback =
-      isOpenQuestion && looksLikeMissedOpenQuestionAnswer(finalText);
+      shouldForceDirectAnswer && looksLikeMissedOpenQuestionAnswer(finalText);
     const shouldRecoverByLocationMismatch =
       isLocationQuestion && !looksLikeLocationFocusedAnswer(finalText);
     const shouldRecoverByBudgetMismatch =
       isBudgetQuestion && !looksLikeBudgetFocusedAnswer(finalText);
     let shouldRecoverBySemanticMismatch = false;
     if (
-      isOpenQuestion &&
+      shouldForceDirectAnswer &&
       !shouldRecoverByFallback &&
       !shouldRecoverByLocationMismatch &&
       !shouldRecoverByBudgetMismatch &&
@@ -1190,6 +1225,8 @@ MODO BUDGET (OBRIGATÓRIO):
       isOpenQuestion,
       isLocationQuestion,
       isBudgetQuestion,
+      isSubstantiveFollowUp,
+      shouldForceDirectAnswer,
       shouldRecoverByFallback,
       shouldRecoverByLocationMismatch,
       shouldRecoverByBudgetMismatch,
@@ -1239,8 +1276,8 @@ MODO BUDGET (OBRIGATÓRIO):
         {
           model: isDeepResearch ? DEEP_RESEARCH_MODEL_ID : TACTICAL_MODEL_ID,
           history: sdkHistory,
-          systemInstruction: `${CANARY_TOKEN}\n${finalInstruction}\nMODO RECOVERY (OBRIGATÓRIO):\nO usuário fez uma pergunta válida. É PROIBIDO responder que a mensagem está vazia, inválida, sem texto válido ou só com pontuações. Responda objetivamente a PERGUNTA_ATUAL primeiro.`,
-          message: `${questionPriorityBlock}\n\nINSTRUÇÃO CRÍTICA:\n- Responda somente a PERGUNTA_ATUAL.\n- Não diga que o comando/mensagem veio vazio, inválido, em branco, sem direcionamento ou apenas com pontuações.\n- Se faltar dado, diga \"Não confirmado publicamente\" e informe o que é confirmado.\n- Entregue resposta objetiva em até 6 bullets.\n\n---\n## CONTEXTO ESSENCIAL\n${recoveryContextBlock}`,
+          systemInstruction: `${CANARY_TOKEN}\n${finalInstruction}\nMODO RECOVERY (OBRIGATÓRIO):\nO usuário fez uma pergunta válida. É PROIBIDO responder que a mensagem está vazia, inválida, sem texto válido, sem comando claro, sem direcionamento ou só com pontuações. Não peça reformulação se houver contexto ativo da conta. Responda objetivamente a PERGUNTA_ATUAL primeiro.`,
+          message: `${questionPriorityBlock}\n\nINSTRUÇÃO CRÍTICA:\n- Responda somente a PERGUNTA_ATUAL.\n- Não diga que o comando/mensagem veio vazio, inválido, em branco, sem direcionamento, sem comando claro, sem texto válido ou apenas com pontuações.\n- Interprete a mensagem atual como continuação da conta ativa quando houver contexto.\n- Se faltar dado, diga \"Não confirmado publicamente\" e informe o que é confirmado.\n- Entregue resposta objetiva em até 6 bullets.\n\n---\n## CONTEXTO ESSENCIAL\n${recoveryContextBlock}`,
           useGrounding,
           thinkingMode,
         },
@@ -1258,7 +1295,7 @@ MODO BUDGET (OBRIGATÓRIO):
         textPreview: finalText.slice(0, 260),
       });
 
-      if (isOpenQuestion && looksLikeMissedOpenQuestionAnswer(finalText)) {
+      if (shouldForceDirectAnswer && looksLikeMissedOpenQuestionAnswer(finalText)) {
         debugRecovery('hard-recovery-triggered', {
           reason: 'fallback_persisted_after_recovery',
         });
@@ -1266,7 +1303,7 @@ MODO BUDGET (OBRIGATÓRIO):
         const hardRecovery = await proxyGenerateContent(
           {
             model: TACTICAL_MODEL_ID,
-            contents: `PERGUNTA_ATUAL: "${effectiveUserMessage}"\nEMPRESA_EM_FOCO: "${empresa || hintedCompany || 'não identificada'}"\nULTIMA_RESPOSTA_RELEVANTE: "${relevantAssistantContext.slice(0, 2000)}"\n\nResponda diretamente a pergunta atual. É proibido dizer que a mensagem/comando veio vazio, inválido, sem texto válido ou apenas com pontuações.\nSe faltar dado, diga "Não confirmado publicamente".`,
+            contents: `PERGUNTA_ATUAL: "${effectiveUserMessage}"\nEMPRESA_EM_FOCO: "${empresa || hintedCompany || 'não identificada'}"\nULTIMA_RESPOSTA_RELEVANTE: "${relevantAssistantContext.slice(0, 2000)}"\n\nResponda diretamente a pergunta atual. É proibido dizer que a mensagem/comando veio vazio, inválido, sem texto válido, sem comando claro ou apenas com pontuações. Se houver contexto ativo, trate a mensagem atual como follow-up da conta em análise.\nSe faltar dado, diga "Não confirmado publicamente".`,
             config: {
               systemInstruction: finalInstruction,
               temperature: 0.1,
