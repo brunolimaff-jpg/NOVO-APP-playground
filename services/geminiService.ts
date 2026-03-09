@@ -371,11 +371,18 @@ function enforceOpeningWithSeller(rawText: string, nomeVendedor: string): string
 
 function stripDossierLeadIn(rawText: string): string {
   if (!rawText) return rawText;
-  return rawText
+  let text = rawText
     .replace(/^\s*[^,\n]{1,40},\s*segue o dossi[eê] completo[^\n]*\n?/i, '')
     .replace(/^\s*visitante,\s*segue o dossi[eê] completo[^\n]*\n?/i, '')
     .replace(/^\s*visitante,\s*/i, '')
     .trimStart();
+
+  text = text.replace(
+    /^(na\s+escuta\.?|o\s+mapa\s+de\s+dores[^\n]*\.?|me\s+diga\s+para\s+onde\s+apontar\s+o\s+radar\.?)\s*/i,
+    '',
+  );
+
+  return text.trimStart();
 }
 
 function parseCompetitorMarker(content: string): CompetitorDetection | null {
@@ -437,6 +444,12 @@ function isLocationQuestionMessage(message: string): boolean {
   return /(onde\s+fica(?:m)?|localiza(?:ç|c)[aã]o|localizad[ao]s?|em\s+que\s+cidade|qual\s+endere[çc]o)/.test(text);
 }
 
+function isBudgetQuestionMessage(message: string): boolean {
+  const text = (message || '').trim().toLowerCase();
+  if (!text) return false;
+  return /(budget|or[çc]amento|investimento|custo|faixa\s+de\s+valor|quanto\s+(custa|ficaria)|ticket\s+m[eé]dio)/i.test(text);
+}
+
 function getLastUserQuestion(history: Message[]): string | null {
   for (let i = history.length - 1; i >= 0; i--) {
     if (history[i].sender === Sender.User) {
@@ -469,6 +482,19 @@ function looksLikeLocationFocusedAnswer(text: string): boolean {
   const hasLocationIntentTokens =
     /(localiza(?:ç|c)[aã]o|fica(?:m)?\s+em|est[aã]o\s+em|munic[ií]pio|cidade|estado|polo)/i.test(text);
   return hasLocationIntentTokens && hasBrazilianGeoToken(text);
+}
+
+function looksLikeBudgetFocusedAnswer(text: string): boolean {
+  if (!text) return false;
+  if (looksLikeMissedOpenQuestionAnswer(text)) return false;
+  const hasMoneySignal =
+    /(r\$\s*\d|milh(?:[õo]es?)?|mil\b|faixa|estimativa|or[çc]amento|investimento|não\s+confirmado\s+publicamente)/i.test(
+      text,
+    );
+  const hasBudgetIntent = /(budget|or[çc]amento|investimento|custo|implanta(?:ç|c)[aã]o|licen[çc]a|servi[çc]o)/i.test(
+    text,
+  );
+  return hasMoneySignal && hasBudgetIntent;
 }
 
 function normalizeContextText(text: string): string {
@@ -921,6 +947,7 @@ export const sendMessageToGemini = async (
 
   const isOpenQuestion = isOpenQuestionMessage(safeMessage);
   const isLocationQuestion = isLocationQuestionMessage(safeMessage);
+  const isBudgetQuestion = isBudgetQuestionMessage(safeMessage);
 
   // AQUI FOI CORRIGIDO: Recoloquei a variável que tinha sumido
   const nomeParaInjetar = nomeVendedor?.trim() || 'Vendedor';
@@ -1014,6 +1041,16 @@ MODO LOCALIZAÇÃO (OBRIGATÓRIO):
 - Traga municípios/estados primeiro, em bullets curtos.
 - Se não houver confirmação pública exata, escreva explicitamente "Localização específica não confirmada publicamente" e informe apenas o que é confirmado.
 - Não priorize recomendação comercial antes de responder a localização pedida.`;
+    }
+
+    if (isBudgetQuestion) {
+      finalInstruction = `${finalInstruction}
+
+MODO BUDGET (OBRIGATÓRIO):
+- Responda a pergunta de budget/custo PRIMEIRO, de forma objetiva.
+- Traga faixa de valor em R$ quando houver evidência.
+- Se não houver evidência pública suficiente, escreva explicitamente "Budget não confirmado publicamente" e entregue faixa estimada com premissas.
+- Evite abertura comercial genérica e não desvie para pitch antes de responder o budget.`;
     }
 
     let effectiveUserMessage = safeMessage;
@@ -1139,11 +1176,14 @@ MODO LOCALIZAÇÃO (OBRIGATÓRIO):
       isOpenQuestion && looksLikeMissedOpenQuestionAnswer(finalText);
     const shouldRecoverByLocationMismatch =
       isLocationQuestion && !looksLikeLocationFocusedAnswer(finalText);
+    const shouldRecoverByBudgetMismatch =
+      isBudgetQuestion && !looksLikeBudgetFocusedAnswer(finalText);
     let shouldRecoverBySemanticMismatch = false;
     if (
       isOpenQuestion &&
       !shouldRecoverByFallback &&
       !shouldRecoverByLocationMismatch &&
+      !shouldRecoverByBudgetMismatch &&
       finalText.trim().length > 0
     ) {
       shouldRecoverBySemanticMismatch = await shouldRecoverOpenQuestionByJudge(
@@ -1156,8 +1196,10 @@ MODO LOCALIZAÇÃO (OBRIGATÓRIO):
       question: effectiveUserMessage.slice(0, 220),
       isOpenQuestion,
       isLocationQuestion,
+      isBudgetQuestion,
       shouldRecoverByFallback,
       shouldRecoverByLocationMismatch,
+      shouldRecoverByBudgetMismatch,
       shouldRecoverBySemanticMismatch,
       firstAnswerPreview: finalText.slice(0, 260),
     });
@@ -1165,6 +1207,7 @@ MODO LOCALIZAÇÃO (OBRIGATÓRIO):
     if (
       shouldRecoverByFallback ||
       shouldRecoverByLocationMismatch ||
+      shouldRecoverByBudgetMismatch ||
       shouldRecoverBySemanticMismatch
     ) {
       trackOpenQuestionRecovery(
@@ -1173,12 +1216,16 @@ MODO LOCALIZAÇÃO (OBRIGATÓRIO):
         empresa,
         shouldRecoverByLocationMismatch
           ? 'location_mismatch'
+          : shouldRecoverByBudgetMismatch
+            ? 'budget_mismatch'
           : shouldRecoverBySemanticMismatch
             ? 'semantic_mismatch'
             : 'fallback',
       );
       const recoveryReason = shouldRecoverByLocationMismatch
         ? 'location_mismatch'
+        : shouldRecoverByBudgetMismatch
+          ? 'budget_mismatch'
         : shouldRecoverBySemanticMismatch
           ? 'semantic_mismatch'
           : 'fallback';
