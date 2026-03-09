@@ -450,9 +450,19 @@ function getLastUserQuestion(history: Message[]): string | null {
   return null;
 }
 
+function getLastAssistantAnswer(history: Message[]): string | null {
+  for (let i = history.length - 1; i >= 0; i--) {
+    if (history[i].sender === Sender.Bot && !history[i].isError) {
+      const text = stripInternalMarkers(history[i].text || '').trim();
+      if (text) return text;
+    }
+  }
+  return null;
+}
+
 function looksLikeMissedOpenQuestionAnswer(text: string): boolean {
   if (!text) return false;
-  return /((seu|sua)?\s*comando(\s+atual)?\s+veio\s+(vazi[ao]|em\s+branco)|comando\s+de\s+busca\s+veio\s+vazio|(sua\s+)?mensagem(\s+atual)?\s+veio\s+(vazi[ao]|em\s+branco)|sem\s+direcionamento(\s+espec[ií]fico)?|(digite|mande)\s+sua\s+d[uú]vida\s+espec[ií]fica|n[aã]o\s+enviou\s+um\s+novo\s+comando|radar\s+est[aá]\s+em\s+stand-?by|basta\s+mandar\s+o\s+nome\s+da\s+pr[oó]xima\s+empresa)/i.test(
+  return /((seu|sua)?\s*comando(\s+atual)?\s+veio\s+(vazi[ao]|em\s+branco)|comando\s+de\s+busca\s+veio\s+vazio|(sua\s+)?mensagem(\s+atual)?\s+veio\s+(vazi[ao]|em\s+branco)|sem\s+direcionamento(\s+espec[ií]fico)?|(digite|mande)\s+sua\s+d[uú]vida\s+espec[ií]fica|n[aã]o\s+enviou\s+um\s+novo\s+comando|radar\s+est[aá]\s+em\s+stand-?by|basta\s+mandar\s+o\s+nome\s+da\s+pr[oó]xima\s+empresa|n[aã]o\s+continha\s+texto\s+v[aá]lido|apenas\s+pontua[cç][õo]es|somente\s+pontua[cç][õo]es)/i.test(
     text,
   );
 }
@@ -612,7 +622,7 @@ function trackOpenQuestionRecovery(
   question: string,
   sessionId?: string,
   empresa?: string | null,
-  reason?: 'fallback' | 'location_mismatch' | 'semantic_mismatch',
+  reason?: 'fallback' | 'location_mismatch' | 'semantic_mismatch' | 'budget_mismatch',
 ): void {
   try {
     if (typeof window !== 'undefined') {
@@ -622,10 +632,8 @@ function trackOpenQuestionRecovery(
       window.localStorage.setItem(OPEN_QUESTION_RECOVERY_METRIC_KEY, String(next));
     }
   } catch {
-    // noop: métrica local não pode quebrar fluxo
   }
 
-  // Fire-and-forget backend telemetry (best effort)
   fetch(BACKEND_URL, {
     method: 'POST',
     redirect: 'follow',
@@ -639,7 +647,6 @@ function trackOpenQuestionRecovery(
       timestamp: new Date().toISOString(),
     }),
   }).catch(() => {
-    // noop: falha de telemetria não deve impactar resposta
   });
 }
 
@@ -824,7 +831,6 @@ const generateFallbackSuggestions = async (
       lastUserText.length > 300 &&
       (lastUserText.includes('Protocolo de investigação') || lastUserText.includes('DIRETRIZ'));
 
-    // CORREÇÃO: Sempre forçar a inclusão do nome da empresa nas sugestões
     const empresaNome = empresaAlvo || 'a empresa alvo';
     const target = `da empresa ${empresaNome}`;
 
@@ -851,11 +857,9 @@ const generateFallbackSuggestions = async (
     );
     if (!Array.isArray(json)) return [`Mapear decisores ${target}`, `Verificar gaps técnicos de ${empresaNome}`];
 
-    // Forçar substituição se a IA esqueceu
     return json
       .map((item: any) => (typeof item === 'string' ? item : item?.pergunta || item?.sugestao || 'Aprofundar análise'))
       .map((suggestion: string) => {
-        // Se não menciona a empresa, forçar adição
         if (
           empresaAlvo &&
           !suggestion.toLowerCase().includes(empresaAlvo.toLowerCase()) &&
@@ -907,8 +911,6 @@ export const sendMessageToGemini = async (
   } = options;
 
   const guardResult = scanInput(message);
-  // Modo permissivo: nunca interromper o chat por guard para preservar continuidade.
-  // Mantemos apenas a sanitização e, se ela ficar vazia, usamos o texto original.
   const safeMessage = guardResult.sanitized?.trim() ? guardResult.sanitized : message;
   const activeCompanyForGuard = (hintedCompany || currentCompanyContext?.empresa || '').trim();
   const canApplyContextGuard = !!activeCompanyForGuard && !isContextSwitchIntent(safeMessage);
@@ -935,7 +937,6 @@ export const sendMessageToGemini = async (
   const isLocationQuestion = isLocationQuestionMessage(safeMessage);
   const isBudgetQuestion = isBudgetQuestionMessage(safeMessage);
 
-  // AQUI FOI CORRIGIDO: Recoloquei a variável que tinha sumido
   const nomeParaInjetar = nomeVendedor?.trim() || 'Vendedor';
   const systemInstructionFinal = systemInstruction.replace(
     new RegExp(NOME_VENDEDOR_PLACEHOLDER.replace(/[{}]/g, '\\$&'), 'g'),
@@ -967,11 +968,7 @@ export const sendMessageToGemini = async (
       empresa = embeddedCompany;
     }
 
-    if (
-      !empresa &&
-      hintedCompany &&
-      !isConcorrenteOuPropria(hintedCompany)
-    ) {
+    if (!empresa && hintedCompany && !isConcorrenteOuPropria(hintedCompany)) {
       empresa = hintedCompany;
     }
 
@@ -1015,7 +1012,7 @@ Use os links do RAG [Texto](URL). NÃO inicie fluxos de investigação, NÃO pe�
 
 MODO RESPOSTA DIRETA (PERGUNTA ABERTA):
 - Responda PRIMEIRO exatamente o que foi perguntado, de forma objetiva.
-- NUNCA diga que a mensagem está vazia ou sem direcionamento quando houver pergunta.
+- NUNCA diga que a mensagem está vazia, inválida, só com pontuação ou sem direcionamento quando houver pergunta.
 - Só depois complemente com contexto adicional, se realmente útil.`;
     }
 
@@ -1036,6 +1033,7 @@ MODO BUDGET (OBRIGATÓRIO):
 - Responda a pergunta de budget/custo PRIMEIRO, de forma objetiva.
 - Traga faixa de valor em R$ quando houver evidência.
 - Se não houver evidência pública suficiente, escreva explicitamente "Budget não confirmado publicamente" e entregue faixa estimada com premissas.
+- Quando houver contexto anterior da conta, use-o explicitamente como base da estimativa.
 - Evite abertura comercial genérica e não desvie para pitch antes de responder o budget.`;
     }
 
@@ -1085,11 +1083,19 @@ MODO BUDGET (OBRIGATÓRIO):
     const isTechnicalMode =
       !empresa && !history.some(h => h.sender === 'bot' && (h.scorePorta || h.text.includes('PORTA:')));
     const previousUserQuestion = getLastUserQuestion(history);
+    const lastAssistantAnswer = getLastAssistantAnswer(history);
+    const relevantAssistantContext =
+      isOpenQuestion || isLocationQuestion || isBudgetQuestion
+        ? lastAssistantAnswer?.slice(0, 4000) || ''
+        : '';
     const questionPriorityBlock = [
       '## PERGUNTA_ATUAL (RESPONDER PRIMEIRO)',
       wrapUserInput(effectiveUserMessage),
       previousUserQuestion
         ? `## PERGUNTA_ANTERIOR (NÃO RESPONDER AGORA)\n${wrapUserInput(previousUserQuestion)}`
+        : '',
+      relevantAssistantContext
+        ? `## ÚLTIMA_RESPOSTA_RELEVANTE (USAR COMO CONTEXTO, NÃO REPETIR LITERALMENTE)\n${wrapUserInput(relevantAssistantContext)}`
         : '',
     ]
       .filter(Boolean)
@@ -1155,13 +1161,10 @@ MODO BUDGET (OBRIGATÓRIO):
       }
     }
 
-    // Agora o nomeParaInjetar existe e não dará mais erro!
     let finalText = stripDossierLeadIn(enforceOpeningWithSeller(finalParsed.text, nomeParaInjetar));
     finalText = cleanPortaFeedMarkers(finalText);
     if (finalParsed.scorePorta) onScorePorta?.(finalParsed.scorePorta);
 
-    // Recovery anti "resposta de uma atrás":
-    // se for pergunta aberta válida e a IA responder com fallback de vazio/sem direção, reexecuta com foco estrito.
     const shouldRecoverByFallback =
       isOpenQuestion && looksLikeMissedOpenQuestionAnswer(finalText);
     const shouldRecoverByLocationMismatch =
@@ -1208,7 +1211,7 @@ MODO BUDGET (OBRIGATÓRIO):
           ? 'location_mismatch'
           : shouldRecoverByBudgetMismatch
             ? 'budget_mismatch'
-          : shouldRecoverBySemanticMismatch
+            : shouldRecoverBySemanticMismatch
             ? 'semantic_mismatch'
             : 'fallback',
       );
@@ -1216,7 +1219,7 @@ MODO BUDGET (OBRIGATÓRIO):
         ? 'location_mismatch'
         : shouldRecoverByBudgetMismatch
           ? 'budget_mismatch'
-        : shouldRecoverBySemanticMismatch
+          : shouldRecoverBySemanticMismatch
           ? 'semantic_mismatch'
           : 'fallback';
       debugRecovery('triggered', {
@@ -1228,6 +1231,7 @@ MODO BUDGET (OBRIGATÓRIO):
       const recoveryContextBlock = [
         `Empresa em foco: ${empresa || hintedCompany || 'não identificada'}.`,
         previousUserQuestion ? `Pergunta anterior (somente referência): "${previousUserQuestion}"` : '',
+        relevantAssistantContext ? `Última resposta relevante (base de contexto): "${relevantAssistantContext.slice(0, 2000)}"` : '',
       ]
         .filter(Boolean)
         .join('\n');
@@ -1235,8 +1239,8 @@ MODO BUDGET (OBRIGATÓRIO):
         {
           model: isDeepResearch ? DEEP_RESEARCH_MODEL_ID : TACTICAL_MODEL_ID,
           history: sdkHistory,
-          systemInstruction: `${CANARY_TOKEN}\n${finalInstruction}\nMODO RECOVERY (OBRIGATÓRIO):\nO usuário fez uma pergunta válida. É PROIBIDO responder que a mensagem está vazia ou sem direcionamento. Responda objetivamente a PERGUNTA_ATUAL primeiro.`,
-          message: `${questionPriorityBlock}\n\nINSTRUÇÃO CRÍTICA:\n- Responda somente a PERGUNTA_ATUAL.\n- Não diga que o comando/mensagem veio vazio, em branco ou sem direcionamento.\n- Se faltar dado, diga \"Não confirmado publicamente\" e informe o que é confirmado.\n- Entregue resposta objetiva em até 6 bullets.\n\n---\n## CONTEXTO ESSENCIAL\n${recoveryContextBlock}`,
+          systemInstruction: `${CANARY_TOKEN}\n${finalInstruction}\nMODO RECOVERY (OBRIGATÓRIO):\nO usuário fez uma pergunta válida. É PROIBIDO responder que a mensagem está vazia, inválida, sem texto válido ou só com pontuações. Responda objetivamente a PERGUNTA_ATUAL primeiro.`,
+          message: `${questionPriorityBlock}\n\nINSTRUÇÃO CRÍTICA:\n- Responda somente a PERGUNTA_ATUAL.\n- Não diga que o comando/mensagem veio vazio, inválido, em branco, sem direcionamento ou apenas com pontuações.\n- Se faltar dado, diga \"Não confirmado publicamente\" e informe o que é confirmado.\n- Entregue resposta objetiva em até 6 bullets.\n\n---\n## CONTEXTO ESSENCIAL\n${recoveryContextBlock}`,
           useGrounding,
           thinkingMode,
         },
@@ -1254,7 +1258,6 @@ MODO BUDGET (OBRIGATÓRIO):
         textPreview: finalText.slice(0, 260),
       });
 
-      // Segunda camada: se ainda vier "vazio", faz chamada limpa (sem histórico) para quebrar loop.
       if (isOpenQuestion && looksLikeMissedOpenQuestionAnswer(finalText)) {
         debugRecovery('hard-recovery-triggered', {
           reason: 'fallback_persisted_after_recovery',
@@ -1263,7 +1266,7 @@ MODO BUDGET (OBRIGATÓRIO):
         const hardRecovery = await proxyGenerateContent(
           {
             model: TACTICAL_MODEL_ID,
-            contents: `PERGUNTA_ATUAL: "${effectiveUserMessage}"\nEMPRESA_EM_FOCO: "${empresa || hintedCompany || 'não identificada'}"\n\nResponda diretamente a pergunta atual. É proibido dizer que a mensagem/comando veio vazio.\nSe faltar dado, diga "Não confirmado publicamente".`,
+            contents: `PERGUNTA_ATUAL: "${effectiveUserMessage}"\nEMPRESA_EM_FOCO: "${empresa || hintedCompany || 'não identificada'}"\nULTIMA_RESPOSTA_RELEVANTE: "${relevantAssistantContext.slice(0, 2000)}"\n\nResponda diretamente a pergunta atual. É proibido dizer que a mensagem/comando veio vazio, inválido, sem texto válido ou apenas com pontuações.\nSe faltar dado, diga "Não confirmado publicamente".`,
             config: {
               systemInstruction: finalInstruction,
               temperature: 0.1,
