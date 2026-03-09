@@ -44,7 +44,7 @@ const PAGE_SIZE = 20;
 
 interface LastAction {
   type: 'sendMessage' | 'regenerateSuggestions';
-  payload: { text?: string; messageId?: string };
+  payload: { text?: string; displayText?: string; messageId?: string };
 }
 
 const App: React.FC = () => {
@@ -303,7 +303,12 @@ const App: React.FC = () => {
   };
 
   // --- Message processing ---
-  const processMessage = async (text: string, explicitSessionId?: string, explicitHistory?: Message[]) => {
+  const processMessage = async (
+    text: string,
+    explicitSessionId?: string,
+    explicitHistory?: Message[],
+    visibleTextForUi?: string,
+  ) => {
     const sessionId = explicitSessionId || currentSessionId;
     if (!sessionId) return;
 
@@ -314,14 +319,15 @@ const App: React.FC = () => {
     lastStatusKeyRef.current = null;
     abortControllerRef.current = new AbortController();
     const signal = abortControllerRef.current.signal;
-    lastActionRef.current = { type: 'sendMessage', payload: { text } };
+    const safeVisibleText = visibleTextForUi || text;
+    lastActionRef.current = { type: 'sendMessage', payload: { text, displayText: safeVisibleText } };
 
     let historyToPass: Message[] = [];
     // hintedCompany: tenta pegar do contexto da sessão, cai para extração local do texto.
     // Garante fallback quando analyzeUserIntent falha ou retorna NONE.
     const sessionForHint = sessionsRef.current.find(s => s.id === sessionId);
-    const hintedCompany = sessionForHint?.empresaAlvo || cleanTitle(extractCompanyName(text)) || null;
-    setLastQuery(sanitizeLoadingContextText(text, hintedCompany || ''));
+    const hintedCompany = sessionForHint?.empresaAlvo || cleanTitle(extractCompanyName(safeVisibleText)) || null;
+    setLastQuery(sanitizeLoadingContextText(safeVisibleText, hintedCompany || ''));
     if (explicitHistory) {
       historyToPass = explicitHistory;
     } else {
@@ -520,7 +526,7 @@ const App: React.FC = () => {
       ),
     );
     setVisibleCount(prev => prev + 1);
-    await processMessage(text, sessionId, currentHistory);
+    await processMessage(text, sessionId, currentHistory, displayText || text);
   };
 
   const handleDeepDive = async (displayMessage: string, hiddenPrompt: string, forcedCompanyName?: string) => {
@@ -562,7 +568,12 @@ const App: React.FC = () => {
           return session;
         });
       }
-      processMessage(lastActionRef.current.payload.text || '', currentSessionId || undefined);
+      processMessage(
+        lastActionRef.current.payload.text || '',
+        currentSessionId || undefined,
+        undefined,
+        lastActionRef.current.payload.displayText || lastActionRef.current.payload.text || '',
+      );
     } else if (lastActionRef.current.type === 'regenerateSuggestions') {
       handleRegenerateSuggestions(lastActionRef.current.payload.messageId || '');
     }
