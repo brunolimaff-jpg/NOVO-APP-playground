@@ -654,7 +654,7 @@ REGRA DE BUSCA: Mesmo que TOTVS/AdvPL já apareça, continue procurando Delphi/C
 - Decisor ou liderança de TI mais provável
 
 **FORMATAÇÃO OBRIGATÓRIA DA FASE 5 (VISUAL):**
-- Quando houver 2+ registros de decisores/eventos, renderize em TABELA MARKDOWN válida (com pipes `|` em TODAS as linhas).
+- Quando houver 2+ registros de decisores/eventos, renderize em TABELA MARKDOWN válida (com pipes | em TODAS as linhas).
 - É proibido simular tabela com espaços/alinhamento manual.
 - Se houver apenas 1 registro ou dado incompleto, use lista em texto (bullets) ao invés de tabela.
 

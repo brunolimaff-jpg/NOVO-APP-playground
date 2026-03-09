@@ -467,7 +467,7 @@ Ceticismo absoluto. NÃO INVENTE NADA. Se não encontrar, declare: "[Item] - Nã
 
 ### 🔍 NOTA DE ORQUESTRAÇÃO (NÃO EXIBIR NO DOSSIÊ FINAL)
 
-- Faça a análise de natureza da receita internamente para alimentar `[[PORTA_FLAG:TRAD:...]]`.
+- Faça a análise de natureza da receita internamente para alimentar [[PORTA_FLAG:TRAD:...]].
 - Não renderize seção, tabela, subtítulo ou parágrafo explícito de "Natureza da Receita" no corpo do dossiê.
 - Se houver sinal relevante de trading/produção, incorpore o impacto apenas dentro da leitura de risco e nas recomendações práticas.
 
