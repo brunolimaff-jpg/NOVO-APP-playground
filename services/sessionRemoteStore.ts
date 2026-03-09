@@ -2,6 +2,7 @@ import { ChatSession, Message } from "../types";
 import { withAutoRetry } from "../utils/retry";
 import { normalizeAppError } from "../utils/errorHelpers";
 import { BACKEND_URL } from "./apiConfig";
+import { stripInternalMarkers } from "../utils/textCleaners";
 
 const SESSIONS_API_URL = BACKEND_URL;
 const TIMEOUT_MS = 10000;
@@ -116,6 +117,7 @@ export async function getRemoteSession(id: string): Promise<ChatSession | null> 
         const parsed = JSON.parse(s.messagesJson);
         messages = parsed.map((m: any) => ({
           ...m,
+          text: stripInternalMarkers(String(m.text || '')),
           timestamp: new Date(m.timestamp)
         }));
       } catch { messages = []; }

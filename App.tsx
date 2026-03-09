@@ -26,7 +26,7 @@ import { sendFeedbackRemote } from './services/feedbackRemoteStore';
 import { APP_NAME, MODE_LABELS } from './constants';
 import { normalizeAppError } from './utils/errorHelpers';
 import { downloadFile } from './utils/downloadHelpers';
-import { cleanTitle } from './utils/textCleaners';
+import { cleanTitle, sanitizeLoadingContextText } from './utils/textCleaners';
 import { fixFakeLinksHTML } from './utils/linkFixer';
 import { normalizeLoadingStatus, statusKey } from './utils/loadingStatus';
 import { BACKEND_URL } from './services/apiConfig';
@@ -312,7 +312,6 @@ const App: React.FC = () => {
     setCompletedLoadingStatuses([]);
     lastStatusRef.current = null;
     lastStatusKeyRef.current = null;
-    setLastQuery(text);
     abortControllerRef.current = new AbortController();
     const signal = abortControllerRef.current.signal;
     lastActionRef.current = { type: 'sendMessage', payload: { text } };
@@ -322,6 +321,7 @@ const App: React.FC = () => {
     // Garante fallback quando analyzeUserIntent falha ou retorna NONE.
     const sessionForHint = sessionsRef.current.find(s => s.id === sessionId);
     const hintedCompany = sessionForHint?.empresaAlvo || cleanTitle(extractCompanyName(text)) || null;
+    setLastQuery(sanitizeLoadingContextText(text, hintedCompany || ''));
     if (explicitHistory) {
       historyToPass = explicitHistory;
     } else {

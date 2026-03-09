@@ -78,6 +78,61 @@ export function cleanStatusMarkers(text: string): { cleanText: string; lastStatu
   return { cleanText: cleanText.trim(), lastStatus };
 }
 
+const INTERNAL_MARKER_TEST_REGEX = /\[\[\s*[A-Z_]+\s*:[\s\S]*?\]\]/i;
+const INTERNAL_MARKER_REGEX = /\[\[\s*[A-Z_]+\s*:[\s\S]*?\]\]/gi;
+const INTERNAL_MARKER_OPEN_TAIL_REGEX = /\[\[\s*[A-Z_]+\s*:[\s\S]*$/i;
+const SENSITIVE_INTERNAL_PATTERNS: RegExp[] = [
+  /investigacao_completa_integrada/i,
+  /protocolo de investiga[çc][aã]o forense/i,
+  /contexto cadastral obrigat[oó]rio/i,
+  /\bdiretriz(?:es)?\b/i,
+  /\bm?odo live status\b/i,
+  /\bporta_feed\b/i,
+  /\[\[\s*porta/i,
+  /\[\[\s*status/i,
+  /\[\[\s*competitor/i,
+];
+
+export function looksLikeInternalPromptText(text: string): boolean {
+  const sample = (text || '').trim();
+  if (!sample) return false;
+  if (INTERNAL_MARKER_TEST_REGEX.test(sample) || INTERNAL_MARKER_OPEN_TAIL_REGEX.test(sample)) return true;
+  return SENSITIVE_INTERNAL_PATTERNS.some((pattern) => pattern.test(sample));
+}
+
+export function stripInternalMarkers(text: string): string {
+  if (!text) return '';
+
+  const withoutMarkers = text
+    .replace(INTERNAL_MARKER_REGEX, '')
+    .replace(INTERNAL_MARKER_OPEN_TAIL_REGEX, '');
+
+  const sanitizedLines = withoutMarkers
+    .split('\n')
+    .filter((line) => !SENSITIVE_INTERNAL_PATTERNS.some((pattern) => pattern.test(line)))
+    .join('\n');
+
+  return sanitizedLines
+    .replace(/\n{3,}/g, '\n\n')
+    .replace(/^\s*\]\s*$/gm, '')
+    .trim();
+}
+
+export function sanitizeLoadingContextText(rawText: string, companyHint = ''): string {
+  const raw = (rawText || '').trim();
+  const hint = (companyHint || '').trim();
+  if (!raw) return hint;
+  if (looksLikeInternalPromptText(raw)) {
+    return hint ? `Investigação da empresa ${hint}` : '';
+  }
+
+  const cleaned = stripInternalMarkers(raw).replace(/\s+/g, ' ').trim();
+  if (!cleaned || looksLikeInternalPromptText(cleaned)) {
+    return hint ? `Investigação da empresa ${hint}` : '';
+  }
+  return cleaned.slice(0, 240);
+}
+
 // ============================================
 // SOURCE EXTRACTION
 // ============================================

@@ -8,7 +8,7 @@ import { sendMessageToGemini, generateNewSuggestions, resetChatSession } from '.
 import { listRemoteSessions, getRemoteSession, saveRemoteSession } from '../services/sessionRemoteStore';
 import { sendFeedbackRemote } from '../services/feedbackRemoteStore';
 import { extractCompanyName } from '../utils/companyNameExtractor';
-import { cleanTitle, cleanStatusMarkers } from '../utils/textCleaners';
+import { cleanTitle, sanitizeLoadingContextText, stripInternalMarkers } from '../utils/textCleaners';
 import { normalizeAppError } from '../utils/errorHelpers';
 import { BACKEND_URL } from '../services/apiConfig';
 import { useToast } from './useToast';
@@ -80,7 +80,7 @@ export const useChat = () => {
           ...s,
           messages: s.messages.map((m: any) => ({
             ...m,
-            text: cleanStatusMarkers(m.text || "").cleanText,
+            text: stripInternalMarkers(m.text || ""),
             timestamp: new Date(m.timestamp),
           })),
         }));
@@ -295,7 +295,6 @@ export const useChat = () => {
     setIsLoading(true);
     setLoadingStatus("Realizando pesquisa...");
     setCompletedLoadingStatuses([]);
-    setLastQuery(text);
     abortControllerRef.current = new AbortController();
     const signal = abortControllerRef.current.signal;
     lastActionRef.current = { type: "sendMessage", payload: { text } };
@@ -319,6 +318,7 @@ export const useChat = () => {
             : msgs;
       }
     }
+    setLastQuery(sanitizeLoadingContextText(text, hintedCompany || ''));
 
     const botMessageId = uuidv4();
     activeGenerationRef.current[sessionId] = botMessageId;

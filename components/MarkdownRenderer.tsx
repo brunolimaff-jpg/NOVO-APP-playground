@@ -346,6 +346,38 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
         {children}
       </blockquote>
     ),
+    table: ({ children }: any) => (
+      <div className="my-3 overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700/80">
+        <table className="w-full min-w-[720px] border-collapse text-sm md:text-[0.92rem]">
+          {children}
+        </table>
+      </div>
+    ),
+    thead: ({ children }: any) => (
+      <thead className="bg-slate-100 dark:bg-slate-800/80 text-slate-900 dark:text-slate-100">
+        {children}
+      </thead>
+    ),
+    tbody: ({ children }: any) => (
+      <tbody className="divide-y divide-slate-200 dark:divide-slate-700/70">
+        {children}
+      </tbody>
+    ),
+    tr: ({ children }: any) => (
+      <tr className="odd:bg-white even:bg-slate-50/70 dark:odd:bg-slate-900/20 dark:even:bg-slate-900/45 hover:bg-emerald-50/70 dark:hover:bg-emerald-900/20 transition-colors">
+        {children}
+      </tr>
+    ),
+    th: ({ children }: any) => (
+      <th className="px-3 py-2 text-left align-top font-bold tracking-wide whitespace-nowrap border-b border-slate-200 dark:border-slate-700/80">
+        {children}
+      </th>
+    ),
+    td: ({ children }: any) => (
+      <td className="px-3 py-2 align-top leading-relaxed text-slate-800 dark:text-slate-100">
+        {children}
+      </td>
+    ),
   };
 
   return (

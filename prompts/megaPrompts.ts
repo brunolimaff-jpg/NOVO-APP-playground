@@ -420,7 +420,7 @@ Ceticismo absoluto. NÃO INVENTE NADA. Se não encontrar, declare: "[Item] - Nã
 
 🔥 PROTOCOLO DE BUSCA:
 
-1. NATUREZA DA RECEITA (alimenta flag TRAD):
+1. NATUREZA DA RECEITA (uso interno para PORTA; não exibir como seção):
    Buscar "[Empresa]" AND ("CNAE" OR "comércio atacadista" OR "trading" OR "originação" OR "comercialização de grãos" OR "exportação indireta").
    VERIFICAR: O faturamento vem de produção/beneficiamento próprio ou de compra/revenda?
    REGRA: Se a empresa produz e TAMBÉM faz originação/trading, classificar como MISTA e tratar como oportunidade de CTRM (OneClick + Commerce Log), NÃO como flag TRAD.
@@ -456,33 +456,20 @@ Ceticismo absoluto. NÃO INVENTE NADA. Se não encontrar, declare: "[Item] - Nã
 
 ---
 
-# 🎯 DOSSIÊ: COMPLIANCE, RISCO FISCAL E NATUREZA DA RECEITA - [NOME DA EMPRESA]
+# 🎯 DOSSIÊ: COMPLIANCE E RISCO FISCAL - [NOME DA EMPRESA]
 
 **📋 VISÃO GERAL DE EXPOSIÇÃO**
-* **Natureza da Receita:** [PRODUÇÃO PRÓPRIA / BENEFICIAMENTO / TRADING / MISTA]
-  - Se TRADING PURO: "⚠️ ALERTA: Faturamento provavelmente inflado por operações de compra/revenda. Complexidade operacional real pode ser MUITO menor que o CNPJ sugere."
-  - Se MISTA (produção + originação): "✅ Oportunidade de CTRM GAtec (OneClick + Commerce Log) sem penalização de TRAD."
 * **Complexidade Interestadual:** [Operam em múltiplos estados? Risco de autuação?]
 * **Nível de Risco CPF/Patrimônio:** [ALTO/MÉDIO/BAIXO]
 * **O Ponto Cego:** [1 linha: a pior descoberta]
 
 ---
 
-### 🔍 ANÁLISE DE NATUREZA DA RECEITA (ALIMENTA FLAG TRAD)
+### 🔍 NOTA DE ORQUESTRAÇÃO (NÃO EXIBIR NO DOSSIÊ FINAL)
 
-| Critério | Resultado | Evidência |
-|----------|-----------|-----------|
-| CNAE principal é comércio atacadista (46xx)? | [SIM/NÃO] | [CNAE identificado] |
-| Tem área própria relevante (CAR/SIGEF)? | [SIM/NÃO/INCERTO] | [Fonte] |
-| Tem instalações industriais (UBA, moinho, usina)? | [SIM/NÃO] | [Fonte] |
-| Faz produção própria e originação ao mesmo tempo? | [SIM/NÃO] | [Fonte] |
-| Número de funcionários é compatível com o faturamento? | [SIM/NÃO] | [Fonte] |
-| Receita principal vem de produção ou trading? | [PRODUÇÃO/TRADING/MISTA] | [Análise] |
-
-**Flag TRAD ativo?** [SIM/NÃO]
-Se SIM: "Score PORTA será penalizado em 40%. Faturamento alto no CNPJ não reflete complexidade operacional real — padrão similar aos casos Coperrede e Chicago Agro."
-Se NÃO e houver MISTA: "Trading/originação foi tratado como oportunidade OneClick + Commerce Log, pois existe produção/beneficiamento próprio."
-Se houver exportação direta + armazenagem + logística complexa, cite também Commerce Log como oportunidade explícita mesmo que o hedge não esteja confirmado.
+- Faça a análise de natureza da receita internamente para alimentar `[[PORTA_FLAG:TRAD:...]]`.
+- Não renderize seção, tabela, subtítulo ou parágrafo explícito de "Natureza da Receita" no corpo do dossiê.
+- Se houver sinal relevante de trading/produção, incorpore o impacto apenas dentro da leitura de risco e nas recomendações práticas.
 
 ---
 
@@ -859,6 +846,11 @@ Ceticismo absoluto. NÃO INVENTE NOMES, CARGOS OU CONSULTORIAS. Se não encontra
 ---
 
 ### 📊 AVALIAÇÃO A1/A2 (ALIMENTA DIMENSÃO A DO PORTA v2)
+
+Regra de formatação (obrigatória):
+- Use tabela markdown válida com `|` em todas as linhas.
+- Não use colunas alinhadas por espaços (isso quebra o render visual).
+- Se faltar dado para preencher linha útil, troque por bullets em texto.
 
 **A1 — Perfil Cultural/Governança (peso 60% de A):**
 

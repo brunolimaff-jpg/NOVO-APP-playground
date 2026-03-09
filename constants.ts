@@ -653,6 +653,21 @@ REGRA DE BUSCA: Mesmo que TOTVS/AdvPL já apareça, continue procurando Delphi/C
 - Sistema legado paralelo: [Delphi / Clipper / Visual Basic / FoxPro / não encontrado]
 - Decisor ou liderança de TI mais provável
 
+**FORMATAÇÃO OBRIGATÓRIA DA FASE 5 (VISUAL):**
+- Quando houver 2+ registros de decisores/eventos, renderize em TABELA MARKDOWN válida (com pipes `|` em TODAS as linhas).
+- É proibido simular tabela com espaços/alinhamento manual.
+- Se houver apenas 1 registro ou dado incompleto, use lista em texto (bullets) ao invés de tabela.
+
+Template recomendado (quando usar tabela):
+
+| Decisor | Cargo | Geração | Tech-Affinity | Poder |
+|---------|-------|---------|---------------|-------|
+| [Nome] | [Cargo] | [G1/G2/Prof] | [Alto/Médio/Baixo] | [Orçamento/Veto/Influência] |
+
+| Evento | Tipo | Impacto na Janela |
+|--------|------|-------------------|
+| [Evento] | [Expansão/Multa/Novo executivo/Safra] | [ABRE/NEUTRO/FECHA] |
+
 ### FASE 6: SINAIS DE VENDA
 
 Analise os dados coletados e identifique ** gatilhos de compra **:

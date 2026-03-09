@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { get, set } from 'idb-keyval';
 import { ChatSession } from '../types';
-import { cleanStatusMarkers } from '../utils/textCleaners';
+import { stripInternalMarkers } from '../utils/textCleaners';
 
 const SESSIONS_IDB_KEY = 'scout360_sessions_v2';
 const SESSIONS_LEGACY_KEY = 'scout360_sessions_v1';
@@ -16,9 +16,19 @@ export function useSessionStorage() {
   }, [sessions]);
 
   const loadSessions = useCallback(async (): Promise<ChatSession[]> => {
+    const sanitizeLoadedSessions = (loaded: ChatSession[]): ChatSession[] =>
+      loaded.map((session) => ({
+        ...session,
+        messages: (session.messages || []).map((message) => ({
+          ...message,
+          text: stripInternalMarkers(String(message.text || '')),
+          timestamp: new Date(message.timestamp),
+        })),
+      }));
+
     try {
       const idbSessions = await get<ChatSession[]>(SESSIONS_IDB_KEY);
-      if (idbSessions && idbSessions.length > 0) return idbSessions;
+      if (idbSessions && idbSessions.length > 0) return sanitizeLoadedSessions(idbSessions);
     } catch {
       // IndexedDB unavailable, try localStorage fallback
     }
@@ -27,14 +37,15 @@ export function useSessionStorage() {
       const raw = localStorage.getItem(SESSIONS_LEGACY_KEY);
       if (raw) {
         const parsed = JSON.parse(raw);
-        return parsed.map((s: Record<string, unknown>) => ({
+        const localSessions = parsed.map((s: Record<string, unknown>) => ({
           ...s,
           messages: ((s.messages as Array<Record<string, unknown>>) || []).map((m) => ({
             ...m,
-            text: cleanStatusMarkers(String(m.text || '')).cleanText,
+            text: stripInternalMarkers(String(m.text || '')),
             timestamp: new Date(m.timestamp as string),
           })),
         })) as ChatSession[];
+        return sanitizeLoadedSessions(localSessions);
       }
     } catch (e) {
       console.error('Session load error', e);

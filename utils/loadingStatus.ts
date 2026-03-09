@@ -1,3 +1,5 @@
+import { sanitizeLoadingContextText } from './textCleaners';
+
 const STATUS_PHASES = {
   complexity: 'Entendendo sua necessidade...',
   deepResearch: 'Sinais externos em análise...',
@@ -40,7 +42,11 @@ export function normalizeLoadingStatus(rawStatus?: string | null): string | null
   if (livePhaseStatus) return livePhaseStatus;
   if (/^(Analisando complexidade do pedido|Entendendo sua necessidade)/i.test(status)) return STATUS_PHASES.complexity;
   if (/^(Deep Research ativado|Sinais externos em análise)/i.test(status)) return STATUS_PHASES.deepResearch;
-  if (/^Buscando histórico de/i.test(status)) return status;
+  if (/^Buscando histórico de/i.test(status)) {
+    const rawCompany = status.replace(/^Buscando histórico de\s*/i, '').replace(/\.{0,3}\s*$/, '').trim();
+    const safeCompany = sanitizeLoadingContextText(rawCompany);
+    return safeCompany ? `Buscando histórico de ${safeCompany}...` : STATUS_PHASES.deepResearch;
+  }
   if (/^(Mapeando benchmarks|Cruzando referências de mercado)/i.test(status)) return STATUS_PHASES.benchmark;
   if (/^(Consultando bases de conhecimento|Consultando inteligência interna)/i.test(status)) return STATUS_PHASES.knowledgeBase;
   if (/^(Gerando resposta|Montando resposta prática)/i.test(status)) return STATUS_PHASES.response;

@@ -30,6 +30,7 @@ import { CompetitorDetection, getContextoConcorrentesRegionais } from './competi
 import { buscarContextoPinecone, buscarContextoDocsPinecone } from './ragService';
 import { scanInput, sanitizeExternalContent, wrapUserInput, CANARY_TOKEN } from '../utils/promptGuard';
 import { parseLoadingCuriosities } from '../utils/loadingCuriosities';
+import { sanitizeLoadingContextText, stripInternalMarkers } from '../utils/textCleaners';
 import { proxyChatSendMessage, proxyGenerateContent } from './geminiProxy';
 import { BACKEND_URL } from './apiConfig';
 import {
@@ -118,18 +119,7 @@ function debugRecovery(stage: string, payload: Record<string, unknown>): void {
 }
 
 function sanitizeStreamText(text: string): string {
-  return stripPortaMarkers(
-    text
-      .replace(/\[\[COMPETITOR:[^\]]*\]\]/g, '')
-      .replace(/\[\[PORTA_FEED_[^\]]*\]\]/g, '')
-      .replace(/\[\[PORTA_FLAG:[^\]]*\]\]/g, '')
-      .replace(/\[\[PORTA_SEG:[^\]]*\]\]/g, '')
-      .replace(/\[\[STATUS:[^\]]*\]\]/g, '')
-      .replace(/\[\[[A-Z_]+:[^\n]*?\]\]/g, '')
-      .replace(/\[\[[A-Z_]*:?[^\n]*$/, '')
-      .replace(/^(\s*\]\s*\n)+/, '')
-      .replace(/^\s*\]/, ''),
-  );
+  return stripInternalMarkers(stripPortaMarkers(text));
 }
 
 interface ParsedPortaFeeds {
@@ -658,26 +648,22 @@ export function parseMarkers(content: string): ParsedContent {
   const statuses: string[] = [];
   let scorePorta: ScorePortaData | null = null;
 
-  const statusRegex = /\[\[STATUS:([^\]]+)\]\]/g;
+  const statusRegex = /\[\[\s*STATUS\s*:\s*([^\]]+)\]\]/gi;
   let statusMatch;
   while ((statusMatch = statusRegex.exec(content)) !== null) {
-    statuses.push(statusMatch[1]);
+    const sanitizedStatus = stripInternalMarkers(statusMatch[1] || '');
+    if (sanitizedStatus) statuses.push(sanitizedStatus);
     text = text.replace(statusMatch[0], '');
   }
 
   scorePorta = parsePortaMarkerV2(text);
   text = stripPortaMarkers(text);
 
-  text = text.replace(/\[\[COMPETITOR:[^\]]*\]\]/g, '').replace(/\[\[[A-Z_]+:[^\n]*?\]\]/g, '');
   text = text.replace(
     /\*{0,2}Score PORTA:\*{0,2}\s*\d+\/100\s*[—–-]\s*(?:Alta|Média|Baixa)\s*Compatibilidade\.?\s*/gi,
     '',
   );
-  text = text
-    .replace(/^(\s*\]\s*\n)+/, '')
-    .replace(/^\s*\]/, '')
-    .replace(/^\s*\n/gm, '\n')
-    .trim();
+  text = stripInternalMarkers(text).replace(/^\s*\n/gm, '\n').trim();
   return { text, statuses, scorePorta };
 }
 
@@ -785,14 +771,8 @@ const generateBenchmarkKeywords = async (empresaNome: string, contexto: string):
 };
 
 export const generateLoadingCuriosities = async (context: string, userQuery = ''): Promise<string[]> => {
-  const baseContext = context.trim();
-  const queryContext = userQuery
-    .trim()
-    .replace(/\s+/g, ' ')
-    .replace(/INVESTIGACAO_COMPLETA_INTEGRADA[\s\S]*/i, '')
-    .replace(/Protocolo de investiga[çc][aã]o forense[\s\S]*/i, '')
-    .replace(/Contexto cadastral obrigat[oó]rio:[\s\S]*/i, '')
-    .trim();
+  const baseContext = sanitizeLoadingContextText(context);
+  const queryContext = sanitizeLoadingContextText(userQuery);
   if (!baseContext && !queryContext) return [];
   try {
     const effectiveContext = baseContext || queryContext;
@@ -1130,7 +1110,11 @@ MODO BUDGET (OBRIGATÓRIO):
     if (!isDeepResearch) onStatus?.('Montando resposta prática...');
     const sdkHistory = history
       .filter(msg => !msg.isError)
-      .map(msg => ({ role: msg.sender === Sender.User ? ('user' as const) : ('model' as const), text: msg.text }));
+      .map(msg => ({
+        role: msg.sender === Sender.User ? ('user' as const) : ('model' as const),
+        text: stripInternalMarkers(msg.text || ''),
+      }))
+      .filter(msg => msg.text.trim().length > 0);
 
     let response = await proxyChatSendMessage(
       {

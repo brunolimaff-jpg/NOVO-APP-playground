@@ -4,6 +4,11 @@ function toLines(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
 
   const sanitizeLine = (line: string): string => line.replace(/\s+/g, ' ').trim();
+  const isStatusLikeLine = (line: string): boolean => (
+    /^(buscando|consultando|cruzando|mapeando|analisando|gerando|montando|preparando)\b/i.test(line) ||
+    /^(passo|fase)\s+\d+/i.test(line) ||
+    /(em andamento|investiga[cç][aã]o em andamento)/i.test(line)
+  );
   const isUnsafeLine = (line: string): boolean => {
     const text = line.toLowerCase();
     return (
@@ -24,6 +29,7 @@ function toLines(value: unknown): string[] {
   return value
     .map((item) => (typeof item === 'string' ? sanitizeLine(item) : ''))
     .filter((item) => item.length > 10 && item.length <= 220)
+    .filter((item) => !isStatusLikeLine(item))
     .filter((item) => !isUnsafeLine(item));
 }
 
@@ -48,18 +54,18 @@ export function buildLoadingCuriositiesFallback(context: string): string[] {
   const company = context?.trim();
   if (!company) {
     return [
-      'Buscando evidências para conectar dor operacional com proposta de valor da Senior...',
-      'Consultando sinais do mercado-alvo e padrões de compra B2B...',
-      'Senior Sistemas atua com ERP, HCM e soluções para operações complexas no Brasil.',
-      'Mapeando exemplos de integração entre gestão corporativa e operação de campo.'
+      'No agro brasileiro, ganhos de margem costumam vir de disciplina operacional e previsibilidade de safra.',
+      'Empresas com rotina forte de indicadores tendem a reduzir perdas invisíveis em logística e armazenagem.',
+      'Projetos de digitalização no campo evoluem melhor quando finanças, operação e comercial compartilham a mesma base.',
+      'Em ciclos de expansão, governança de dados vira diferencial para sustentar crescimento com controle.'
     ];
   }
 
   return [
-    `Buscando evidências públicas de ${company} para conectar dor operacional com proposta de valor...`,
-    `Levantando movimentos recentes, expansão e sinais públicos de ${company}...`,
-    `Cruzando ${company} com benchmarks operacionais para identificar lacunas de gestão...`,
-    `Mapeando sinais de risco e oportunidade em ${company} com base em fontes públicas.`
+    `${company} pode revelar vantagem competitiva quando operação, comercial e liderança usam os mesmos indicadores.`,
+    `Em empresas como ${company}, eficiência logística e controle de custos costumam impactar margem mais rápido que preço.`,
+    `Quando ${company} acelera crescimento, padronização de processo vira ponto-chave para escalar sem perder governança.`,
+    `Sinais públicos de ${company} ajudam a antecipar prioridades de investimento e janelas de decisão.`
   ];
 }
 

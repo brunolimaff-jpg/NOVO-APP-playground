@@ -27,6 +27,11 @@ describe('loadingStatus', () => {
     expect(normalizeLoadingStatus('Buscando histórico de coprosoja...')).toBe('Buscando histórico de coprosoja...');
   });
 
+  it('bloqueia payload interno em status dinâmico de histórico', () => {
+    const leaked = 'Buscando histórico de Dossiê completo de [BOM FUTURO]. Protocolo de investigação forense especializada...';
+    expect(normalizeLoadingStatus(leaked)).toBe('Sinais externos em análise...');
+  });
+
   it('gera a mesma chave para estágios equivalentes', () => {
     expect(statusKey('Buscando histórico de coprosoja...')).toBe('historico');
     expect(statusKey('Buscando histórico de grupo scheffer...')).toBe('historico');

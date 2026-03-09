@@ -3,6 +3,7 @@ import { ChatMode } from '../constants';
 import { generateLoadingCuriosities } from '../services/geminiService';
 import { buildLoadingCuriositiesFallback } from '../utils/loadingCuriosities';
 import { isPhaseTimelineStatus } from '../utils/loadingStatus';
+import { sanitizeLoadingContextText, stripInternalMarkers } from '../utils/textCleaners';
 
 const FADE_DURATION = 400;
 const SOURCE_LINKS: Record<string, string> = {
@@ -33,7 +34,7 @@ const LoadingSmart: React.FC<LoadingSmartProps> = ({
   empresaAlvo
 }) => {
   const [currentInsight, setCurrentInsight] = useState<string>(
-    "Buscando evidências para conectar dor operacional com proposta de valor da Senior..."
+    'Empresas com disciplina operacional tendem a transformar dados em vantagem competitiva mais rápido.'
   );
   const [isVisible, setIsVisible] = useState(false);
   const [isFadingOut, setIsFadingOut] = useState(false);
@@ -73,14 +74,13 @@ const LoadingSmart: React.FC<LoadingSmartProps> = ({
 
   const companyFocus = (empresaAlvo || extractCompanyFromQuery(searchQuery)).trim();
   const safeContext = companyFocus.trim();
-  const loadingContext = (safeContext || (searchQuery || '').trim()).trim();
+  const safeSearchQuery = useMemo(
+    () => sanitizeLoadingContextText(searchQuery || '', companyFocus),
+    [searchQuery, companyFocus]
+  );
+  const loadingContext = (safeContext || safeSearchQuery).trim();
   const sanitizedQueryForCuriosities = useMemo(() => {
-    const raw = (searchQuery || '').trim();
-    if (!raw) return '';
-    if (/INVESTIGACAO_COMPLETA_INTEGRADA|Protocolo de investiga[çc][aã]o forense|Contexto cadastral obrigat[oó]rio/i.test(raw)) {
-      return companyFocus ? `Investigação da empresa ${companyFocus}` : '';
-    }
-    return raw.slice(0, 240);
+    return sanitizeLoadingContextText(searchQuery || '', companyFocus);
   }, [searchQuery, companyFocus]);
   const normalizeSourceLabel = useCallback((label: string): string => {
     return label
@@ -143,8 +143,8 @@ const LoadingSmart: React.FC<LoadingSmartProps> = ({
       curiositiesRef.current = [];
       setCurrentInsight(
         companyFocus
-          ? `Buscando evidências públicas de ${companyFocus} para conectar dor operacional com proposta de valor...`
-          : 'Buscando evidências para conectar dor operacional com proposta de valor da Senior...'
+          ? `${companyFocus} ganha previsibilidade quando operação e gestão acompanham os mesmos indicadores críticos.`
+          : 'Empresas com disciplina operacional tendem a transformar dados em vantagem competitiva mais rápido.'
       );
 
       if (!loadingContext || loadingContext.length < 2) {
@@ -155,8 +155,8 @@ const LoadingSmart: React.FC<LoadingSmartProps> = ({
 
       generateLoadingCuriosities(loadingContext, sanitizedQueryForCuriosities).then(facts => {
         if (facts && facts.length > 0) {
-          curiositiesRef.current = facts;
-          setCurrentInsight(facts[0]);
+          curiositiesRef.current = facts.map((fact) => stripInternalMarkers(fact)).filter(Boolean);
+          setCurrentInsight(curiositiesRef.current[0] || buildFallbackCuriosities(loadingContext)[0]);
         } else {
           curiositiesRef.current = buildFallbackCuriosities(loadingContext);
           setCurrentInsight(curiositiesRef.current[0]);
@@ -178,7 +178,7 @@ const LoadingSmart: React.FC<LoadingSmartProps> = ({
       const nextIndex = (curiosityIndexRef.current + 1) % curiositiesRef.current.length;
 
       if (curiositiesRef.current.length === 0) {
-        setCurrentInsight("Analisando dados estratégicos...");
+        setCurrentInsight('Curiosidade: empresas que monitoram rotina operacional com consistência aceleram decisões comerciais.');
       } else {
         curiosityIndexRef.current = nextIndex;
         setCurrentInsight(curiositiesRef.current[nextIndex]);
@@ -208,8 +208,11 @@ const LoadingSmart: React.FC<LoadingSmartProps> = ({
 
   if (!isVisible) return null;
 
-  const displayStage = processing?.stage || (companyFocus ? `Investigando ${companyFocus}...` : 'Investigação em andamento...');
-  const completedStages = processing?.completedStages || [];
+  const displayStageRaw = processing?.stage || (companyFocus ? `Investigando ${companyFocus}...` : 'Investigação em andamento...');
+  const displayStage = stripInternalMarkers(displayStageRaw) || 'Investigação em andamento...';
+  const completedStages = (processing?.completedStages || [])
+    .map((stage) => stripInternalMarkers(stage))
+    .filter(Boolean);
   const hasPhaseTimeline = [...completedStages, displayStage].some(isPhaseTimelineStatus);
   const visibleCompletedStages = hasPhaseTimeline
     ? completedStages.filter(isPhaseTimelineStatus)
