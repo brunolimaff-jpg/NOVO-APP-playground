@@ -1,30 +1,5 @@
 import { GoogleGenAI } from '@google/genai';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { z } from 'zod';
-
-const HistoryItemSchema = z.object({
-  role: z.enum(['user', 'model']),
-  text: z.string(),
-});
-
-const GeminiRequestSchema = z.discriminatedUnion('action', [
-  z.object({ action: z.literal('health') }),
-  z.object({
-    action: z.literal('generateContent'),
-    model: z.string().min(1).max(200).optional(),
-    contents: z.unknown(),
-    config: z.record(z.unknown()).optional(),
-  }),
-  z.object({
-    action: z.literal('chatSendMessage'),
-    model: z.string().min(1).max(200).optional(),
-    systemInstruction: z.string().max(100000).optional(),
-    history: z.array(HistoryItemSchema).max(40).optional(),
-    message: z.string().min(1).max(50000),
-    useGrounding: z.boolean().optional(),
-    thinkingMode: z.boolean().optional(),
-  }),
-]);
 
 export const config = {
   runtime: 'nodejs',
@@ -39,17 +14,27 @@ function getRequiredEnv(name: string): string {
   return value;
 }
 
+function toStringSafe(value: unknown, fallback = ''): string {
+  return typeof value === 'string' ? value : fallback;
+}
+
 function toNumberSafe(value: unknown, fallback: number): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
 }
 
-function normalizeHistory(
-  input: Array<{ role: 'user' | 'model'; text: string }> | undefined,
-): Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }> {
-  if (!input) return [];
+function toBooleanSafe(value: unknown, fallback = false): boolean {
+  return typeof value === 'boolean' ? value : fallback;
+}
+
+function normalizeHistory(input: unknown): Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }> {
+  if (!Array.isArray(input)) return [];
   return input
     .slice(-40)
-    .map((item) => ({ role: item.role, parts: [{ text: item.text }] }))
+    .map((item) => {
+      const role = (item && typeof item === 'object' && (item as any).role === 'model' ? 'model' : 'user') as 'user' | 'model';
+      const text = item && typeof item === 'object' ? toStringSafe((item as any).text, '') : '';
+      return { role, parts: [{ text }] };
+    })
     .filter((msg) => msg.parts[0].text.trim().length > 0);
 }
 
@@ -59,15 +44,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const parsed = GeminiRequestSchema.safeParse(req.body);
-    if (!parsed.success) {
-      return res.status(400).json({ error: 'Invalid request', details: parsed.error.flatten() });
+    const body = req.body;
+    if (!body || typeof body !== 'object') {
+      return res.status(400).json({ error: 'Invalid request body' });
     }
 
-    const body = parsed.data;
+    const action = toStringSafe((body as any).action, '');
     const ai = new GoogleGenAI({ apiKey: getRequiredEnv('GEMINI_API_KEY') });
 
-    if (body.action === 'health') {
+    if (action === 'health') {
       const response = await ai.models.generateContent({
         model: DEFAULT_GEMINI_MODEL,
         contents: 'Responda apenas: OK',
@@ -79,14 +64,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(200).json({ ok, text });
     }
 
-    if (body.action === 'generateContent') {
-      const model = body.model ?? DEFAULT_GEMINI_MODEL;
-      const contents = body.contents;
+    if (action === 'generateContent') {
+      const model = toStringSafe((body as any).model, DEFAULT_GEMINI_MODEL);
+      const contents = (body as any).contents;
       if (!contents) {
         return res.status(400).json({ error: 'Missing contents' });
       }
 
-      const configIn = (body.config ?? {}) as Record<string, unknown>;
+      const configIn = ((body as any).config || {}) as Record<string, unknown>;
       const config: Record<string, unknown> = {
         temperature: toNumberSafe(configIn.temperature, 0.2),
         maxOutputTokens: toNumberSafe(configIn.maxOutputTokens, 8192),
@@ -108,13 +93,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
 
-    if (body.action === 'chatSendMessage') {
-      const model = body.model ?? DEFAULT_GEMINI_MODEL;
-      const systemInstruction = body.systemInstruction ?? '';
-      const history = normalizeHistory(body.history);
-      const message = body.message;
-      const useGrounding = body.useGrounding ?? true;
-      const thinkingMode = body.thinkingMode ?? false;
+    if (action === 'chatSendMessage') {
+      const model = toStringSafe((body as any).model, DEFAULT_GEMINI_MODEL);
+      const systemInstruction = toStringSafe((body as any).systemInstruction, '');
+      const history = normalizeHistory((body as any).history);
+      const message = toStringSafe((body as any).message, '');
+      const useGrounding = toBooleanSafe((body as any).useGrounding, true);
+      const thinkingMode = toBooleanSafe((body as any).thinkingMode, false);
+
+      if (!message.trim()) {
+        return res.status(400).json({ error: 'Missing message' });
+      }
 
       const chat = ai.chats.create({
         model,
@@ -137,7 +126,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
 
-    return res.status(400).json({ error: `Unsupported action: ${body.action}` });
+    return res.status(400).json({ error: `Unsupported action: ${action}` });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     console.error('Gemini API proxy error:', message);

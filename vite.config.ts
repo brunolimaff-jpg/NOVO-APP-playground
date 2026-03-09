@@ -2,7 +2,6 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { resolve } from 'path';
 import { VitePWA } from 'vite-plugin-pwa';
-import ReactCompilerPlugin from 'babel-plugin-react-compiler';
 
 export default defineConfig(() => {
   return {
@@ -11,11 +10,7 @@ export default defineConfig(() => {
       host: '0.0.0.0',
     },
     plugins: [
-      react({
-        babel: {
-          plugins: [ReactCompilerPlugin],
-        },
-      }),
+      react(),
       VitePWA({
         registerType: 'autoUpdate',
         includeAssets: ['icons/icon-192.svg', 'icons/icon-512.svg'],

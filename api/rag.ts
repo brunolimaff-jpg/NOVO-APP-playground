@@ -1,11 +1,6 @@
 import { GoogleGenAI } from '@google/genai';
 import { Pinecone } from '@pinecone-database/pinecone';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { z } from 'zod';
-
-const RagRequestSchema = z.object({
-  query: z.string().min(1).max(10000),
-});
 
 export const config = {
   runtime: 'nodejs',
@@ -47,12 +42,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const parsed = RagRequestSchema.safeParse(req.body);
-    if (!parsed.success) {
-      return res.status(400).json({ error: 'Invalid request', details: parsed.error.flatten() });
+    const body = req.body;
+    if (!body || typeof body !== 'object') {
+      return res.status(400).json({ error: 'Invalid request body' });
     }
 
-    const { query } = parsed.data;
+    const { query } = body;
+    if (!query || typeof query !== 'string') {
+      return res.status(400).json({ error: 'Missing or invalid "query" field (string required)' });
+    }
+
+    if (query.length > 10000) {
+      return res.status(400).json({ error: 'Query too long (max 10000 chars)' });
+    }
 
     const ai = new GoogleGenAI({ apiKey: getRequiredEnv('GEMINI_API_KEY') });
 

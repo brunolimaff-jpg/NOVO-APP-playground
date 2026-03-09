@@ -1,12 +1,10 @@
 import React, { useRef, useEffect, useLayoutEffect, useState, useMemo, useCallback } from 'react';
-import { Virtuoso, type VirtuosoHandle } from 'react-virtuoso';
 import MessageRow, { MessageRowData } from './MessageRow';
 import { ChatInterfaceProps, Sender } from '../types';
 import { useMode } from '../contexts/ModeContext';
 import { useAuth } from '../contexts/AuthContext';
 import SessionsSidebar from './SessionsSidebar';
 import EmptyStateHome from './EmptyStateHome';
-import SuspenseWithError from './SuspenseWithError';
 const InvestigationDashboard = React.lazy(() => import('./InvestigationDashboard'));
 const SettingsDrawer = React.lazy(() => import('./SettingsDrawer'));
 const WarRoom = React.lazy(() => import('./WarRoom'));
@@ -101,7 +99,6 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const virtuosoRef = useRef<VirtuosoHandle>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const actionsMenuRef = useRef<HTMLDivElement>(null);
 
@@ -149,7 +146,11 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
     }
   }, [input]);
 
-  // O scroll automático para o final é gerenciado pelo Virtuoso (followOutput).
+  useEffect(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages.length]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -400,7 +401,7 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
         </header>
 
         {showSettings && (
-          <SuspenseWithError>
+          <React.Suspense fallback={null}>
             <SettingsDrawer
               isOpen={showSettings}
               onClose={() => setShowSettings(false)}
@@ -420,11 +421,11 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
               canAccessDashboard={canAccessDashboard}
               canAccessIntegrityCheck={canAccessIntegrityCheck}
             />
-          </SuspenseWithError>
+          </React.Suspense>
         )}
 
         {showDashboard && canAccessDashboard && (
-          <SuspenseWithError>
+          <React.Suspense fallback={null}>
             <InvestigationDashboard
               onClose={() => setShowDashboard(false)}
               onSelectEmpresa={empresa => {
@@ -432,12 +433,12 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
                 setShowDashboard(false);
               }}
             />
-          </SuspenseWithError>
+          </React.Suspense>
         )}
 
-        <div ref={scrollContainerRef} className="flex-1 min-h-0 overflow-hidden">
+        <div ref={scrollContainerRef} className="flex-1 min-h-0 overflow-y-auto custom-scrollbar">
           {messages.length === 0 ? (
-            <div className="h-full overflow-y-auto custom-scrollbar p-4 md:p-6">
+            <div className="h-full p-4 md:p-6">
               <EmptyStateHome
                 mode={mode}
                 onPreFill={text => setInput(text)}
@@ -446,30 +447,22 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
               />
             </div>
           ) : (
-            <Virtuoso
-              ref={virtuosoRef}
-              style={{ height: '100%' }}
-              className="custom-scrollbar"
-              data={messages}
-              followOutput="smooth"
-              initialTopMostItemIndex={messages.length - 1}
-              components={{
-                Header: () =>
-                  hasMore ? (
-                    <div className="flex justify-center py-2">
-                      <button
-                        onClick={onLoadMore}
-                        className="text-xs text-slate-500 hover:text-emerald-500 bg-white/80 dark:bg-slate-900/80 backdrop-blur px-3 py-1 rounded-full shadow"
-                      >
-                        Carregar anteriores
-                      </button>
-                    </div>
-                  ) : null,
-              }}
-              itemContent={(idx) => (
-                <MessageRow key={messages[idx].id} index={idx} data={itemData} />
+            <div className="py-4">
+              {hasMore && (
+                <div className="flex justify-center mb-2">
+                  <button
+                    onClick={onLoadMore}
+                    className="text-xs text-slate-500 hover:text-emerald-500 bg-white/80 dark:bg-slate-900/80 backdrop-blur px-3 py-1 rounded-full shadow"
+                  >
+                    Carregar anteriores
+                  </button>
+                </div>
               )}
-            />
+              {messages.map((msg, idx) => (
+                <MessageRow key={msg.id} index={idx} data={itemData} />
+              ))}
+              <div ref={messagesEndRef} />
+            </div>
           )}
         </div>
 
@@ -649,7 +642,7 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
         </div>
 
         {canWarRoom && showWarRoom && (
-          <SuspenseWithError
+          <React.Suspense
             fallback={
               <div
                 className={`fixed inset-0 z-50 flex items-center justify-center ${isDarkMode ? 'bg-slate-950/90' : 'bg-white/90'}`}
@@ -666,7 +659,7 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
               isDarkMode={isDarkMode}
               defaultCompetitorTarget={null}
             />
-          </SuspenseWithError>
+          </React.Suspense>
         )}
       </main>
     </div>

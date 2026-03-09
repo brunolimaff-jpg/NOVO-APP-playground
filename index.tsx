@@ -7,17 +7,6 @@ import { ModeProvider } from './contexts/ModeContext';
 import { CRMProvider } from './contexts/CRMContext';
 import ErrorBoundary from './components/ErrorBoundary';
 import { ClerkProvider } from '@clerk/clerk-react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 1000 * 60 * 5, // 5 min — sessões remotas não mudam com frequência
-      retry: 2,
-      refetchOnWindowFocus: false,
-    },
-  },
-});
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -34,17 +23,15 @@ const root = createRoot(rootElement);
 root.render(
   <React.StrictMode>
     <ErrorBoundary>
-      <QueryClientProvider client={queryClient}>
-        <ClerkProvider publishableKey={PUBLISHABLE_KEY} appearance={{ variables: { colorPrimary: '#059669' } }}>
-          <AuthProvider>
-            <ModeProvider>
-              <CRMProvider>
-                <App />
-              </CRMProvider>
-            </ModeProvider>
-          </AuthProvider>
-        </ClerkProvider>
-      </QueryClientProvider>
+      <ClerkProvider publishableKey={PUBLISHABLE_KEY} appearance={{ variables: { colorPrimary: '#059669' } }}>
+        <AuthProvider>
+          <ModeProvider>
+            <CRMProvider>
+              <App />
+            </CRMProvider>
+          </ModeProvider>
+        </AuthProvider>
+      </ClerkProvider>
     </ErrorBoundary>
   </React.StrictMode>
 );
