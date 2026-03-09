@@ -318,6 +318,10 @@ const App: React.FC = () => {
     lastActionRef.current = { type: 'sendMessage', payload: { text } };
 
     let historyToPass: Message[] = [];
+    // hintedCompany: tenta pegar do contexto da sessão, cai para extração local do texto.
+    // Garante fallback quando analyzeUserIntent falha ou retorna NONE.
+    const sessionForHint = sessionsRef.current.find(s => s.id === sessionId);
+    const hintedCompany = sessionForHint?.empresaAlvo || cleanTitle(extractCompanyName(text)) || null;
     if (explicitHistory) {
       historyToPass = explicitHistory;
     } else {
@@ -396,6 +400,8 @@ const App: React.FC = () => {
             }
           },
           nomeVendedor: typeof user?.displayName === 'string' ? user.displayName : 'Vendedor',
+          sessionId,
+          hintedCompany,
         },
         canUseLookup,
       );
