@@ -523,6 +523,46 @@ function normalizeContextText(text: string): string {
   return (text || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 }
 
+function shouldCanonicalizeContextualFollowUp(message: string, hasActiveContext: boolean = false): boolean {
+  const text = (message || '').trim();
+  if (!hasActiveContext || !isSubstantiveUserMessage(text)) return false;
+  if (isContextSwitchIntent(text)) return false;
+
+  const normalized = normalizeContextText(text);
+  const startsWithExplicitQuestion =
+    /^(onde|como|qual|quais|quem|quando|por que|porque|quanto|ha|há|tem|existe|existem|pode|podemos|seria|ficaria)\b/.test(
+      normalized,
+    );
+  const hasFollowUpShape =
+    /,/.test(text) ||
+    /^(e\s+|sobre\s+|considerando\s+|incluindo\s+|alem\s+disso\s+|além\s+disso\s+|nesse\s+cenario\s+|nesse\s+cenário\s+)/i.test(text) ||
+    text.length <= 140;
+
+  return isBudgetQuestionMessage(text) && !startsWithExplicitQuestion && hasFollowUpShape;
+}
+
+function buildCanonicalContextualFollowUp(
+  message: string,
+  activeCompany: string | null,
+  lastAssistantAnswer: string | null,
+): string {
+  const cleaned = (message || '').trim().replace(/\s+/g, ' ').replace(/[?!.]+$/g, '').trim();
+  if (!cleaned) return message;
+
+  const companyLabel = activeCompany?.trim() || 'a empresa em análise';
+  const assistantContext = lastAssistantAnswer?.trim()
+    ? lastAssistantAnswer.trim().slice(0, 1200)
+    : 'Sem resposta anterior registrada.';
+
+  return [
+    `Pergunta de continuação sobre ${companyLabel}.`,
+    'Considere a última resposta da conversa como contexto obrigatório.',
+    `Última resposta relevante: ${assistantContext}`,
+    `Pergunta atual: ${cleaned}.`,
+    'Responda objetivamente à pergunta atual, mantendo o contexto da mesma empresa.',
+  ].join('\n');
+}
+
 function isContextSwitchIntent(message: string): boolean {
   const text = normalizeContextText(message);
   if (!text) return false;
@@ -1123,9 +1163,18 @@ MODO BUDGET (OBRIGATÓRIO):
     const relevantAssistantContext = shouldForceDirectAnswer
       ? lastAssistantAnswer?.slice(0, 4000) || ''
       : '';
+    const shouldCanonicalizeFollowUp =
+      !isMegaPromptMessage && shouldCanonicalizeContextualFollowUp(safeMessage, hasActiveContextHint);
+    const promptUserMessage = shouldCanonicalizeFollowUp
+      ? buildCanonicalContextualFollowUp(
+          safeMessage,
+          empresa || activeCompanyForGuard || hintedCompany || currentCompanyContext?.empresa || null,
+          lastAssistantAnswer,
+        )
+      : effectiveUserMessage;
     const questionPriorityBlock = [
       '## PERGUNTA_ATUAL (RESPONDER PRIMEIRO)',
-      wrapUserInput(effectiveUserMessage),
+      wrapUserInput(promptUserMessage),
       previousUserQuestion
         ? `## PERGUNTA_ANTERIOR (NÃO RESPONDER AGORA)\n${wrapUserInput(previousUserQuestion)}`
         : '',
@@ -1226,6 +1275,7 @@ MODO BUDGET (OBRIGATÓRIO):
       isLocationQuestion,
       isBudgetQuestion,
       isSubstantiveFollowUp,
+      shouldCanonicalizeFollowUp,
       shouldForceDirectAnswer,
       shouldRecoverByFallback,
       shouldRecoverByLocationMismatch,
