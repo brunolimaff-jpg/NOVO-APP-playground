@@ -7,7 +7,7 @@ import { Message, Sender, Feedback, ChatSession, AppError } from '../types';
 import { sendMessageToGemini, generateNewSuggestions, resetChatSession } from '../services/geminiService';
 import { listRemoteSessions, getRemoteSession, saveRemoteSession } from '../services/sessionRemoteStore';
 import { sendFeedbackRemote } from '../services/feedbackRemoteStore';
-import { extractCompanyName } from '../AppCore';
+import { extractCompanyName } from '../utils/companyNameExtractor';
 import { cleanTitle, cleanStatusMarkers } from '../utils/textCleaners';
 import { normalizeAppError } from '../utils/errorHelpers';
 import { BACKEND_URL } from '../services/apiConfig';
