@@ -13,29 +13,21 @@ const ModeContext = createContext<ModeContextType | undefined>(undefined);
 
 export const ModeProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [mode, setModeState] = useState<ChatMode>(DEFAULT_MODE);
+  const ENFORCED_MODE: ChatMode = 'operacao';
 
   useEffect(() => {
-    const savedMode = localStorage.getItem('scout360_mode');
-    // Migração de nomes antigos se existirem no storage
-    if (savedMode === 'sincerao') {
-      setModeState('operacao');
-      localStorage.setItem('scout360_mode', 'operacao');
-    } else if (savedMode === 'normal') {
-      setModeState('diretoria');
-      localStorage.setItem('scout360_mode', 'diretoria');
-    } else if (savedMode === 'operacao' || savedMode === 'diretoria') {
-      setModeState(savedMode);
-    }
+    // MVP: diretoria desativado temporariamente. Força operação.
+    setModeState(ENFORCED_MODE);
+    localStorage.setItem('scout360_mode', ENFORCED_MODE);
   }, []);
 
-  const setMode = (newMode: ChatMode) => {
-    setModeState(newMode);
-    localStorage.setItem('scout360_mode', newMode);
+  const setMode = (_newMode: ChatMode) => {
+    setModeState(ENFORCED_MODE);
+    localStorage.setItem('scout360_mode', ENFORCED_MODE);
   };
 
   const toggleMode = () => {
-    const newMode = mode === 'operacao' ? 'diretoria' : 'operacao';
-    setMode(newMode);
+    setMode(ENFORCED_MODE);
   };
 
   const systemInstruction = mode === 'operacao' ? OPERACAO_PROMPT : DIRETORIA_PROMPT;

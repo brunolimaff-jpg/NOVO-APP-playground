@@ -129,23 +129,20 @@ const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                 </div>
                 {mode === 'operacao' && <span className="absolute top-3 right-3 text-orange-500">✓</span>}
               </button>
-              
-              {/* Diretoria */}
-              <button
-                onClick={() => onSetMode('diretoria')}
-                className={`w-full flex items-center gap-4 p-4 rounded-xl border transition-all relative overflow-hidden group ${
-                  mode === 'diretoria' 
-                    ? 'border-blue-500/50 bg-blue-500/10' 
-                    : 'border-gray-700/50 bg-gray-800/30 hover:bg-gray-800 hover:border-gray-600'
+              <div
+                className={`w-full flex items-center justify-between p-3 rounded-xl border ${
+                  isDarkMode ? 'border-slate-700/50 bg-slate-800/30' : 'border-slate-200 bg-slate-50'
                 }`}
               >
-                <span className="text-3xl filter drop-shadow-lg group-hover:scale-110 transition-transform">✈️</span>
-                <div className="text-left">
-                  <p className={`text-sm font-bold ${mode === 'diretoria' ? 'text-blue-400' : 'text-gray-200'}`}>Diretoria</p>
-                  <p className="text-xs text-gray-400 mt-0.5">Análise executiva, estratégica e sóbria</p>
-                </div>
-                {mode === 'diretoria' && <span className="absolute top-3 right-3 text-blue-500">✓</span>}
-              </button>
+                <span className={`text-xs ${isDarkMode ? 'text-slate-400' : 'text-slate-600'}`}>
+                  Modo Diretoria temporariamente desativado no MVP
+                </span>
+                <span className={`text-[10px] font-semibold px-2 py-1 rounded-full ${
+                  isDarkMode ? 'bg-amber-900/40 text-amber-300' : 'bg-amber-100 text-amber-700'
+                }`}>
+                  Em breve
+                </span>
+              </div>
             </div>
           </section>
           

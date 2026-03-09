@@ -56,6 +56,8 @@ describe('MVP feature gating UI', () => {
 
     expect(screen.queryByText('Dashboard')).not.toBeInTheDocument();
     expect(screen.queryByText('Teste de Integridade')).not.toBeInTheDocument();
+    expect(screen.queryByText('Diretoria')).not.toBeInTheDocument();
+    expect(screen.getByText(/temporariamente desativado no MVP/i)).toBeInTheDocument();
   });
 
   it('hides mini CRM entries in sessions sidebar when restricted', () => {
