@@ -12,6 +12,14 @@ const SettingsDrawer = React.lazy(() => import('./SettingsDrawer'));
 const WarRoom = React.lazy(() => import('./WarRoom'));
 import { cleanTitle } from '../utils/textCleaners';
 import { parseSmartOptions } from './SmartOptions'; // <-- ADICIONADO AQUI
+import {
+  PROMPT_MAPEAMENTO_DECISORES_GOD_MODE,
+  PROMPT_RADAR_EXPANSAO_GOD_MODE,
+  PROMPT_RAIO_X_OPERACIONAL_ATAQUE,
+  PROMPT_RH_SINDICATOS_GOD_MODE,
+  PROMPT_RISCOS_COMPLIANCE_GOD_MODE,
+  PROMPT_TECH_STACK_GOD_MODE_ATAQUE,
+} from '../prompts/megaPrompts';
 
 const QUICK_ACTIONS = [
   { icon: '🎯', label: 'Comparar', prompt: 'Compare com o principal concorrente dessa empresa' },
@@ -115,6 +123,7 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
 
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const pendingDeleteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isInitialGateActive = messages.length === 0;
 
   const handleDeleteWithUndo = (msgId: string) => {
     if (pendingDeleteTimer.current) clearTimeout(pendingDeleteTimer.current);
@@ -201,6 +210,7 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
       : null;
 
   const handleSend = () => {
+    if (isInitialGateActive) return;
     if (!input.trim() || isLoading) return;
     onSendMessage(input);
     setInput('');
@@ -220,9 +230,41 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
   };
 
   const handleActionClick = (prompt: string) => {
+    if (isInitialGateActive) return;
     setInput(prompt);
     setShowActionsMenu(false);
     textareaRef.current?.focus();
+  };
+
+  const handleStartInvestigation = async (payload: {
+    companyName: string;
+    cnpj: string | null;
+    city: string;
+    state: string;
+  }) => {
+    const prompt = `Conta alvo:
+- Empresa: ${payload.companyName}
+- CNPJ: ${payload.cnpj || 'não informado'}
+- Localização: ${payload.city}/${payload.state}
+
+Objetivo:
+Executar investigação completa e mapeamento profundo desta conta com foco comercial B2B.
+Entregar diagnóstico integrado e riscos/oportunidades acionáveis.`;
+
+    const hiddenPrompt = [
+      'INVESTIGACAO_COMPLETA_INTEGRADA (MVP):',
+      'Execute um dossie completo combinando os protocolos abaixo sem repetir seções.',
+      'Priorize objetividade, fontes auditáveis e síntese executiva final.',
+      `Contexto cadastral obrigatório: Empresa=${payload.companyName}; CNPJ=${payload.cnpj || 'N/D'}; Cidade=${payload.city}; UF=${payload.state}.`,
+      PROMPT_RAIO_X_OPERACIONAL_ATAQUE,
+      PROMPT_TECH_STACK_GOD_MODE_ATAQUE,
+      PROMPT_RISCOS_COMPLIANCE_GOD_MODE,
+      PROMPT_RADAR_EXPANSAO_GOD_MODE,
+      PROMPT_RH_SINDICATOS_GOD_MODE,
+      PROMPT_MAPEAMENTO_DECISORES_GOD_MODE,
+    ].join('\n\n---\n\n');
+
+    await onDeepDive(prompt, hiddenPrompt);
   };
 
   const handleCopyMarkdown = useCallback(() => {
@@ -440,8 +482,7 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
             <div className="h-full overflow-y-auto custom-scrollbar p-4 md:p-6">
               <EmptyStateHome
                 mode={mode}
-                onPreFill={text => setInput(text)}
-                onQuickStart={text => onSendMessage(text)}
+                onStartInvestigation={handleStartInvestigation}
                 isDarkMode={isDarkMode}
               />
             </div>
@@ -528,11 +569,12 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
           </div>
         )}
 
-        <div
-          className={`flex-shrink-0 p-3 pb-4 md:p-6 border-t ${
-            isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-white border-slate-200'
-          } z-20`}
-        >
+        {!isInitialGateActive && (
+          <div
+            className={`flex-shrink-0 p-3 pb-4 md:p-6 border-t ${
+              isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-white border-slate-200'
+            } z-20`}
+          >
           <div className="w-full max-w-5xl xl:max-w-6xl mx-auto px-1 md:px-6 lg:px-8 relative">
             {showActionsMenu && (
               <div
@@ -646,7 +688,8 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
               )}
             </div>
           </div>
-        </div>
+          </div>
+        )}
 
         {canWarRoom && showWarRoom && (
           <SuspenseWithError

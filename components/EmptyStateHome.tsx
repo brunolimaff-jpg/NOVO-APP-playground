@@ -1,15 +1,21 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { ChatMode, APP_NAME } from '../constants';
+import { fetchCompanyByCnpj, formatCnpj, isValidCnpj, normalizeCnpj } from '../services/brasilApiService';
 
 interface EmptyStateHomeProps {
   mode: ChatMode;
-  onPreFill: (text: string) => void;
-  onQuickStart?: (text: string) => void;
+  onStartInvestigation: (payload: { companyName: string; cnpj: string | null; city: string; state: string }) => void;
   isDarkMode: boolean;
 }
 
-const EmptyStateHome: React.FC<EmptyStateHomeProps> = ({ mode, onPreFill, onQuickStart, isDarkMode }) => {
+const VALID_UFS = new Set([
+  'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO',
+  'MA', 'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI',
+  'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO',
+]);
+
+const EmptyStateHome: React.FC<EmptyStateHomeProps> = ({ mode, onStartInvestigation, isDarkMode }) => {
   const { user } = useAuth();
   const userName = user?.displayName;
 
@@ -44,16 +50,14 @@ const EmptyStateHome: React.FC<EmptyStateHomeProps> = ({ mode, onPreFill, onQuic
 
   const currentHero = heroContent[mode];
 
-  const godModeExamples = [
-    { icon: '🤠', text: 'Levanta a capivara completa do Grupo Scheffer' },
-    { icon: '🚛', text: 'Onde a COFCO está perdendo eficiência logística?' },
-    { icon: '🕸️', text: 'Mapeie a teia societária e holdings do Grupo Amaggi' },
-    { icon: '💻', text: 'Qual ERP e sistema de DP a Raízen usa atualmente?' },
-    { icon: '🚨', text: 'Rastreie multas no MPT e risco FAP/RAT da BP Bunge' },
-    { icon: '🩸', text: 'Busque risco de malha fina de LCDPR nos sócios da Bom Futuro' },
-    { icon: '🌍', text: 'Analise o risco de embargo ambiental (EUDR) na SLC Agrícola' },
-    { icon: '⚔️', text: 'Como tirar a TOTVS e o Secullum da operação da São Martinho?' },
-  ];
+  const [companyName, setCompanyName] = useState('');
+  const [cnpjInput, setCnpjInput] = useState('');
+  const [city, setCity] = useState('');
+  const [state, setState] = useState('');
+  const [isFetchingCnpj, setIsFetchingCnpj] = useState(false);
+  const [cnpjStatus, setCnpjStatus] = useState<string | null>(null);
+  const [lastLookupCnpj, setLastLookupCnpj] = useState<string | null>(null);
+  const [didSubmit, setDidSubmit] = useState(false);
 
   const theme = {
     textPrimary: isDarkMode ? 'text-white' : 'text-slate-900',
@@ -61,6 +65,46 @@ const EmptyStateHome: React.FC<EmptyStateHomeProps> = ({ mode, onPreFill, onQuic
     heading: isDarkMode ? 'text-gray-500' : 'text-slate-400',
     cardHoverBorder: isDarkMode ? 'hover:border-green-600' : 'hover:border-emerald-500',
     highlight: mode === 'operacao' ? 'text-orange-500' : 'text-green-500',
+  };
+
+  const cnpjDigits = normalizeCnpj(cnpjInput);
+  const hasValidCnpj = cnpjDigits.length === 14 && isValidCnpj(cnpjDigits);
+  const stateNormalized = state.trim().toUpperCase();
+  const isStateValid = VALID_UFS.has(stateNormalized);
+  const isFormValid = companyName.trim().length >= 2 && city.trim().length >= 2 && isStateValid;
+
+  const canLookupCnpj = useMemo(
+    () => hasValidCnpj && cnpjDigits !== lastLookupCnpj && !isFetchingCnpj,
+    [hasValidCnpj, cnpjDigits, lastLookupCnpj, isFetchingCnpj],
+  );
+
+  const handleCnpjLookup = async () => {
+    if (!canLookupCnpj) return;
+    setIsFetchingCnpj(true);
+    setCnpjStatus('Consultando CNPJ na BrasilAPI...');
+    try {
+      const data = await fetchCompanyByCnpj(cnpjDigits);
+      setLastLookupCnpj(data.cnpj);
+      setCompanyName(prev => prev.trim() || data.companyName);
+      setCity(prev => prev.trim() || data.city);
+      setState(prev => (prev.trim() || data.state).toUpperCase());
+      setCnpjStatus('CNPJ validado e dados preenchidos.');
+    } catch {
+      setCnpjStatus('Não foi possível preencher via CNPJ. Complete manualmente.');
+    } finally {
+      setIsFetchingCnpj(false);
+    }
+  };
+
+  const handleSubmit = () => {
+    setDidSubmit(true);
+    if (!isFormValid) return;
+    onStartInvestigation({
+      companyName: companyName.trim(),
+      cnpj: cnpjDigits.length === 14 ? cnpjDigits : null,
+      city: city.trim(),
+      state: stateNormalized,
+    });
   };
 
   return (
@@ -74,41 +118,81 @@ const EmptyStateHome: React.FC<EmptyStateHomeProps> = ({ mode, onPreFill, onQuic
           <p className={`${theme.highlight} font-medium text-sm mt-2`}>{displayGreeting}</p>
         </div>
 
-        {/* Arsenal de Sugestões */}
+        {/* Formulário obrigatório de entrada */}
         <div className="mb-8">
           <h2 className={`text-xs font-bold uppercase tracking-wider mb-3 px-1 ${theme.heading}`}>
-            💡 Arsenal de Sugestões
+            Cadastro inicial da conta
           </h2>
           <p className={`text-xs mb-3 px-1 ${theme.textSecondary}`}>
-            Clique no card para preencher ou em <strong>Enviar agora</strong> para iniciar em 1 clique.
+            Para iniciar o mapeamento profundo, preencha: empresa, CNPJ (opcional), cidade e UF.
           </p>
-          <div className="space-y-2">
-            {godModeExamples.map((ex, i) => (
-              <div
-                key={i}
-                className={`w-full ${isDarkMode ? 'bg-gray-800/30 border-gray-700/50 hover:bg-gray-800/60' : 'bg-slate-50 border-slate-200 hover:bg-slate-100'} border rounded-xl px-4 py-3 ${theme.cardHoverBorder} transition-all`}
+          <div
+            className={`space-y-3 rounded-2xl border p-4 ${
+              isDarkMode ? 'bg-gray-900/40 border-gray-700/60' : 'bg-slate-50 border-slate-200'
+            }`}
+          >
+            <input
+              value={companyName}
+              onChange={e => setCompanyName(e.target.value)}
+              placeholder="Nome da empresa *"
+              className={`w-full rounded-lg border px-3 py-2 text-sm bg-transparent ${
+                isDarkMode ? 'border-slate-700 text-slate-100' : 'border-slate-300 text-slate-900'
+              }`}
+            />
+            <div className="flex gap-2">
+              <input
+                value={formatCnpj(cnpjInput)}
+                onChange={e => setCnpjInput(normalizeCnpj(e.target.value))}
+                onBlur={handleCnpjLookup}
+                placeholder="CNPJ (opcional)"
+                className={`flex-1 rounded-lg border px-3 py-2 text-sm bg-transparent ${
+                  isDarkMode ? 'border-slate-700 text-slate-100' : 'border-slate-300 text-slate-900'
+                }`}
+              />
+              <button
+                onClick={handleCnpjLookup}
+                disabled={!canLookupCnpj}
+                className={`px-3 py-2 rounded-lg text-xs font-semibold ${
+                  canLookupCnpj
+                    ? 'bg-emerald-600 text-white hover:bg-emerald-500'
+                    : isDarkMode
+                      ? 'bg-slate-800 text-slate-500'
+                      : 'bg-slate-200 text-slate-500'
+                }`}
               >
-                <button
-                  onClick={() => onPreFill(ex.text)}
-                  className="w-full text-left flex items-center gap-3 group"
-                >
-                  <span className="text-xl flex-shrink-0">{ex.icon}</span>
-                  <span className={`text-sm font-medium ${theme.textSecondary} transition-colors`}>
-                    "{ex.text}"
-                  </span>
-                </button>
-                {onQuickStart && (
-                  <div className="mt-2 pl-10">
-                    <button
-                      onClick={() => onQuickStart(ex.text)}
-                      className={`text-xs font-semibold ${isDarkMode ? 'text-emerald-300 hover:text-emerald-200' : 'text-emerald-700 hover:text-emerald-800'} transition-colors`}
-                    >
-                      Enviar agora
-                    </button>
-                  </div>
-                )}
-              </div>
-            ))}
+                {isFetchingCnpj ? 'Buscando...' : 'Validar CNPJ'}
+              </button>
+            </div>
+            {cnpjStatus && <p className={`text-[11px] ${theme.textSecondary}`}>{cnpjStatus}</p>}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <input
+                value={city}
+                onChange={e => setCity(e.target.value)}
+                placeholder="Cidade *"
+                className={`sm:col-span-2 rounded-lg border px-3 py-2 text-sm bg-transparent ${
+                  isDarkMode ? 'border-slate-700 text-slate-100' : 'border-slate-300 text-slate-900'
+                }`}
+              />
+              <input
+                value={state}
+                onChange={e => setState(e.target.value.toUpperCase().slice(0, 2))}
+                placeholder="UF *"
+                className={`rounded-lg border px-3 py-2 text-sm bg-transparent ${
+                  isDarkMode ? 'border-slate-700 text-slate-100' : 'border-slate-300 text-slate-900'
+                }`}
+              />
+            </div>
+            {didSubmit && !isFormValid && (
+              <p className="text-[11px] text-amber-500">
+                Preencha empresa, cidade e UF válida para iniciar.
+              </p>
+            )}
+            <button
+              onClick={handleSubmit}
+              className="w-full rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold py-2.5 transition-colors"
+            >
+              Iniciar investigação completa
+            </button>
           </div>
         </div>
 
