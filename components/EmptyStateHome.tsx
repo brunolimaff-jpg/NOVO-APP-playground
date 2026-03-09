@@ -1,7 +1,13 @@
 import React, { useMemo, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { ChatMode, APP_NAME } from '../constants';
-import { fetchCompanyByCnpj, formatCnpj, isValidCnpj, normalizeCnpj } from '../services/brasilApiService';
+import {
+  fetchCompanyByCnpj,
+  formatCnpj,
+  isValidCnpj,
+  normalizeCnpj,
+  validateCityInState,
+} from '../services/brasilApiService';
 
 interface EmptyStateHomeProps {
   mode: ChatMode;
@@ -56,6 +62,7 @@ const EmptyStateHome: React.FC<EmptyStateHomeProps> = ({ mode, onStartInvestigat
   const [state, setState] = useState('');
   const [isFetchingCnpj, setIsFetchingCnpj] = useState(false);
   const [cnpjStatus, setCnpjStatus] = useState<string | null>(null);
+  const [locationStatus, setLocationStatus] = useState<string | null>(null);
   const [lastLookupCnpj, setLastLookupCnpj] = useState<string | null>(null);
   const [didSubmit, setDidSubmit] = useState(false);
 
@@ -96,14 +103,22 @@ const EmptyStateHome: React.FC<EmptyStateHomeProps> = ({ mode, onStartInvestigat
     }
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     setDidSubmit(true);
     if (!isFormValid) return;
+    setLocationStatus('Validando cidade/UF no IBGE...');
+    const locationValidation = await validateCityInState(city.trim(), stateNormalized);
+    if (!locationValidation.isValid) {
+      setLocationStatus('Cidade não encontrada para a UF informada. Verifique o cadastro.');
+      return;
+    }
+
+    setLocationStatus('Localização validada.');
     onStartInvestigation({
       companyName: companyName.trim(),
       cnpj: cnpjDigits.length === 14 ? cnpjDigits : null,
-      city: city.trim(),
-      state: stateNormalized,
+      city: locationValidation.normalizedCity,
+      state: locationValidation.normalizedState,
     });
   };
 
@@ -187,6 +202,7 @@ const EmptyStateHome: React.FC<EmptyStateHomeProps> = ({ mode, onStartInvestigat
                 Preencha empresa, cidade e UF válida para iniciar.
               </p>
             )}
+            {locationStatus && <p className={`text-[11px] ${theme.textSecondary}`}>{locationStatus}</p>}
             <button
               onClick={handleSubmit}
               className="w-full rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold py-2.5 transition-colors"

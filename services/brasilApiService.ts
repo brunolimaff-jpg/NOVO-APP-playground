@@ -5,8 +5,51 @@ export interface BrasilApiCompanyData {
   state: string;
 }
 
+export interface CityValidationResult {
+  normalizedCity: string;
+  normalizedState: string;
+  isValid: boolean;
+}
+
 function onlyDigits(value: string): string {
   return (value || '').replace(/\D/g, '');
+}
+
+function normalizeText(value: string): string {
+  return (value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
+async function fetchJsonWithTimeout<T>(url: string, timeoutMs: number, signal?: AbortSignal): Promise<T> {
+  const timeoutController = new AbortController();
+  const timeoutId = setTimeout(() => timeoutController.abort(), timeoutMs);
+  const finalController = new AbortController();
+  const onAbort = () => finalController.abort();
+  timeoutController.signal.addEventListener('abort', onAbort);
+  if (signal) {
+    if (signal.aborted) {
+      finalController.abort();
+    } else {
+      signal.addEventListener('abort', onAbort);
+    }
+  }
+
+  try {
+    const response = await fetch(url, { method: 'GET', signal: finalController.signal });
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    return (await response.json()) as T;
+  } finally {
+    clearTimeout(timeoutId);
+    timeoutController.signal.removeEventListener('abort', onAbort);
+    if (signal) {
+      signal.removeEventListener('abort', onAbort);
+    }
+  }
 }
 
 export function normalizeCnpj(value: string): string {
@@ -46,34 +89,90 @@ export async function fetchCompanyByCnpj(cnpjValue: string, signal?: AbortSignal
     throw new Error('CNPJ inválido');
   }
 
-  const response = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpj}`, {
-    method: 'GET',
-    signal,
-  });
-  if (!response.ok) {
-    throw new Error(`BrasilAPI retornou ${response.status}`);
-  }
-
-  const payload = (await response.json()) as {
+  const parsePayload = (payload: {
     cnpj?: string;
     razao_social?: string;
     nome_fantasia?: string;
     municipio?: string;
     uf?: string;
+  }): BrasilApiCompanyData => {
+    const companyName = (payload.nome_fantasia || payload.razao_social || '').trim();
+    const city = (payload.municipio || '').trim();
+    const state = (payload.uf || '').trim().toUpperCase();
+
+    if (!companyName || !city || !state) {
+      throw new Error('Dados incompletos');
+    }
+
+    return {
+      cnpj: payload.cnpj ? normalizeCnpj(payload.cnpj) : cnpj,
+      companyName,
+      city,
+      state,
+    };
   };
 
-  const companyName = (payload.nome_fantasia || payload.razao_social || '').trim();
-  const city = (payload.municipio || '').trim();
-  const state = (payload.uf || '').trim().toUpperCase();
+  try {
+    const brasilApiPayload = await fetchJsonWithTimeout<{
+      cnpj?: string;
+      razao_social?: string;
+      nome_fantasia?: string;
+      municipio?: string;
+      uf?: string;
+    }>(`https://brasilapi.com.br/api/cnpj/v1/${cnpj}`, 8000, signal);
+    return parsePayload(brasilApiPayload);
+  } catch {
+    // Fallback: ReceitaWS
+    const receitaPayload = await fetchJsonWithTimeout<{
+      cnpj?: string;
+      nome?: string;
+      fantasia?: string;
+      municipio?: string;
+      uf?: string;
+      status?: string;
+      message?: string;
+    }>(`https://www.receitaws.com.br/v1/cnpj/${cnpj}`, 10000, signal);
 
-  if (!companyName || !city || !state) {
-    throw new Error('Dados incompletos na BrasilAPI');
+    if (receitaPayload.status && receitaPayload.status.toUpperCase() === 'ERROR') {
+      throw new Error(receitaPayload.message || 'Falha no fallback ReceitaWS');
+    }
+
+    return parsePayload({
+      cnpj: receitaPayload.cnpj,
+      razao_social: receitaPayload.nome,
+      nome_fantasia: receitaPayload.fantasia,
+      municipio: receitaPayload.municipio,
+      uf: receitaPayload.uf,
+    });
+  }
+}
+
+export async function validateCityInState(cityValue: string, ufValue: string, signal?: AbortSignal): Promise<CityValidationResult> {
+  const normalizedState = (ufValue || '').trim().toUpperCase();
+  const city = (cityValue || '').trim();
+  if (city.length < 2 || normalizedState.length !== 2) {
+    return { normalizedCity: city, normalizedState, isValid: false };
   }
 
-  return {
-    cnpj: payload.cnpj ? normalizeCnpj(payload.cnpj) : cnpj,
-    companyName,
-    city,
-    state,
+  try {
+    const payload = await fetchJsonWithTimeout<Array<{ nome: string }>>(
+      `https://servicodados.ibge.gov.br/api/v1/localidades/estados/${normalizedState}/municipios`,
+      12000,
+      signal,
+    );
+    const target = normalizeText(city);
+    const found = payload.find(item => normalizeText(item.nome) === target);
+    return {
+      normalizedCity: found?.nome || city,
+      normalizedState,
+      isValid: !!found,
+    };
+  } catch {
+    // Em caso de indisponibilidade do IBGE, não bloquear o fluxo do usuário.
+    return {
+      normalizedCity: city,
+      normalizedState,
+      isValid: true,
+    };
   };
 }
