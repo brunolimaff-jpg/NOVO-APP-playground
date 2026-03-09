@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { ChatMode } from '../constants';
 import { generateLoadingCuriosities } from '../services/geminiService';
 import { buildLoadingCuriositiesFallback } from '../utils/loadingCuriosities';
@@ -46,6 +46,16 @@ const LoadingSmart: React.FC<LoadingSmartProps> = ({
     if (!query) return '';
     const cleanQuery = query.trim().replace(/[.]{2,}$/g, '').replace(/\s+/g, ' ');
 
+    const deepDiveMatch = cleanQuery.match(/Dossi[eê]\s+completo\s+de\s+\[([^\]]+)\]/i);
+    if (deepDiveMatch?.[1]) {
+      return deepDiveMatch[1].trim();
+    }
+
+    const cadastroMatch = cleanQuery.match(/Contexto\s+cadastral\s+obrigat[oó]rio:\s*Empresa=([^;]+);/i);
+    if (cadastroMatch?.[1]) {
+      return cadastroMatch[1].trim();
+    }
+
     const patterns = [
       /\b(?:do|da|de)\s+((?:grupo|empresa|fazenda|usina)?\s*[a-z0-9À-ÿ][a-z0-9À-ÿ&.\- ]{2,60})$/i,
       /\b(?:sobre|empresa|grupo)\s+((?:grupo|empresa)?\s*[a-z0-9À-ÿ][a-z0-9À-ÿ&.\- ]{2,60})$/i,
@@ -64,6 +74,14 @@ const LoadingSmart: React.FC<LoadingSmartProps> = ({
   const companyFocus = (empresaAlvo || extractCompanyFromQuery(searchQuery)).trim();
   const safeContext = companyFocus.trim();
   const loadingContext = (safeContext || (searchQuery || '').trim()).trim();
+  const sanitizedQueryForCuriosities = useMemo(() => {
+    const raw = (searchQuery || '').trim();
+    if (!raw) return '';
+    if (/INVESTIGACAO_COMPLETA_INTEGRADA|Protocolo de investiga[çc][aã]o forense|Contexto cadastral obrigat[oó]rio/i.test(raw)) {
+      return companyFocus ? `Investigação da empresa ${companyFocus}` : '';
+    }
+    return raw.slice(0, 240);
+  }, [searchQuery, companyFocus]);
   const normalizeSourceLabel = useCallback((label: string): string => {
     return label
       .toLowerCase()
@@ -135,7 +153,7 @@ const LoadingSmart: React.FC<LoadingSmartProps> = ({
         return;
       }
 
-      generateLoadingCuriosities(loadingContext, searchQuery || '').then(facts => {
+      generateLoadingCuriosities(loadingContext, sanitizedQueryForCuriosities).then(facts => {
         if (facts && facts.length > 0) {
           curiositiesRef.current = facts;
           setCurrentInsight(facts[0]);
@@ -148,7 +166,7 @@ const LoadingSmart: React.FC<LoadingSmartProps> = ({
         setCurrentInsight(curiositiesRef.current[0]);
       });
     }
-  }, [isLoading, companyFocus, loadingContext, searchQuery, buildFallbackCuriosities]);
+  }, [isLoading, companyFocus, loadingContext, sanitizedQueryForCuriosities, buildFallbackCuriosities]);
 
   // 3. Ciclo de rotação de curiosidades (SEMPRE ATIVO)
   const cycleCuriosity = useCallback(() => {

@@ -786,7 +786,13 @@ const generateBenchmarkKeywords = async (empresaNome: string, contexto: string):
 
 export const generateLoadingCuriosities = async (context: string, userQuery = ''): Promise<string[]> => {
   const baseContext = context.trim();
-  const queryContext = userQuery.trim();
+  const queryContext = userQuery
+    .trim()
+    .replace(/\s+/g, ' ')
+    .replace(/INVESTIGACAO_COMPLETA_INTEGRADA[\s\S]*/i, '')
+    .replace(/Protocolo de investiga[çc][aã]o forense[\s\S]*/i, '')
+    .replace(/Contexto cadastral obrigat[oó]rio:[\s\S]*/i, '')
+    .trim();
   if (!baseContext && !queryContext) return [];
   try {
     const effectiveContext = baseContext || queryContext;
