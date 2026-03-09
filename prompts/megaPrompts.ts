@@ -84,7 +84,7 @@ Ceticismo absoluto. NÃO INVENTE NADA. Se um dado não for encontrado, declare: 
 
 ---
 
-# 🦅 DOSSIÊ APEX: INTELIGÊNCIA OPERACIONAL - [NOME DA EMPRESA]
+# 🦅 DOSSIÊ SCOUT 360: INTELIGÊNCIA OPERACIONAL - [NOME DA EMPRESA]
 
 **🎯 RADAR DE ESTRUTURA E CAPEX**
 * **DNA Operacional:** [O que produzem/plantam/beneficiam/exportam na prática]
@@ -293,7 +293,7 @@ Ceticismo absoluto. NÃO INVENTE TECNOLOGIAS. Se o software de uma área não fo
 
 ---
 
-# 🦅 DOSSIÊ APEX: ARQUITETURA DE TI E DÍVIDA TÉCNICA - [NOME DA EMPRESA]
+# 🦅 DOSSIÊ SCOUT 360: ARQUITETURA DE TI E DÍVIDA TÉCNICA - [NOME DA EMPRESA]
 
 **🎯 RADAR DO ECOSSISTEMA SISTÊMICO**
 * **ERP Core (Backoffice):** [Software + linguagem/BD + confiança: 🟢/🟠/🟡]
@@ -835,7 +835,7 @@ Ceticismo absoluto. NÃO INVENTE NOMES, CARGOS OU CONSULTORIAS. Se não encontra
 
 ---
 
-# 🎭 DOSSIÊ APEX: CADEIA DE COMANDO - [NOME DA EMPRESA]
+# 🎭 DOSSIÊ SCOUT 360: CADEIA DE COMANDO - [NOME DA EMPRESA]
 
 **🎯 RADAR DE PODER**
 * **O Comando Atual:** [Quem realmente aprova verba?]
