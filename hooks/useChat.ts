@@ -22,13 +22,46 @@ interface LastAction {
   payload: any;
 }
 
+function sanitizeSessionCompanyName(...candidates: Array<string | null | undefined>): string | null {
+  for (const candidate of candidates) {
+    const raw = (candidate || '').trim();
+    if (!raw) continue;
+
+    const bracketMatch = raw.match(/dossi[eê]\s+completo\s+de\s+\[([^\]]+)\]/i);
+    const companyLineMatch = raw.match(/(?:^|\n)\s*-\s*Empresa:\s*([^\n]+)/i);
+    const cadastroMatch = raw.match(/Empresa=([^;\n]+)/i);
+
+    const extracted =
+      bracketMatch?.[1]?.trim() ||
+      companyLineMatch?.[1]?.trim() ||
+      cadastroMatch?.[1]?.trim() ||
+      extractCompanyName(raw) ||
+      raw;
+
+    const cleaned = cleanTitle(
+      extracted
+        .split(/\.?\s*Protocolo de investiga[cç][aã]o/i)[0]
+        .split(/INVESTIGACAO_COMPLETA_INTEGRADA/i)[0]
+        .split(/\n\s*---\s*\n/i)[0]
+        .trim(),
+    );
+
+    if (!cleaned) continue;
+    if (/^nova investiga[cç][aã]o$/i.test(cleaned)) continue;
+    if (cleaned.length > 120) continue;
+
+    return cleaned;
+  }
+
+  return null;
+}
+
 export const useChat = () => {
   const { userId, user, isAuthenticated } = useAuth();
   const { mode, systemInstruction } = useMode();
   const { toast } = useToast();
   const [, startTransition] = useTransition();
 
-  // Lista remota de sessões — cache 5 min, não re-fetcha ao focar janela
   const { data: remoteSessions } = useQuery({
     queryKey: ['remoteSessions'],
     queryFn: listRemoteSessions,
@@ -42,34 +75,26 @@ export const useChat = () => {
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingSession, setIsLoadingSession] = useState(false);
-  const [loadingStatus, setLoadingStatus] =
-    useState<string>("Iniciando análise");
-  const [completedLoadingStatuses, setCompletedLoadingStatuses] = useState<
-    string[]
-  >([]);
+  const [loadingStatus, setLoadingStatus] = useState<string>('Iniciando análise');
+  const [completedLoadingStatuses, setCompletedLoadingStatuses] = useState<string[]>([]);
   const [isInitialized, setIsInitialized] = useState(false);
-    const [lastQuery, setLastQuery] = useState<string>("");
+  const [lastQuery, setLastQuery] = useState<string>('');
   const [isSavingRemote, setIsSavingRemote] = useState(false);
-  const [remoteSaveStatus, setRemoteSaveStatus] = useState<
-    "idle" | "success" | "error"
-  >("idle");
+  const [remoteSaveStatus, setRemoteSaveStatus] = useState<'idle' | 'success' | 'error'>('idle');
 
   const updateCurrentSession = useCallback(
     (updater: (session: ChatSession) => ChatSession) => {
-      setSessions((prev) => {
-        const target = prev.find((s) => s.id === currentSessionId);
+      setSessions(prev => {
+        const target = prev.find(s => s.id === currentSessionId);
         if (!target) return prev;
-        return prev.map((s) =>
-          s.id === currentSessionId
-            ? { ...updater(s), updatedAt: new Date().toISOString() }
-            : s,
+        return prev.map(s =>
+          s.id === currentSessionId ? { ...updater(s), updatedAt: new Date().toISOString() } : s,
         );
       });
     },
     [currentSessionId],
   );
 
-  // Carrega sessões locais e marca app como inicializado na primeira renderização
   useEffect(() => {
     const savedSessions = localStorage.getItem(SESSIONS_STORAGE_KEY);
     let localSessions: ChatSession[] = [];
@@ -80,12 +105,12 @@ export const useChat = () => {
           ...s,
           messages: s.messages.map((m: any) => ({
             ...m,
-            text: stripInternalMarkers(m.text || ""),
+            text: stripInternalMarkers(m.text || ''),
             timestamp: new Date(m.timestamp),
           })),
         }));
       } catch (e) {
-        console.error("Load error", e);
+        console.error('Load error', e);
       }
     }
     if (localSessions.length > 0) {
@@ -95,18 +120,17 @@ export const useChat = () => {
       handleNewSession();
     }
     const savedTheme = localStorage.getItem(THEME_KEY);
-    if (savedTheme) setIsDarkMode(savedTheme === "dark");
+    if (savedTheme) setIsDarkMode(savedTheme === 'dark');
     if (window.innerWidth < 768) setIsSidebarOpen(false);
     setIsInitialized(true);
   }, []);
 
-  // Mescla sessões remotas (via TanStack Query) com as locais quando chegam
   useEffect(() => {
     if (!remoteSessions || remoteSessions.length === 0) return;
-    setSessions((prev) => {
+    setSessions(prev => {
       const sessionMap = new Map<string, ChatSession>();
-      prev.forEach((s) => sessionMap.set(s.id, s));
-      remoteSessions.forEach((r) => {
+      prev.forEach(s => sessionMap.set(s.id, s));
+      remoteSessions.forEach(r => {
         const existing = sessionMap.get(r.id);
         if (existing) {
           sessionMap.set(r.id, {
@@ -119,8 +143,7 @@ export const useChat = () => {
         }
       });
       return Array.from(sessionMap.values()).sort(
-        (a, b) =>
-          new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
+        (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
       );
     });
   }, [remoteSessions]);
@@ -131,27 +154,24 @@ export const useChat = () => {
       try {
         localStorage.setItem(SESSIONS_STORAGE_KEY, JSON.stringify(sessions));
       } catch (e: any) {
-        if (e?.name === "QuotaExceededError" || e?.code === 22) {
-          console.warn("[Storage] Quota exceeded — clearing oldest sessions");
+        if (e?.name === 'QuotaExceededError' || e?.code === 22) {
+          console.warn('[Storage] Quota exceeded — clearing oldest sessions');
           const trimmed = sessions.slice(0, Math.max(sessions.length - 5, 1));
           try {
             localStorage.setItem(SESSIONS_STORAGE_KEY, JSON.stringify(trimmed));
           } catch {
-            /* fallback silencioso */
           }
-          toast.error(
-            "Armazenamento local cheio. Sessões antigas foram removidas.",
-          );
+          toast.error('Armazenamento local cheio. Sessões antigas foram removidas.');
         }
       }
     }
   }, [sessions, isInitialized]);
 
   useEffect(() => {
-    document.body.className = isDarkMode ? "dark" : "light";
-    document.body.style.backgroundColor = isDarkMode ? "#020617" : "#f8fafc";
-    document.body.style.color = isDarkMode ? "#e2e8f0" : "#0f172a";
-    localStorage.setItem(THEME_KEY, isDarkMode ? "dark" : "light");
+    document.body.className = isDarkMode ? 'dark' : 'light';
+    document.body.style.backgroundColor = isDarkMode ? '#020617' : '#f8fafc';
+    document.body.style.color = isDarkMode ? '#e2e8f0' : '#0f172a';
+    localStorage.setItem(THEME_KEY, isDarkMode ? 'dark' : 'light');
   }, [isDarkMode]);
 
   useEffect(() => {
@@ -160,11 +180,10 @@ export const useChat = () => {
   }, [mode]);
 
   const handleNewSession = useCallback(() => {
-    if (isLoading && abortControllerRef.current)
-      abortControllerRef.current.abort();
+    if (isLoading && abortControllerRef.current) abortControllerRef.current.abort();
     const newSession: ChatSession = {
       id: uuidv4(),
-      title: "Nova Investigação",
+      title: 'Nova Investigação',
       empresaAlvo: null,
       cnpj: null,
       modoPrincipal: null,
@@ -174,39 +193,38 @@ export const useChat = () => {
       updatedAt: new Date().toISOString(),
       messages: [],
     };
-    setSessions((prev) => [newSession, ...prev]);
+    setSessions(prev => [newSession, ...prev]);
     setCurrentSessionId(newSession.id);
     setVisibleCount(PAGE_SIZE);
     resetChatSession();
-    setRemoteSaveStatus("idle");
-    setExportStatus("idle");
+    setRemoteSaveStatus('idle');
+    setExportStatus('idle');
     setPdfReportContent(null);
     setInvestigationLogged(false);
     lastActionRef.current = null;
-    setLastQuery("");
-    setLoadingStatus("Iniciando análise");
+    setLastQuery('');
+    setLoadingStatus('Iniciando análise');
   }, [isLoading]);
 
   const handleSelectSession = async (sessionId: string) => {
-    if (isLoading && abortControllerRef.current)
-      abortControllerRef.current.abort();
+    if (isLoading && abortControllerRef.current) abortControllerRef.current.abort();
     setCurrentSessionId(sessionId);
     setVisibleCount(PAGE_SIZE);
     resetChatSession();
-    setRemoteSaveStatus("idle");
-    setExportStatus("idle");
+    setRemoteSaveStatus('idle');
+    setExportStatus('idle');
     setPdfReportContent(null);
     setInvestigationLogged(false);
     lastActionRef.current = null;
-    setLoadingStatus("Iniciando análise");
-    const targetSession = sessions.find((s) => s.id === sessionId);
+    setLoadingStatus('Iniciando análise');
+    const targetSession = sessions.find(s => s.id === sessionId);
     if (targetSession && targetSession.messages.length === 0) {
       setIsLoadingSession(true);
       try {
         const fullSession = await getRemoteSession(sessionId);
         if (fullSession) updateSessionById(sessionId, () => fullSession);
       } catch (e) {
-        console.error("Lazy load error", e);
+        console.error('Lazy load error', e);
       } finally {
         setIsLoadingSession(false);
       }
@@ -214,17 +232,13 @@ export const useChat = () => {
   };
 
   const handleDeleteSession = (sessionId: string) => {
-    if (
-      sessionId === currentSessionId &&
-      isLoading &&
-      abortControllerRef.current
-    ) {
+    if (sessionId === currentSessionId && isLoading && abortControllerRef.current) {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
       setIsLoading(false);
     }
     delete activeGenerationRef.current[sessionId];
-    const newSessions = sessions.filter((s) => s.id !== sessionId);
+    const newSessions = sessions.filter(s => s.id !== sessionId);
     setSessions(newSessions);
     if (currentSessionId === sessionId) {
       resetChatSession();
@@ -234,9 +248,8 @@ export const useChat = () => {
         if (nextSession.messages.length === 0) {
           setIsLoadingSession(true);
           getRemoteSession(nextSession.id)
-            .then((fullSession) => {
-              if (fullSession)
-                updateSessionById(nextSession.id, () => fullSession);
+            .then(fullSession => {
+              if (fullSession) updateSessionById(nextSession.id, () => fullSession);
               setIsLoadingSession(false);
             })
             .catch(() => setIsLoadingSession(false));
@@ -250,7 +263,7 @@ export const useChat = () => {
   const handleSaveRemote = async () => {
     if (!currentSession || !isAuthenticated) return;
     setIsSavingRemote(true);
-    setRemoteSaveStatus("idle");
+    setRemoteSaveStatus('idle');
     const snapshotSessionId = currentSession.id;
     const finalized: ChatSession = {
       ...currentSession,
@@ -259,10 +272,10 @@ export const useChat = () => {
     updateSessionById(snapshotSessionId, () => finalized);
     try {
       await saveRemoteSession(finalized, userId, user?.displayName);
-      setRemoteSaveStatus("success");
-      setTimeout(() => setRemoteSaveStatus("idle"), 3000);
+      setRemoteSaveStatus('success');
+      setTimeout(() => setRemoteSaveStatus('idle'), 3000);
     } catch {
-      setRemoteSaveStatus("error");
+      setRemoteSaveStatus('error');
     } finally {
       setIsSavingRemote(false);
     }
@@ -270,17 +283,17 @@ export const useChat = () => {
 
   const handleClearChat = () => {
     resetChatSession();
-    updateCurrentSession((session) => ({
+    updateCurrentSession(session => ({
       ...session,
       messages: [],
-      title: "Nova Investigação",
+      title: 'Nova Investigação',
       empresaAlvo: null,
       updatedAt: new Date().toISOString(),
     }));
     setInvestigationLogged(false);
-    setLoadingStatus("Realizando pesquisa...");
+    setLoadingStatus('Realizando pesquisa...');
     lastActionRef.current = null;
-    setLastQuery("");
+    setLastQuery('');
     setVisibleCount(PAGE_SIZE);
   };
 
@@ -293,27 +306,25 @@ export const useChat = () => {
     if (!sessionId) return;
 
     setIsLoading(true);
-    setLoadingStatus("Realizando pesquisa...");
+    setLoadingStatus('Realizando pesquisa...');
     setCompletedLoadingStatuses([]);
     abortControllerRef.current = new AbortController();
     const signal = abortControllerRef.current.signal;
-    lastActionRef.current = { type: "sendMessage", payload: { text } };
+    lastActionRef.current = { type: 'sendMessage', payload: { text } };
 
     let historyToPass: Message[] = [];
     let hintedCompany: string | null = null;
     if (explicitHistory) {
       historyToPass = explicitHistory;
-      const explicitSession = sessionsRef.current.find((s) => s.id === sessionId);
+      const explicitSession = sessionsRef.current.find(s => s.id === sessionId);
       hintedCompany = explicitSession?.empresaAlvo || null;
     } else {
-      const session = sessionsRef.current.find((s) => s.id === sessionId);
+      const session = sessionsRef.current.find(s => s.id === sessionId);
       if (session) {
         hintedCompany = session.empresaAlvo || null;
         const msgs = session.messages;
         historyToPass =
-          msgs.length > 0 &&
-          msgs[msgs.length - 1].text === text &&
-          msgs[msgs.length - 1].sender === Sender.User
+          msgs.length > 0 && msgs[msgs.length - 1].text === text && msgs[msgs.length - 1].sender === Sender.User
             ? msgs.slice(0, -1)
             : msgs;
       }
@@ -326,27 +337,24 @@ export const useChat = () => {
     const botMessagePlaceholder: Message = {
       id: botMessageId,
       sender: Sender.Bot,
-      text: "",
+      text: '',
       timestamp: new Date(),
       isThinking: true,
       isSourcesOpen: false,
     };
 
-    setSessions((prev) =>
-      prev.map((s) =>
+    setSessions(prev =>
+      prev.map(s =>
         s.id === sessionId
           ? {
               ...s,
-              messages: [
-                ...s.messages.filter((m) => !m.isError),
-                botMessagePlaceholder,
-              ],
+              messages: [...s.messages.filter(m => !m.isError), botMessagePlaceholder],
               updatedAt: new Date().toISOString(),
             }
           : s,
       ),
     );
-    setVisibleCount((prev) => prev + 1);
+    setVisibleCount(prev => prev + 1);
 
     try {
       const {
@@ -358,81 +366,77 @@ export const useChat = () => {
       } = await sendMessageToGemini(text, historyToPass, systemInstruction, {
         signal,
         onText: () => {},
-        onStatus: (newStatus) => {
-          setLoadingStatus((prev) => {
+        onStatus: newStatus => {
+          setLoadingStatus(prev => {
             if (prev && prev !== newStatus) lastStatusRef.current = prev;
             return newStatus;
           });
           if (lastStatusRef.current && lastStatusRef.current !== newStatus) {
             const statusToAdd = lastStatusRef.current;
-            setCompletedLoadingStatuses((completed) =>
-              statusToAdd && !completed.includes(statusToAdd)
-                ? [...completed, statusToAdd]
-                : completed,
+            setCompletedLoadingStatuses(completed =>
+              statusToAdd && !completed.includes(statusToAdd) ? [...completed, statusToAdd] : completed,
             );
           }
         },
-        nomeVendedor:
-          typeof user?.displayName === "string" ? user.displayName : "Vendedor",
+        nomeVendedor: typeof user?.displayName === 'string' ? user.displayName : 'Vendedor',
         sessionId,
         hintedCompany,
       });
 
       if (activeGenerationRef.current[sessionId] !== botMessageId) return;
 
-      // Renderização da resposta final é não-urgente: usa startTransition
-      // para não bloquear inputs e animações durante atualização pesada.
       startTransition(() => {
-        updateSessionById(sessionId, (s) => ({
-          ...s,
-          title:
-            s.messages.length <= 2 || s.title === "Nova Investigação"
-              ? cleanTitle(extractCompanyName(text))
-              : s.title,
-          empresaAlvo:
-            s.messages.length <= 2 ? extractCompanyName(text) : s.empresaAlvo,
-          messages: s.messages.map((msg) =>
-            msg.id === botMessageId
-              ? {
-                  ...msg,
-                  text: responseText,
-                  groundingSources: sources,
-                  suggestions,
-                  scorePorta: scorePorta || undefined,
-                  isThinking: false,
-                  ...(ghostReason && { ghostDetails: ghostReason }),
-                }
-              : msg,
-          ),
-        }));
+        updateSessionById(sessionId, s => {
+          const lastUserMessage = [...s.messages].reverse().find(msg => msg.sender === Sender.User)?.text || '';
+          const resolvedCompany = sanitizeSessionCompanyName(s.empresaAlvo, lastUserMessage, text, s.title);
+
+          return {
+            ...s,
+            title:
+              s.messages.length <= 2 || s.title === 'Nova Investigação'
+                ? resolvedCompany || s.title
+                : s.title,
+            empresaAlvo: resolvedCompany || s.empresaAlvo,
+            messages: s.messages.map(msg =>
+              msg.id === botMessageId
+                ? {
+                    ...msg,
+                    text: responseText,
+                    groundingSources: sources,
+                    suggestions,
+                    scorePorta: scorePorta || undefined,
+                    isThinking: false,
+                    ...(ghostReason && { ghostDetails: ghostReason }),
+                  }
+                : msg,
+            ),
+          };
+        });
       });
 
       if (!investigationLogged && responseText.length > 500) {
         setInvestigationLogged(true);
         fetch(BACKEND_URL, {
-          method: "POST",
-          redirect: "follow",
-          headers: { "Content-Type": "text/plain" },
+          method: 'POST',
+          redirect: 'follow',
+          headers: { 'Content-Type': 'text/plain' },
           body: JSON.stringify({
-            action: "logInvestigation",
-            vendedor: user?.displayName || "Anônimo",
-            empresa: cleanTitle(extractCompanyName(text)),
-            modo: mode || "",
+            action: 'logInvestigation',
+            vendedor: user?.displayName || 'Anônimo',
+            empresa: sanitizeSessionCompanyName(text, responseText, currentSession?.empresaAlvo) || cleanTitle(extractCompanyName(text)),
+            modo: mode || '',
             resumo: responseText.substring(0, 200),
           }),
-        }).catch((err) => console.log("Log falhou:", err));
+        }).catch(err => console.log('Log falhou:', err));
       }
     } catch (error: any) {
-      if (error.name === "AbortError" || error.message?.includes("aborted")) {
-        setSessions((prev) =>
-          prev.map((s) =>
+      if (error.name === 'AbortError' || error.message?.includes('aborted')) {
+        setSessions(prev =>
+          prev.map(s =>
             s.id === sessionId
               ? {
                   ...s,
-                  messages: s.messages.filter(
-                    (msg) =>
-                      msg.id !== botMessageId || msg.text.trim().length > 0,
-                  ),
+                  messages: s.messages.filter(msg => msg.id !== botMessageId || msg.text.trim().length > 0),
                 }
               : s,
           ),
@@ -443,14 +447,14 @@ export const useChat = () => {
       }
       if (activeGenerationRef.current[sessionId] !== botMessageId) return;
       const appError = normalizeAppError(error);
-      updateSessionById(sessionId, (s) => ({
+      updateSessionById(sessionId, s => ({
         ...s,
         messages: [
-          ...s.messages.filter((m) => m.id !== botMessageId),
+          ...s.messages.filter(m => m.id !== botMessageId),
           {
             id: uuidv4(),
             sender: Sender.Bot,
-            text: "Erro no processamento",
+            text: 'Erro no processamento',
             timestamp: new Date(),
             isError: true,
             errorDetails: appError,
@@ -468,13 +472,12 @@ export const useChat = () => {
     let currentHistory: Message[] = [];
     if (!sessionId) {
       sessionId = uuidv4();
-      const immediateTitle = cleanTitle(
-        extractCompanyName(displayText || text),
-      );
+      const resolvedCompany = sanitizeSessionCompanyName(displayText || text, text);
+      const immediateTitle = resolvedCompany || 'Nova Investigação';
       const newSession: ChatSession = {
         id: sessionId,
-        title: immediateTitle || "Nova Investigação",
-        empresaAlvo: immediateTitle || null,
+        title: immediateTitle,
+        empresaAlvo: resolvedCompany,
         cnpj: null,
         modoPrincipal: null,
         scoreOportunidade: null,
@@ -483,11 +486,11 @@ export const useChat = () => {
         updatedAt: new Date().toISOString(),
         messages: [],
       };
-      setSessions((prev) => [newSession, ...prev]);
+      setSessions(prev => [newSession, ...prev]);
       setCurrentSessionId(sessionId);
       currentHistory = [];
     } else {
-      const session = sessions.find((s) => s.id === sessionId);
+      const session = sessions.find(s => s.id === sessionId);
       currentHistory = session ? [...session.messages] : [];
     }
     const userMessage: Message = {
@@ -496,8 +499,8 @@ export const useChat = () => {
       text: displayText || text,
       timestamp: new Date(),
     };
-    setSessions((prev) =>
-      prev.map((s) =>
+    setSessions(prev =>
+      prev.map(s =>
         s.id === sessionId
           ? {
               ...s,
@@ -507,28 +510,29 @@ export const useChat = () => {
           : s,
       ),
     );
-    setVisibleCount((prev) => prev + 1);
+    setVisibleCount(prev => prev + 1);
     await processMessage(text, sessionId, currentHistory);
   };
 
   const handleDeepDive = async (
     displayMessage: string,
     hiddenPrompt: string,
+    explicitCompanyName?: string,
   ) => {
+    const resolvedCompany = sanitizeSessionCompanyName(
+      explicitCompanyName,
+      currentSession?.empresaAlvo,
+      currentSession?.title,
+      displayMessage,
+      hiddenPrompt,
+    );
+
     let finalPrompt = hiddenPrompt;
-    if (currentSession?.empresaAlvo) {
-      finalPrompt = hiddenPrompt.replace(
-        /\[NOME DA EMPRESA\]/g,
-        currentSession.empresaAlvo,
-      );
+    if (resolvedCompany) {
+      finalPrompt = hiddenPrompt.replace(/\[NOME DA EMPRESA\]/g, resolvedCompany);
     }
 
-    const empresaContext =
-      currentSession?.empresaAlvo ||
-      currentSession?.title ||
-      "a empresa desta conversa";
-    // "Dossiê completo" é o gatilho reconhecido pelo router para escalar ao modelo profundo (gemini-3.1-pro-preview).
-    // Sem ele, o router pode classificar como "tatica" e reduzir a profundidade da resposta.
+    const empresaContext = resolvedCompany || 'a empresa desta conversa';
     await handleSendMessage(
       `Dossiê completo de [${empresaContext}]. Protocolo de investigação forense especializada:\n\n${finalPrompt}`,
       displayMessage,
@@ -537,11 +541,10 @@ export const useChat = () => {
 
   const handleDeleteMessage = (id: string) => {
     if (!currentSessionId) return;
-    updateSessionById(currentSessionId, (session) => {
-      const msgIndex = session.messages.findIndex((m) => m.id === id);
+    updateSessionById(currentSessionId, session => {
+      const msgIndex = session.messages.findIndex(m => m.id === id);
       if (msgIndex === -1) return session;
 
-      // Corta a conversa a partir deste índice (remove a msg do usuário e TODAS as repostas a frente)
       const truncatedMessages = session.messages.slice(0, msgIndex);
 
       return {
@@ -561,26 +564,19 @@ export const useChat = () => {
 
   const handleRetry = () => {
     if (!lastActionRef.current) return;
-    if (lastActionRef.current.type === "sendMessage") {
+    if (lastActionRef.current.type === 'sendMessage') {
       if (currentSessionId) {
-        updateSessionById(currentSessionId, (session) => {
+        updateSessionById(currentSessionId, session => {
           const messages = session.messages;
           const lastMsg = messages[messages.length - 1];
-          if (
-            lastMsg &&
-            lastMsg.sender === Sender.Bot &&
-            (lastMsg.isError || !lastMsg.text || lastMsg.ghostReason)
-          ) {
+          if (lastMsg && lastMsg.sender === Sender.Bot && (lastMsg.isError || !lastMsg.text || lastMsg.ghostReason)) {
             return { ...session, messages: messages.slice(0, -1) };
           }
           return session;
         });
       }
-      processMessage(
-        lastActionRef.current.payload.text,
-        currentSessionId || undefined,
-      );
-    } else if (lastActionRef.current.type === "regenerateSuggestions") {
+      processMessage(lastActionRef.current.payload.text, currentSessionId || undefined);
+    } else if (lastActionRef.current.type === 'regenerateSuggestions') {
       handleRegenerateSuggestions(lastActionRef.current.payload.messageId);
     }
   };
@@ -589,54 +585,47 @@ export const useChat = () => {
     const sessionId = currentSessionId;
     if (!sessionId) return;
     lastActionRef.current = {
-      type: "regenerateSuggestions",
+      type: 'regenerateSuggestions',
       payload: { messageId },
     };
-    const targetSession = sessions.find((s) => s.id === sessionId);
+    const targetSession = sessions.find(s => s.id === sessionId);
     if (!targetSession) return;
-    const targetMessage = targetSession.messages.find(
-      (m) => m.id === messageId,
-    );
+    const targetMessage = targetSession.messages.find(m => m.id === messageId);
     if (!targetMessage) return;
     const companyName =
       targetSession.empresaAlvo ||
-      extractCompanyName(targetSession.title || "") ||
-      "Empresa não identificada";
-    let lastUserQuestion = "";
+      extractCompanyName(targetSession.title || '') ||
+      'Empresa não identificada';
+    let lastUserQuestion = '';
     const msgs = targetSession.messages;
-    const idx = msgs.findIndex((m) => m.id === messageId);
+    const idx = msgs.findIndex(m => m.id === messageId);
     for (let i = idx - 1; i >= 0; i--) {
       if (msgs[i].sender === Sender.User) {
         lastUserQuestion = msgs[i].text;
         break;
       }
     }
-    const snippet = (targetMessage.text || "").slice(0, 3000);
+    const snippet = (targetMessage.text || '').slice(0, 3000);
     const contextText = [
       `EMPRESA: ${companyName}`,
-      lastUserQuestion ? `PERGUNTA_ANTERIOR: ${lastUserQuestion}` : "",
-      "TRECHO_DOSSIE:",
+      lastUserQuestion ? `PERGUNTA_ANTERIOR: ${lastUserQuestion}` : '',
+      'TRECHO_DOSSIE:',
       snippet,
     ]
       .filter(Boolean)
-      .join("\n\n");
+      .join('\n\n');
     const oldSuggestions = targetMessage.suggestions || [];
-    updateSessionById(sessionId, (session) => ({
+    updateSessionById(sessionId, session => ({
       ...session,
-      messages: session.messages.map((msg) =>
-        msg.id === messageId
-          ? { ...msg, isRegeneratingSuggestions: true }
-          : msg,
+      messages: session.messages.map(msg =>
+        msg.id === messageId ? { ...msg, isRegeneratingSuggestions: true } : msg,
       ),
     }));
     try {
-      const newSuggestions = await generateNewSuggestions(
-        contextText,
-        oldSuggestions,
-      );
-      updateSessionById(sessionId, (session) => ({
+      const newSuggestions = await generateNewSuggestions(contextText, oldSuggestions);
+      updateSessionById(sessionId, session => ({
         ...session,
-        messages: session.messages.map((msg) =>
+        messages: session.messages.map(msg =>
           msg.id === messageId
             ? {
                 ...msg,
@@ -647,14 +636,12 @@ export const useChat = () => {
         ),
       }));
     } catch (e: any) {
-      console.warn("Suggestion regeneration failed", e);
-      toast.error(e.message || "Falha na conexão com a IA.");
-      updateSessionById(sessionId, (session) => ({
+      console.warn('Suggestion regeneration failed', e);
+      toast.error(e.message || 'Falha na conexão com a IA.');
+      updateSessionById(sessionId, session => ({
         ...session,
-        messages: session.messages.map((msg) =>
-          msg.id === messageId
-            ? { ...msg, isRegeneratingSuggestions: false }
-            : msg,
+        messages: session.messages.map(msg =>
+          msg.id === messageId ? { ...msg, isRegeneratingSuggestions: false } : msg,
         ),
       }));
     }
@@ -677,9 +664,9 @@ export const useChat = () => {
         feedbackId: uuidv4(),
         sessionId: currentSession.id,
         messageId,
-        sectionKey: "ERROR_REPORT",
-        sectionTitle: "System Error",
-        type: "dislike",
+        sectionKey: 'ERROR_REPORT',
+        sectionTitle: 'System Error',
+        type: 'dislike',
         comment: `Automated Error Report: ${error.code}`,
         aiContent: errorPayload,
         userId,
@@ -687,18 +674,16 @@ export const useChat = () => {
         timestamp: new Date().toISOString(),
       });
     } catch (e) {
-      console.error("Failed to report error", e);
+      console.error('Failed to report error', e);
     }
   };
 
   const handleFeedback = (messageId: string, feedback: Feedback) => {
     if (!currentSession) return;
-    updateCurrentSession((session) => ({
+    updateCurrentSession(session => ({
       ...session,
-      messages: session.messages.map((m) =>
-        m.id === messageId
-          ? { ...m, feedback: m.feedback === feedback ? undefined : feedback }
-          : m,
+      messages: session.messages.map(m =>
+        m.id === messageId ? { ...m, feedback: m.feedback === feedback ? undefined : feedback } : m,
       ),
     }));
   };
@@ -711,11 +696,9 @@ export const useChat = () => {
   ) => {
     if (!currentSession) return;
     const snapshotSessionId = currentSession.id;
-    updateSessionById(snapshotSessionId, (session) => ({
+    updateSessionById(snapshotSessionId, session => ({
       ...session,
-      messages: session.messages.map((m) =>
-        m.id === messageId ? { ...m, feedback } : m,
-      ),
+      messages: session.messages.map(m => (m.id === messageId ? { ...m, feedback } : m)),
     }));
     try {
       await sendFeedbackRemote({
@@ -724,7 +707,7 @@ export const useChat = () => {
         messageId,
         sectionKey: null,
         sectionTitle: null,
-        type: feedback === "up" ? "like" : "dislike",
+        type: feedback === 'up' ? 'like' : 'dislike',
         comment,
         aiContent: content,
         userId,
@@ -732,7 +715,7 @@ export const useChat = () => {
         timestamp: new Date().toISOString(),
       });
     } catch (e) {
-      console.error("Feedback error", e);
+      console.error('Feedback error', e);
     }
   };
 
@@ -741,13 +724,12 @@ export const useChat = () => {
     sectionTitle: string,
     feedback: Feedback,
   ) => {
-    updateCurrentSession((session) => ({
+    updateCurrentSession(session => ({
       ...session,
-      messages: session.messages.map((msg) => {
+      messages: session.messages.map(msg => {
         if (msg.id !== messageId) return msg;
         const currentSections = msg.sectionFeedback || {};
-        const newVal =
-          currentSections[sectionTitle] === feedback ? undefined : feedback;
+        const newVal = currentSections[sectionTitle] === feedback ? undefined : feedback;
         const newSections = { ...currentSections };
         if (newVal === undefined) delete newSections[sectionTitle];
         else newSections[sectionTitle] = newVal;
@@ -757,12 +739,10 @@ export const useChat = () => {
   };
 
   const handleToggleMessageSources = (messageId: string) => {
-    updateCurrentSession((session) => ({
+    updateCurrentSession(session => ({
       ...session,
-      messages: session.messages.map((msg) =>
-        msg.id === messageId
-          ? { ...msg, isSourcesOpen: !msg.isSourcesOpen }
-          : msg,
+      messages: session.messages.map(msg =>
+        msg.id === messageId ? { ...msg, isSourcesOpen: !msg.isSourcesOpen } : msg,
       ),
     }));
   };
@@ -800,6 +780,6 @@ export const useChat = () => {
     handleToggleMessageSources,
     setVisibleCount,
     setSessions,
-    updateSessionById
+    updateSessionById,
   };
 };
