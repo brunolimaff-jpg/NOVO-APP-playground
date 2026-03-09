@@ -23,7 +23,7 @@ function toLines(value: unknown): string[] {
 
   return value
     .map((item) => (typeof item === 'string' ? sanitizeLine(item) : ''))
-    .filter((item) => item.length > 10 && item.length <= 180)
+    .filter((item) => item.length > 10 && item.length <= 220)
     .filter((item) => !isUnsafeLine(item));
 }
 
@@ -44,18 +44,18 @@ export function buildLoadingCuriositiesFallback(context: string): string[] {
   const company = context?.trim();
   if (!company) {
     return [
+      'Buscando evidências para conectar dor operacional com proposta de valor da Senior...',
       'Consultando sinais do mercado-alvo e padrões de compra B2B...',
       'Senior Sistemas atua com ERP, HCM e soluções para operações complexas no Brasil.',
-      'Buscando evidências para conectar dor operacional com proposta de valor da Senior...',
       'Mapeando exemplos de integração entre gestão corporativa e operação de campo.'
     ];
   }
 
   return [
+    `Buscando evidências públicas de ${company} para conectar dor operacional com proposta de valor...`,
     `Levantando movimentos recentes, expansão e sinais públicos de ${company}...`,
     'Senior Sistemas combina ERP, HCM e GAtec para reduzir retrabalho entre áreas.',
-    `Cruzando ${company} com benchmarks operacionais para identificar lacunas de gestão...`,
-    'Buscando pontos de aderência entre o cenário da empresa e o portfólio da Senior.'
+    `Cruzando ${company} com benchmarks operacionais para identificar lacunas de gestão...`
   ];
 }
 

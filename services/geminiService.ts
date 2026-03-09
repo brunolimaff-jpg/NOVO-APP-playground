@@ -667,7 +667,7 @@ let currentCompanyContext: { empresa: string; sessionId: string; timestamp: numb
 export function generateContextReminder(companyName: string | null, sessionId?: string): string {
   if (!companyName) return '';
   currentCompanyContext = { empresa: companyName, sessionId: sessionId || 'unknown', timestamp: Date.now() };
-  return `\n\n📌 [CONTEXTO ATIVO]: Você está investigando a empresa "${companyName}".\n- Mantenha foco TOTAL nesta empresa.\n- NUNCA cite nomes de empresas que não foram mencionados pelo usuário.\n`;
+  return `\n\n📌 [CONTEXTO ATIVO]: Você está investigando a empresa "${companyName}".\n- Mantenha foco TOTAL nesta empresa.\n- NUNCA cite nomes de empresas que não foram mencionados pelo usuário.\n- É PROIBIDO atribuir fatos de entidades com nome diferente (fundação, instituto, associação, cliente, fornecedor) à empresa-alvo sem vínculo explícito na mesma fonte.\n- Se houver dúvida de vínculo, escreva literalmente: "Não confirmado publicamente para ${companyName}".\n`;
 }
 
 export function resetCompanyContext(): void {
@@ -749,14 +749,19 @@ const generateBenchmarkKeywords = async (empresaNome: string, contexto: string):
   }
 };
 
-export const generateLoadingCuriosities = async (context: string): Promise<string[]> => {
-  if (!context.trim()) return [];
+export const generateLoadingCuriosities = async (context: string, userQuery = ''): Promise<string[]> => {
+  const baseContext = context.trim();
+  const queryContext = userQuery.trim();
+  if (!baseContext && !queryContext) return [];
   try {
+    const effectiveContext = baseContext || queryContext;
+    const querySnippet = queryContext ? `Consulta do usuário: "${queryContext.slice(0, 300)}".` : '';
     const response = await proxyGenerateContent({
       model: ROUTER_MODEL_ID,
       contents: `Você está gerando mensagens rápidas para o loading da investigação comercial.
 
-Contexto da empresa-alvo: "${context}".
+Contexto principal: "${effectiveContext}".
+${querySnippet}
 
 Retorne EXCLUSIVAMENTE um JSON com este formato:
 {
@@ -768,14 +773,21 @@ Retorne EXCLUSIVAMENTE um JSON com este formato:
 
 REGRAS:
 - Gere entre 1 e 3 itens por chave.
-- "empresa": fatos/sinais específicos da empresa-alvo.
+- "empresa": fatos/sinais específicos da empresa-alvo ou do alvo da consulta.
 - "senior": fatos sobre Senior Sistemas e aderência da oferta (ERP/HCM/GAtec).
 - "setor"/"regional": contexto de mercado e região para reforçar diagnóstico.
-- Frases curtas (máx 130 chars), concretas e sem linguagem genérica.
+- Frases curtas (máx 170 chars), concretas e sem linguagem genérica.
+- Priorize evidências públicas verificáveis com sinais da web.
+- Sempre que possível, termine com "— Fonte: <origem>" usando origem curta (ex.: IBGE, CONAB, Embrapa, Senior, GAtec).
 - Se não houver dado confiável, use formulação prudente (ex: "sinal de expansão em apuração").`,
-      config: { responseMimeType: 'application/json', temperature: 0.8, maxOutputTokens: 1024 },
+      config: {
+        responseMimeType: 'application/json',
+        temperature: 0.35,
+        maxOutputTokens: 1024,
+        tools: [{ googleSearch: {} }],
+      },
     });
-    return parseLoadingCuriosities(response.text || '', context);
+    return parseLoadingCuriosities(response.text || '', effectiveContext);
   } catch {
     return [];
   }
@@ -960,6 +972,17 @@ export const sendMessageToGemini = async (
     }
 
     let finalInstruction = systemInstructionFinal;
+    if (empresa) {
+      finalInstruction = `${finalInstruction}
+
+REGRA DE VÍNCULO DE EVIDÊNCIA (CRÍTICA):
+- Empresa-alvo: "${empresa}".
+- Não atribua como fato da empresa-alvo nenhuma informação de entidade com nome diferente.
+- Antes de afirmar ERP, cargo executivo, CNPJ do grupo, parceria ou incidente, valide vínculo explícito da própria fonte com "${empresa}".
+- Se a evidência citar terceiro (ex.: fundação, associação, parceiro) sem comprovar relação direta com "${empresa}", escreva "Não confirmado publicamente para ${empresa}".
+- É proibido preencher lacunas por inferência quando o vínculo não estiver claro.
+`;
+    }
     if (!empresa && !history.some(h => h.sender === 'bot' && (h.scorePorta || h.text.includes('PORTA:')))) {
       finalInstruction = `Você é o Especialista Técnico da Senior Sistemas.
 SUA ÚNICA MISSÃO: Responder a pergunta técnica de forma DIRETA. 

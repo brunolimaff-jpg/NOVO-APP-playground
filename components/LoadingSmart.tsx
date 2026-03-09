@@ -31,7 +31,9 @@ const LoadingSmart: React.FC<LoadingSmartProps> = ({
   searchQuery,
   empresaAlvo
 }) => {
-  const [currentInsight, setCurrentInsight] = useState<string>("Preparando diagnóstico...");
+  const [currentInsight, setCurrentInsight] = useState<string>(
+    "Buscando evidências para conectar dor operacional com proposta de valor da Senior..."
+  );
   const [isVisible, setIsVisible] = useState(false);
   const [isFadingOut, setIsFadingOut] = useState(false);
   const [elapsedTime, setElapsedTime] = useState(0);
@@ -60,6 +62,7 @@ const LoadingSmart: React.FC<LoadingSmartProps> = ({
 
   const companyFocus = (empresaAlvo || extractCompanyFromQuery(searchQuery)).trim();
   const safeContext = companyFocus.trim();
+  const loadingContext = (safeContext || (searchQuery || '').trim()).trim();
   const normalizeSourceLabel = useCallback((label: string): string => {
     return label
       .toLowerCase()
@@ -119,28 +122,32 @@ const LoadingSmart: React.FC<LoadingSmartProps> = ({
     if (isLoading) {
       curiosityIndexRef.current = 0;
       curiositiesRef.current = [];
-      setCurrentInsight(companyFocus ? `Investigando ${companyFocus}...` : 'Preparando diagnóstico...');
+      setCurrentInsight(
+        companyFocus
+          ? `Buscando evidências públicas de ${companyFocus} para conectar dor operacional com proposta de valor...`
+          : 'Buscando evidências para conectar dor operacional com proposta de valor da Senior...'
+      );
 
-      if (!safeContext || safeContext.length < 2) {
+      if (!loadingContext || loadingContext.length < 2) {
         curiositiesRef.current = buildFallbackCuriosities('');
         setCurrentInsight(curiositiesRef.current[0]);
         return;
       }
 
-      generateLoadingCuriosities(safeContext).then(facts => {
+      generateLoadingCuriosities(loadingContext, searchQuery || '').then(facts => {
         if (facts && facts.length > 0) {
           curiositiesRef.current = facts;
           setCurrentInsight(facts[0]);
         } else {
-          curiositiesRef.current = buildFallbackCuriosities(safeContext);
+          curiositiesRef.current = buildFallbackCuriosities(loadingContext);
           setCurrentInsight(curiositiesRef.current[0]);
         }
       }).catch(() => {
-        curiositiesRef.current = buildFallbackCuriosities(safeContext);
+        curiositiesRef.current = buildFallbackCuriosities(loadingContext);
         setCurrentInsight(curiositiesRef.current[0]);
       });
     }
-  }, [isLoading, companyFocus, safeContext, buildFallbackCuriosities]);
+  }, [isLoading, companyFocus, loadingContext, searchQuery, buildFallbackCuriosities]);
 
   // 3. Ciclo de rotação de curiosidades (SEMPRE ATIVO)
   const cycleCuriosity = useCallback(() => {
