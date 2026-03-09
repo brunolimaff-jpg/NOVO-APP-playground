@@ -21,12 +21,54 @@ import {
   PROMPT_TECH_STACK_GOD_MODE_ATAQUE,
 } from '../prompts/megaPrompts';
 
-const QUICK_ACTIONS = [
-  { icon: '🎯', label: 'Comparar', prompt: 'Compare com o principal concorrente dessa empresa' },
-  { icon: '💰', label: 'Budget', prompt: 'Qual o budget estimado para implementação completa com ERP, HCM e GAtec?' },
-  { icon: '💡', label: 'Abordagem', prompt: 'Me sugira a melhor abordagem para esse decisor' },
-  { icon: '✨', label: 'Senior', prompt: 'Como os produtos Senior resolveriam as dores dessa empresa?' },
-];
+function resolveQuickActionCompanyName(companyName?: string | null, title?: string | null): string | null {
+  const candidate = cleanTitle(companyName || title || '').trim();
+  if (!candidate) return null;
+  if (/^nova investiga[cç][aã]o$/i.test(candidate)) return null;
+  if (/^dossi[eê] completo de$/i.test(candidate)) return null;
+  return candidate;
+}
+
+function buildQuickActions(companyName?: string | null) {
+  const company = companyName?.trim();
+
+  if (!company) {
+    return [
+      { icon: '🎯', label: 'Comparar', prompt: 'Compare com o principal concorrente dessa empresa.' },
+      {
+        icon: '💰',
+        label: 'Budget',
+        prompt:
+          'Considerando o contexto já investigado desta conta, qual o budget estimado para uma implementação completa com ERP Senior, HCM, GAtec e Senior Flow, incluindo faixas de investimento por fase, implantação, licenças, serviços e complexidade operacional?',
+      },
+      { icon: '💡', label: 'Abordagem', prompt: 'Me sugira a melhor abordagem comercial para esse decisor.' },
+      { icon: '✨', label: 'Senior', prompt: 'Como os produtos Senior resolveriam as principais dores dessa empresa?' },
+    ];
+  }
+
+  return [
+    {
+      icon: '🎯',
+      label: 'Comparar',
+      prompt: `Compare ${company} com o principal concorrente, destacando diferenças operacionais, tecnológicas e comerciais mais relevantes para uma abordagem de venda consultiva.`,
+    },
+    {
+      icon: '💰',
+      label: 'Budget',
+      prompt: `Considerando o cenário atual de ${company}, com base no dossiê já aberto e no contexto operacional mapeado, qual o budget estimado para uma implementação completa com ERP Senior, HCM, GAtec e Senior Flow, incluindo implantação por fases, licenças, serviços, integração com sistemas legados, gestão da mudança e consolidação de novas verticais?`,
+    },
+    {
+      icon: '💡',
+      label: 'Abordagem',
+      prompt: `Com base no contexto já levantado sobre ${company}, me sugira a melhor abordagem comercial para esse decisor, incluindo narrativa, gatilhos de urgência, objeções prováveis e próximos passos.`,
+    },
+    {
+      icon: '✨',
+      label: 'Senior',
+      prompt: `Como os produtos Senior, especialmente ERP Senior, Senior Flow, HCM e GAtec, resolveriam as dores e oportunidades já identificadas em ${company}?`,
+    },
+  ];
+}
 
 function extractDisplayedSuggestions(content?: string): string[] {
   if (!content) return [];
@@ -125,6 +167,13 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
   const pendingDeleteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isInitialGateActive = messages.length === 0;
 
+  const quickActionCompany = useMemo(
+    () => resolveQuickActionCompanyName(currentSession?.empresaAlvo || null, currentSession?.title || null),
+    [currentSession?.empresaAlvo, currentSession?.title],
+  );
+
+  const quickActions = useMemo(() => buildQuickActions(quickActionCompany), [quickActionCompany]);
+
   const handleDeleteWithUndo = (msgId: string) => {
     if (pendingDeleteTimer.current) clearTimeout(pendingDeleteTimer.current);
     setPendingDeleteId(msgId);
@@ -186,7 +235,7 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
           ({ m }) =>
             m.sender === Sender.Bot &&
             ((m.suggestions && m.suggestions.length > 0) || parseSmartOptions(m.text).options.length > 0),
-        ) // <-- CORREÇÃO AQUI
+        )
         .map(({ i }) => i)
         .pop(),
     [messages],
@@ -311,8 +360,8 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
       processing,
       lastUserQuery,
       onStop: handleStopWithToast,
-      onSendMessage, // <-- CORREÇÃO AQUI (Para as sugestões clicáveis enviarem sozinhas)
-      empresaAlvo: currentSession?.empresaAlvo || null, // <-- NOVO: passar o nome da empresa
+      onSendMessage,
+      empresaAlvo: currentSession?.empresaAlvo || null,
     }),
     [
       messages,
@@ -336,7 +385,7 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
       processing,
       lastUserQuery,
       handleStopWithToast,
-      onSendMessage, // <-- CORREÇÃO AQUI NAS DEPENDÊNCIAS
+      onSendMessage,
     ],
   );
 
@@ -503,9 +552,7 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
                     </div>
                   ) : null,
               }}
-              itemContent={(idx) => (
-                <MessageRow key={messages[idx].id} index={idx} data={itemData} />
-              )}
+              itemContent={(idx) => <MessageRow key={messages[idx].id} index={idx} data={itemData} />}
             />
           )}
         </div>
@@ -571,119 +618,119 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
               isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-white border-slate-200'
             } z-20`}
           >
-          <div className="w-full max-w-5xl xl:max-w-6xl mx-auto px-1 md:px-6 lg:px-8 relative">
-            {showActionsMenu && (
-              <div
-                ref={actionsMenuRef}
-                className={`absolute bottom-full left-2 md:left-8 mb-2 w-72 rounded-xl shadow-xl border overflow-hidden animate-fade-in z-50 ${
-                  isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'
-                }`}
-              >
+            <div className="w-full max-w-5xl xl:max-w-6xl mx-auto px-1 md:px-6 lg:px-8 relative">
+              {showActionsMenu && (
                 <div
-                  className={`px-4 py-3 border-b text-xs font-bold uppercase tracking-wider flex items-center gap-2 ${
-                    isDarkMode ? 'border-slate-700 text-emerald-400' : 'border-slate-100 text-emerald-600'
+                  ref={actionsMenuRef}
+                  className={`absolute bottom-full left-2 md:left-8 mb-2 w-72 rounded-xl shadow-xl border overflow-hidden animate-fade-in z-50 ${
+                    isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'
                   }`}
                 >
-                  <span>⚡</span> Ações Rápidas
-                </div>
-                <div className="flex flex-col py-1 max-h-[40vh] overflow-y-auto">
-                  {QUICK_ACTIONS.map(qa => (
-                    <button
-                      key={qa.label}
-                      onClick={() => handleActionClick(qa.prompt)}
-                      className={`flex items-center gap-3 px-4 py-3 text-sm text-left transition-colors ${
-                        isDarkMode ? 'hover:bg-slate-700 text-slate-200' : 'hover:bg-emerald-50 text-slate-700'
-                      }`}
-                    >
-                      <span className="text-lg">{qa.icon}</span>
-                      <span className="font-medium">{qa.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <div
-              className={`relative flex items-end w-full rounded-2xl border pl-2 pr-12 py-2 shadow-sm ${
-                isDarkMode ? 'border-gray-700/50 bg-gray-800/80' : 'border-gray-300 bg-white'
-              }`}
-            >
-              {!isLoading && messages.length > 0 && (
-                <button
-                  onClick={() => setShowActionsMenu(!showActionsMenu)}
-                  className={`p-2 rounded-xl transition-colors flex-shrink-0 mr-1 mb-0.5 ${
-                    isDarkMode ? 'text-emerald-400 hover:bg-slate-700' : 'text-emerald-600 hover:bg-emerald-50'
-                  }`}
-                  title="Ações Rápidas"
-                >
-                  ⚡
-                </button>
-              )}
-
-              {!isLoading && messages.length > 0 && messages[messages.length - 1].sender === Sender.User && (
-                <div className="absolute bottom-full left-0 mb-3 w-full flex justify-center animate-fade-in">
                   <div
-                    className={`flex items-center gap-3 px-4 py-2 rounded-full shadow-md border text-xs font-semibold ${
-                      isDarkMode
-                        ? 'bg-slate-800 border-red-900/50 text-slate-200'
-                        : 'bg-red-50 border-red-200 text-red-700'
+                    className={`px-4 py-3 border-b text-xs font-bold uppercase tracking-wider flex items-center gap-2 ${
+                      isDarkMode ? 'border-slate-700 text-emerald-400' : 'border-slate-100 text-emerald-600'
                     }`}
                   >
-                    <span>⚠️ A resposta falhou ou foi perdida no reload.</span>
-                    <button
-                      onClick={handleRetryNormal}
-                      className="px-3 py-1 rounded-full bg-red-600 hover:bg-red-500 text-white shadow-sm transition-all flex items-center gap-1"
-                    >
-                      <span className="text-sm">🔄</span> Gerar Resposta
-                    </button>
+                    <span>⚡</span> Ações Rápidas
+                  </div>
+                  <div className="flex flex-col py-1 max-h-[40vh] overflow-y-auto">
+                    {quickActions.map(qa => (
+                      <button
+                        key={qa.label}
+                        onClick={() => handleActionClick(qa.prompt)}
+                        className={`flex items-center gap-3 px-4 py-3 text-sm text-left transition-colors ${
+                          isDarkMode ? 'hover:bg-slate-700 text-slate-200' : 'hover:bg-emerald-50 text-slate-700'
+                        }`}
+                      >
+                        <span className="text-lg">{qa.icon}</span>
+                        <span className="font-medium">{qa.label}</span>
+                      </button>
+                    ))}
                   </div>
                 </div>
               )}
 
-              <textarea
-                ref={textareaRef}
-                value={input}
-                onChange={e => setInput(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder={
-                  isLoading ? 'Gerando resposta...' : 'Investigar empresa, CNPJ ou colar ficha do Spotter...'
-                }
-                disabled={isLoading}
-                rows={1}
-                className={`flex-1 bg-transparent text-sm outline-none resize-none min-h-[36px] max-h-[100px] mb-1 px-2 custom-scrollbar ${
-                  isDarkMode ? 'text-white placeholder-slate-500' : 'text-slate-900 placeholder-slate-400'
+              <div
+                className={`relative flex items-end w-full rounded-2xl border pl-2 pr-12 py-2 shadow-sm ${
+                  isDarkMode ? 'border-gray-700/50 bg-gray-800/80' : 'border-gray-300 bg-white'
                 }`}
-                style={{ overflow: 'hidden' }}
-              />
-              {isLoading ? (
-                <button
-                  onClick={handleStopWithToast}
-                  className={`absolute right-2 bottom-2 w-10 h-10 flex items-center justify-center rounded-xl transition-all border ${
-                    isDarkMode
-                      ? 'bg-red-950/70 hover:bg-red-900/90 border-red-900/60 text-red-400 hover:text-red-300'
-                      : 'bg-red-50 hover:bg-red-100 border-red-200 text-red-500 hover:text-red-600'
+              >
+                {!isLoading && messages.length > 0 && (
+                  <button
+                    onClick={() => setShowActionsMenu(!showActionsMenu)}
+                    className={`p-2 rounded-xl transition-colors flex-shrink-0 mr-1 mb-0.5 ${
+                      isDarkMode ? 'text-emerald-400 hover:bg-slate-700' : 'text-emerald-600 hover:bg-emerald-50'
+                    }`}
+                    title="Ações Rápidas"
+                  >
+                    ⚡
+                  </button>
+                )}
+
+                {!isLoading && messages.length > 0 && messages[messages.length - 1].sender === Sender.User && (
+                  <div className="absolute bottom-full left-0 mb-3 w-full flex justify-center animate-fade-in">
+                    <div
+                      className={`flex items-center gap-3 px-4 py-2 rounded-full shadow-md border text-xs font-semibold ${
+                        isDarkMode
+                          ? 'bg-slate-800 border-red-900/50 text-slate-200'
+                          : 'bg-red-50 border-red-200 text-red-700'
+                      }`}
+                    >
+                      <span>⚠️ A resposta falhou ou foi perdida no reload.</span>
+                      <button
+                        onClick={handleRetryNormal}
+                        className="px-3 py-1 rounded-full bg-red-600 hover:bg-red-500 text-white shadow-sm transition-all flex items-center gap-1"
+                      >
+                        <span className="text-sm">🔄</span> Gerar Resposta
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                <textarea
+                  ref={textareaRef}
+                  value={input}
+                  onChange={e => setInput(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder={
+                    isLoading ? 'Gerando resposta...' : 'Investigar empresa, CNPJ ou colar ficha do Spotter...'
+                  }
+                  disabled={isLoading}
+                  rows={1}
+                  className={`flex-1 bg-transparent text-sm outline-none resize-none min-h-[36px] max-h-[100px] mb-1 px-2 custom-scrollbar ${
+                    isDarkMode ? 'text-white placeholder-slate-500' : 'text-slate-900 placeholder-slate-400'
                   }`}
-                  title="Parar geração"
-                >
-                  <span className="text-base leading-none">⏹</span>
-                </button>
-              ) : (
-                <button
-                  onClick={handleSend}
-                  disabled={!input.trim()}
-                  className={`absolute right-2 bottom-2 w-10 h-10 flex items-center justify-center rounded-xl transition-all shadow-md ${
-                    !input.trim()
-                      ? isDarkMode
-                        ? 'bg-slate-700 text-slate-500'
-                        : 'bg-slate-200 text-slate-400'
-                      : 'bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-white hover:scale-105 active:scale-95 shadow-emerald-500/30'
-                  }`}
-                >
-                  <span className="text-lg ml-0.5">➤</span>
-                </button>
-              )}
+                  style={{ overflow: 'hidden' }}
+                />
+                {isLoading ? (
+                  <button
+                    onClick={handleStopWithToast}
+                    className={`absolute right-2 bottom-2 w-10 h-10 flex items-center justify-center rounded-xl transition-all border ${
+                      isDarkMode
+                        ? 'bg-red-950/70 hover:bg-red-900/90 border-red-900/60 text-red-400 hover:text-red-300'
+                        : 'bg-red-50 hover:bg-red-100 border-red-200 text-red-500 hover:text-red-600'
+                    }`}
+                    title="Parar geração"
+                  >
+                    <span className="text-base leading-none">⏹</span>
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleSend}
+                    disabled={!input.trim()}
+                    className={`absolute right-2 bottom-2 w-10 h-10 flex items-center justify-center rounded-xl transition-all shadow-md ${
+                      !input.trim()
+                        ? isDarkMode
+                          ? 'bg-slate-700 text-slate-500'
+                          : 'bg-slate-200 text-slate-400'
+                        : 'bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-white hover:scale-105 active:scale-95 shadow-emerald-500/30'
+                    }`}
+                  >
+                    <span className="text-lg ml-0.5">➤</span>
+                  </button>
+                )}
+              </div>
             </div>
-          </div>
           </div>
         )}
 
