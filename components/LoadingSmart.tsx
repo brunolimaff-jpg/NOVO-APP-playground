@@ -43,6 +43,11 @@ const LoadingSmart: React.FC<LoadingSmartProps> = ({
   const curiosityIndexRef = useRef<number>(0);
   const extractCompanyFromQuery = useCallback((query?: string): string => {
     if (!query) return '';
+
+    // Handle megaprompt format: "Dossiê completo de [CompanyName]..."
+    const megaMatch = query.match(/Doss[iî][eê]\s+completo\s+de\s+\[([^\]]+)\]/i);
+    if (megaMatch?.[1]) return megaMatch[1].trim();
+
     const cleanQuery = query.trim().replace(/[.]{2,}$/g, '').replace(/\s+/g, ' ');
 
     const patterns = [
@@ -62,7 +67,8 @@ const LoadingSmart: React.FC<LoadingSmartProps> = ({
 
   const companyFocus = (empresaAlvo || extractCompanyFromQuery(searchQuery)).trim();
   const safeContext = companyFocus.trim();
-  const loadingContext = (safeContext || (searchQuery || '').trim()).trim();
+  const MAX_CONTEXT_LEN = 100;
+  const loadingContext = (safeContext || (searchQuery || '').trim()).trim().slice(0, MAX_CONTEXT_LEN);
   const normalizeSourceLabel = useCallback((label: string): string => {
     return label
       .toLowerCase()
