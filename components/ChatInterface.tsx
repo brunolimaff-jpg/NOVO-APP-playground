@@ -264,7 +264,7 @@ Entregar diagnóstico integrado e riscos/oportunidades acionáveis.`;
       PROMPT_MAPEAMENTO_DECISORES_GOD_MODE,
     ].join('\n\n---\n\n');
 
-    await onDeepDive(prompt, hiddenPrompt);
+    await onDeepDive(prompt, hiddenPrompt, payload.companyName);
   };
 
   const handleCopyMarkdown = useCallback(() => {

@@ -59,7 +59,7 @@ const LoadingSmart: React.FC<LoadingSmartProps> = ({
   }, []);
 
   const companyFocus = (empresaAlvo || extractCompanyFromQuery(searchQuery)).trim();
-  const loadingContext = (companyFocus || searchQuery || '').trim();
+  const safeContext = companyFocus.trim();
   const normalizeSourceLabel = useCallback((label: string): string => {
     return label
       .toLowerCase()
@@ -119,28 +119,28 @@ const LoadingSmart: React.FC<LoadingSmartProps> = ({
     if (isLoading) {
       curiosityIndexRef.current = 0;
       curiositiesRef.current = [];
-      setCurrentInsight(companyFocus ? `Investigando ${companyFocus}...` : loadingContext ? `Investigando ${loadingContext}...` : "Preparando investigação...");
+      setCurrentInsight(companyFocus ? `Investigando ${companyFocus}...` : 'Preparando investigação...');
 
-      if (!loadingContext || loadingContext.length < 2) {
+      if (!safeContext || safeContext.length < 2) {
         curiositiesRef.current = buildFallbackCuriosities('');
         setCurrentInsight(curiositiesRef.current[0]);
         return;
       }
 
-      generateLoadingCuriosities(companyFocus || loadingContext).then(facts => {
+      generateLoadingCuriosities(safeContext).then(facts => {
         if (facts && facts.length > 0) {
           curiositiesRef.current = facts;
           setCurrentInsight(facts[0]);
         } else {
-          curiositiesRef.current = buildFallbackCuriosities(companyFocus || loadingContext);
+          curiositiesRef.current = buildFallbackCuriosities(safeContext);
           setCurrentInsight(curiositiesRef.current[0]);
         }
       }).catch(() => {
-        curiositiesRef.current = buildFallbackCuriosities(companyFocus || loadingContext);
+        curiositiesRef.current = buildFallbackCuriosities(safeContext);
         setCurrentInsight(curiositiesRef.current[0]);
       });
     }
-  }, [isLoading, loadingContext, companyFocus, buildFallbackCuriosities]);
+  }, [isLoading, companyFocus, safeContext, buildFallbackCuriosities]);
 
   // 3. Ciclo de rotação de curiosidades (SEMPRE ATIVO)
   const cycleCuriosity = useCallback(() => {
@@ -182,7 +182,7 @@ const LoadingSmart: React.FC<LoadingSmartProps> = ({
 
   if (!isVisible) return null;
 
-  const displayStage = processing?.stage || (companyFocus ? `Investigando ${companyFocus}...` : loadingContext ? `Investigando ${loadingContext}...` : "Investigando...");
+  const displayStage = processing?.stage || (companyFocus ? `Investigando ${companyFocus}...` : 'Investigando...');
   const completedStages = processing?.completedStages || [];
   const totalSteps = completedStages.length + 1;
 

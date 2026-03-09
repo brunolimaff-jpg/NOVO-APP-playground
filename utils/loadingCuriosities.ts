@@ -2,9 +2,29 @@ const MAX_ITEMS = 8;
 
 function toLines(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
+
+  const sanitizeLine = (line: string): string => line.replace(/\s+/g, ' ').trim();
+  const isUnsafeLine = (line: string): boolean => {
+    const text = line.toLowerCase();
+    return (
+      text.includes('investigacao_completa_integrada') ||
+      text.includes('protocolo de investigação forense') ||
+      text.includes('dossiê completo de [') ||
+      text.includes('conta alvo:') ||
+      text.includes('nunca viole') ||
+      text.includes('porta_feed') ||
+      text.includes('[[porta') ||
+      text.includes('[[status') ||
+      text.includes('###') ||
+      text.includes('diretriz') ||
+      text.includes('contexto cadastral obrigatório')
+    );
+  };
+
   return value
-    .map((item) => (typeof item === 'string' ? item.trim() : ''))
-    .filter((item) => item.length > 10);
+    .map((item) => (typeof item === 'string' ? sanitizeLine(item) : ''))
+    .filter((item) => item.length > 10 && item.length <= 180)
+    .filter((item) => !isUnsafeLine(item));
 }
 
 function interleaveGroups(groups: string[][], limit = MAX_ITEMS): string[] {

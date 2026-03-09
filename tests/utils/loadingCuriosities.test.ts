@@ -24,4 +24,19 @@ describe('loadingCuriosities', () => {
     expect(lines.length).toBeGreaterThan(0);
     expect(lines.some((line) => line.toLowerCase().includes('senior'))).toBe(true);
   });
+
+  it('filtra textos internos de prompt e protocolo do loading', () => {
+    const raw = JSON.stringify({
+      empresa: [
+        'INVESTIGACAO_COMPLETA_INTEGRADA (MVP): Execute o dossie.',
+        'Grupo Scheffer ampliou operação logística em MT.',
+      ],
+      senior: ['Protocolo de investigação forense especializada: conteúdo interno'],
+      setor: ['O agro em MT segue com sinais de expansão em armazenagem.'],
+    });
+    const lines = parseLoadingCuriosities(raw, 'Grupo Scheffer');
+    expect(lines.some((line) => line.includes('INVESTIGACAO_COMPLETA_INTEGRADA'))).toBe(false);
+    expect(lines.some((line) => line.toLowerCase().includes('protocolo de investigação forense'))).toBe(false);
+    expect(lines.some((line) => line.includes('Grupo Scheffer'))).toBe(true);
+  });
 });

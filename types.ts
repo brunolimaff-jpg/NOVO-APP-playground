@@ -174,7 +174,7 @@ export interface ChatInterfaceProps {
   onDeleteSession: (sessionId: string) => void;
   // Props anteriormente faltantes — adicionadas na Fase 1
   onSaveToCRM: (sessionId: string) => void;
-  onDeepDive: (displayMessage: string, hiddenPrompt: string) => Promise<void>;
+  onDeepDive: (displayMessage: string, hiddenPrompt: string, forcedCompanyName?: string) => Promise<void>;
   onOpenKanban: () => void;
   isSidebarOpen: boolean;
   onToggleSidebar: () => void;

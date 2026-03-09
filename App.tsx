@@ -523,8 +523,9 @@ const App: React.FC = () => {
     await processMessage(text, sessionId, currentHistory);
   };
 
-  const handleDeepDive = async (displayMessage: string, hiddenPrompt: string) => {
-    const empresaContext = currentSession?.empresaAlvo || currentSession?.title || 'a empresa desta conversa';
+  const handleDeepDive = async (displayMessage: string, hiddenPrompt: string, forcedCompanyName?: string) => {
+    const empresaContext =
+      forcedCompanyName?.trim() || currentSession?.empresaAlvo || currentSession?.title || 'a empresa desta conversa';
     await handleSendMessage(
       `Dossiê completo de [${empresaContext}]. Protocolo de investigação forense especializada:\n\n${hiddenPrompt}`,
       displayMessage,
