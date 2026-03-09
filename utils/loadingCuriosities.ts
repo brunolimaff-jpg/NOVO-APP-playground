@@ -1,5 +1,16 @@
 const MAX_ITEMS = 8;
 
+function sanitizeLoadingContext(value: string): string {
+  const text = value.replace(/\s+/g, ' ').trim();
+  if (!text) return '';
+  if (text.length > 80) return '';
+  if (/\n|\r|\[|\]|:|```|---/.test(text)) return '';
+  if (/dossi[eê] completo|investiga[cç][aã]o|protocolo|conta alvo|prompt|porta|status|contexto cadastral/i.test(text)) {
+    return '';
+  }
+  return text;
+}
+
 function toLines(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
 
@@ -51,26 +62,28 @@ function removeInstitutionalSeniorLines(lines: string[]): string[] {
 }
 
 export function buildLoadingCuriositiesFallback(context: string): string[] {
-  const company = context?.trim();
-  if (!company) {
-    return [
-      'No agro brasileiro, ganhos de margem costumam vir de disciplina operacional e previsibilidade de safra.',
-      'Empresas com rotina forte de indicadores tendem a reduzir perdas invisíveis em logística e armazenagem.',
-      'Projetos de digitalização no campo evoluem melhor quando finanças, operação e comercial compartilham a mesma base.',
-      'Em ciclos de expansão, governança de dados vira diferencial para sustentar crescimento com controle.'
-    ];
-  }
+  const safeCompany = sanitizeLoadingContext(context || '');
+
+  const genericFallback = [
+    'Estamos consolidando sinais públicos, contexto operacional e referências de mercado para montar uma resposta objetiva.',
+    'A análise em andamento prioriza consistência entre operação, contexto regional e possíveis alavancas de eficiência.',
+    'Enquanto a investigação avança, o sistema organiza evidências para evitar ruído e destacar apenas sinais úteis.',
+    'O diagnóstico cruza histórico, contexto competitivo e pistas operacionais antes de sugerir próximos passos.'
+  ];
+
+  if (!safeCompany) return genericFallback;
 
   return [
-    `${company} pode revelar vantagem competitiva quando operação, comercial e liderança usam os mesmos indicadores.`,
-    `Em empresas como ${company}, eficiência logística e controle de custos costumam impactar margem mais rápido que preço.`,
-    `Quando ${company} acelera crescimento, padronização de processo vira ponto-chave para escalar sem perder governança.`,
-    `Sinais públicos de ${company} ajudam a antecipar prioridades de investimento e janelas de decisão.`
+    `${safeCompany} está sendo analisada com foco em sinais operacionais, contexto de mercado e possíveis prioridades de gestão.`,
+    'A investigação em andamento cruza evidências públicas e padrões de operação para reduzir ruído na resposta final.',
+    'O sistema está organizando indícios de eficiência, expansão e governança antes de consolidar recomendações.',
+    'As próximas etapas priorizam clareza, síntese e consistência entre fatos observáveis e hipóteses de negócio.'
   ];
 }
 
 export function parseLoadingCuriosities(rawText: string, context: string): string[] {
-  const fallback = buildLoadingCuriositiesFallback(context);
+  const safeContext = sanitizeLoadingContext(context || '');
+  const fallback = buildLoadingCuriositiesFallback(safeContext);
   if (!rawText?.trim()) return fallback;
 
   try {
@@ -81,7 +94,7 @@ export function parseLoadingCuriosities(rawText: string, context: string): strin
     const parsed = JSON.parse(cleaned);
 
     if (Array.isArray(parsed)) {
-      const generic = context?.trim() ? removeInstitutionalSeniorLines(toLines(parsed)) : toLines(parsed);
+      const generic = safeContext ? removeInstitutionalSeniorLines(toLines(parsed)) : toLines(parsed);
       return generic.length > 0 ? [...generic, ...fallback].slice(0, MAX_ITEMS) : fallback;
     }
 
