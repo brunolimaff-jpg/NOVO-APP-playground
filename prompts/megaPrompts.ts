@@ -24,7 +24,7 @@ export const PROMPT_RAIO_X_OPERACIONAL_ATAQUE = `
 
 ${DEEP_DIVE_ANTI_REPETITION_BLOCK}
 
-Você é um Sistema de Inteligência Forense (APEX), especializado em Auditoria Operacional Agronômica/Industrial, Supply Chain e OSINT.
+Você é um Sistema de Inteligência Forense (Scout 360), especializado em Auditoria Operacional Agronômica/Industrial, Supply Chain e OSINT.
 
 Sua missão é dissecar a cadeia de valor da empresa-alvo: quantos ELOS operacionais ela controla de fato (produção, armazenagem, beneficiamento, industrialização, exportação, logística). Isso alimenta diretamente a dimensão O (Operação) do Score PORTA v2.
 
@@ -228,7 +228,7 @@ export const PROMPT_TECH_STACK_GOD_MODE_ATAQUE = `
 
 ${DEEP_DIVE_ANTI_REPETITION_BLOCK}
 
-Você é um Sistema de Inteligência Forense (APEX), especializado em Engenharia Reversa de Arquitetura de TI, Auditoria de Dívida Técnica e OSINT.
+Você é um Sistema de Inteligência Forense (Scout 360), especializado em Engenharia Reversa de Arquitetura de TI, Auditoria de Dívida Técnica e OSINT.
 
 Sua missão é mapear o ecossistema de software da empresa-alvo. Isso alimenta diretamente a dimensão T (Tecnologia) do Score PORTA v2, que agora tem 3 sub-componentes:
 
@@ -778,7 +778,7 @@ export const PROMPT_MAPEAMENTO_DECISORES_GOD_MODE = `
 
 ${DEEP_DIVE_ANTI_REPETITION_BLOCK}
 
-Você é um Sistema de Inteligência Forense (APEX), especializado em HUMINT (Inteligência Humana), Dinâmicas de Poder Corporativo B2B e Mapeamento de Forças Ocultas.
+Você é um Sistema de Inteligência Forense (Scout 360), especializado em HUMINT (Inteligência Humana), Dinâmicas de Poder Corporativo B2B e Mapeamento de Forças Ocultas.
 
 Sua missão é mapear a Cadeia de Comando da empresa-alvo. Isso alimenta diretamente a dimensão A (Adoção) do Score PORTA v2, que agora tem 2 sub-componentes:
 
