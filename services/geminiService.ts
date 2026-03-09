@@ -462,6 +462,84 @@ function looksLikeLocationFocusedAnswer(text: string): boolean {
   return hasLocationIntentTokens && hasBrazilianGeoToken(text);
 }
 
+function normalizeContextText(text: string): string {
+  return (text || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
+function isContextSwitchIntent(message: string): boolean {
+  const text = normalizeContextText(message);
+  if (!text) return false;
+  return /(trocar|mudar|alterar|abrir|iniciar)\s+(de\s+)?(empresa|conta|cliente|contexto|investigacao|sessao)/.test(text);
+}
+
+function hasPotentialOutOfScopeTopic(message: string): boolean {
+  const text = normalizeContextText(message);
+  if (!text) return false;
+  const outOfScopeHints = [
+    'pizzaria',
+    'pizzarias',
+    'pizza',
+    'restaurante',
+    'restaurantes',
+    'hamburguer',
+    'hamburgueria',
+    'filme',
+    'filmes',
+    'netflix',
+    'futebol',
+    'horoscopo',
+    'receita de bolo',
+  ];
+  return outOfScopeHints.some(hint => text.includes(hint));
+}
+
+async function shouldBlockOutOfContextByJudge(
+  question: string,
+  activeCompany: string,
+  history: Message[],
+): Promise<boolean> {
+  const recentTurns = history
+    .slice(-6)
+    .map(msg => `${msg.sender === Sender.User ? 'USUARIO' : 'ASSISTENTE'}: ${(msg.text || '').slice(0, 260)}`)
+    .join('\n');
+
+  try {
+    const response = await proxyGenerateContent({
+      model: ROUTER_MODEL_ID,
+      contents: `Você é um guardião de contexto comercial.
+
+Conta ativa: "${activeCompany}"
+
+Pergunta atual:
+"${question}"
+
+Histórico recente:
+${recentTurns || '(sem histórico)'}
+
+Retorne EXCLUSIVAMENTE JSON:
+{
+  "outOfContext": boolean,
+  "confidence": number,
+  "reason": "..."
+}
+
+Use outOfContext=true quando a pergunta não tiver relação com a conta ativa, com investigação comercial B2B ou com continuidade natural do histórico.`,
+      config: { temperature: 0, responseMimeType: 'application/json', maxOutputTokens: 300 },
+    });
+
+    const parsed = JSON.parse(
+      (response.text || '{}')
+        .replace(/^```json\s*/i, '')
+        .replace(/```\s*$/i, '')
+        .trim(),
+    );
+    const confidence = Number(parsed?.confidence ?? 0);
+    return parsed?.outOfContext === true && confidence >= 0.7;
+  } catch {
+    return false;
+  }
+}
+
 async function shouldRecoverOpenQuestionByJudge(
   question: string,
   answer: string,
@@ -797,10 +875,30 @@ export const sendMessageToGemini = async (
   } = options;
 
   const guardResult = scanInput(message);
-  if (guardResult.level === 'blocked')
-    throw normalizeAppError(new Error(`Mensagem bloqueada: ${guardResult.reason}.`), 'GUARD');
+  // Modo permissivo: nunca interromper o chat por guard para preservar continuidade.
+  // Mantemos apenas a sanitização e, se ela ficar vazia, usamos o texto original.
+  const safeMessage = guardResult.sanitized?.trim() ? guardResult.sanitized : message;
+  const activeCompanyForGuard = (hintedCompany || currentCompanyContext?.empresa || '').trim();
+  const canApplyContextGuard = !!activeCompanyForGuard && !isContextSwitchIntent(safeMessage);
+  if (canApplyContextGuard && hasPotentialOutOfScopeTopic(safeMessage)) {
+    const shouldBlock = await shouldBlockOutOfContextByJudge(safeMessage, activeCompanyForGuard, history);
+    if (shouldBlock) {
+      return {
+        text: `Estou com o contexto travado na conta "${activeCompanyForGuard}". Essa pergunta parece fora do escopo da investigação atual.\n\nSe quiser, eu continuo a análise dessa conta agora. Se quiser trocar de assunto/empresa, abra uma nova investigação ou diga explicitamente "trocar contexto para ...".`,
+        sources: [],
+        suggestions: [
+          `Continuar investigação de ${activeCompanyForGuard}`,
+          `Mapear dores operacionais de ${activeCompanyForGuard}`,
+          `Trocar contexto para outra empresa`,
+        ],
+        scorePorta: null,
+        statuses: [],
+        empresa: activeCompanyForGuard,
+        ghostReason: 'out_of_context_guard',
+      };
+    }
+  }
 
-  const safeMessage = guardResult.sanitized;
   const isOpenQuestion = isOpenQuestionMessage(safeMessage);
   const isLocationQuestion = isLocationQuestionMessage(safeMessage);
 

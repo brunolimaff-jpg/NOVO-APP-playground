@@ -124,6 +124,29 @@ describe('sendMessageToGemini lookup gate', () => {
     expect(benchmarkClientesMock).toHaveBeenCalledTimes(1);
   });
 
+  it('blocks off-context requests when account context is active', async () => {
+    proxyGenerateContentMock.mockResolvedValueOnce({
+      text: JSON.stringify({
+        outOfContext: true,
+        confidence: 0.94,
+        reason: 'tema fora da conta ativa',
+      }),
+    });
+
+    const { sendMessageToGemini } = await import('../../services/geminiService');
+    const result = await sendMessageToGemini(
+      'quantas pizzarias existem em cuiabá?',
+      [],
+      'Instrução de sistema',
+      { sessionId: 'sessao_1', hintedCompany: 'Grupo Scheffer' },
+      false,
+    );
+
+    expect(proxyChatSendMessageMock).not.toHaveBeenCalled();
+    expect(result.ghostReason).toBe('out_of_context_guard');
+    expect(result.text).toContain('Grupo Scheffer');
+  });
+
   it('forces hard recovery when standby fallback appears on location question', async () => {
     window.localStorage.setItem('scout360_debug_recovery', '1');
     const consoleInfoSpy = vi.spyOn(console, 'info').mockImplementation(() => {});

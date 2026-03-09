@@ -72,8 +72,11 @@ export function hasCanaryLeak(input: string): boolean {
  * Esses comandos são gerados pela própria UI e não devem ser bloqueados.
  */
 function isInternalDeepDiveCommand(text: string): boolean {
-  // Padrão exato usado em handleDeepDive() no App.tsx
-  return /Com base em \[[^\]]{2,120}\],\s*execute o seguinte protocolo de ataque e investigação forense:/i.test(text);
+  // Compatível com os formatos históricos e com o formato atual do App.tsx.
+  return (
+    /Com base em \[[^\]]{2,120}\],\s*execute o seguinte protocolo de ataque e investigação forense:/i.test(text) ||
+    /^Dossiê completo de \[[^\]]{2,120}\]\.\s*Protocolo de investigação forense especializada:/i.test(text)
+  );
 }
 
 // ─────────────────────────────────────────────
