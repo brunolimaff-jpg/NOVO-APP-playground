@@ -910,7 +910,7 @@ export const sendMessageToGemini = async (
   );
 
   const apiCall = async () => {
-    onStatus?.('Analisando complexidade do pedido...');
+    onStatus?.('Entendendo sua necessidade...');
 
     const isMegaPromptMessage = message.startsWith('Dossiê completo de [');
     let embeddedCompany = null;
@@ -995,7 +995,7 @@ MODO LOCALIZAÇÃO (OBRIGATÓRIO):
     const isDeepDive = isDeepDiveMessage(message, isMegaPromptMessage);
 
     const isDeepResearch = rota === 'profunda' || isMegaPromptMessage;
-    if (isDeepResearch) onStatus?.('Deep Research ativado — varredura web iniciada...');
+    if (isDeepResearch) onStatus?.('Sinais externos em análise...');
     if (signal?.aborted) throw new Error('Request aborted');
 
     let enrichments: string[] = [];
@@ -1011,7 +1011,7 @@ MODO LOCALIZAÇÃO (OBRIGATÓRIO):
       const competitorContext = getContextoConcorrentesRegionais(extractEstadoFromMessage(message));
       if (competitorContext) enrichments.push(competitorContext);
       if (benchmark || message.includes('investigar')) {
-        onStatus?.('Mapeando benchmarks...');
+        onStatus?.('Cruzando referências de mercado...');
         const bench: BenchmarkResponse = canUseLookup
           ? await benchmarkClientes(await generateBenchmarkKeywords(empresa, message))
           : { ok: true, mode: 'benchmark', keywords: [], total: 0, results: [] };
@@ -1019,7 +1019,7 @@ MODO LOCALIZAÇÃO (OBRIGATÓRIO):
       }
     }
 
-    onStatus?.('Consultando bases de conhecimento...');
+    onStatus?.('Consultando inteligência interna...');
     const [ragContext, docsRagContext] = await Promise.all([
       Promise.race([ragContextPromise, new Promise<string>(r => setTimeout(() => r(''), 60000))]),
       Promise.race([docsRagPromise, new Promise<string>(r => setTimeout(() => r(''), 60000))]),
@@ -1053,7 +1053,7 @@ MODO LOCALIZAÇÃO (OBRIGATÓRIO):
 
     if (isTechnicalMode) messageToSend += `\n\nResponda diretamente como Especialista Senior.`;
 
-    if (!isDeepResearch) onStatus?.('Gerando resposta...');
+    if (!isDeepResearch) onStatus?.('Montando resposta prática...');
     const sdkHistory = history
       .filter(msg => !msg.isError)
       .map(msg => ({ role: msg.sender === Sender.User ? ('user' as const) : ('model' as const), text: msg.text }));
@@ -1250,7 +1250,7 @@ MODO LOCALIZAÇÃO (OBRIGATÓRIO):
     let suggestions = extractSuggestionsFromResponse(responseData.text);
 
     if (!suggestions || suggestions.length === 0) {
-      onStatus?.('Gerando ganchos comerciais finais...');
+      onStatus?.('Preparando próximos passos...');
       suggestions = await generateFallbackSuggestions(
         message,
         responseData.text,

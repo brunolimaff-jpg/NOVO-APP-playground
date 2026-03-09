@@ -5,6 +5,8 @@ describe('BASE_SYSTEM_PROMPT critical investigation rules', () => {
   it('enforces phase separation and includes phase 8 recommendations', () => {
     expect(BASE_SYSTEM_PROMPT).toContain('REGRA DE SEPARAÇÃO DE FASES (CRÍTICO — NUNCA VIOLE):');
     expect(BASE_SYSTEM_PROMPT).toContain('NUNCA escreva "FASE 1 & 2"');
+    expect(BASE_SYSTEM_PROMPT).toContain('### FASE -1: RISCOS OCULTOS');
+    expect(BASE_SYSTEM_PROMPT).toContain('### FASE 6: SINAIS DE VENDA');
     expect(BASE_SYSTEM_PROMPT).toContain('### FASE 8: RECOMENDAÇÕES DE PRODUTOS SENIOR');
   });
 

@@ -31,7 +31,7 @@ const LoadingSmart: React.FC<LoadingSmartProps> = ({
   searchQuery,
   empresaAlvo
 }) => {
-  const [currentInsight, setCurrentInsight] = useState<string>("Preparando investigação...");
+  const [currentInsight, setCurrentInsight] = useState<string>("Preparando diagnóstico...");
   const [isVisible, setIsVisible] = useState(false);
   const [isFadingOut, setIsFadingOut] = useState(false);
   const [elapsedTime, setElapsedTime] = useState(0);
@@ -119,7 +119,7 @@ const LoadingSmart: React.FC<LoadingSmartProps> = ({
     if (isLoading) {
       curiosityIndexRef.current = 0;
       curiositiesRef.current = [];
-      setCurrentInsight(companyFocus ? `Investigando ${companyFocus}...` : 'Preparando investigação...');
+      setCurrentInsight(companyFocus ? `Investigando ${companyFocus}...` : 'Preparando diagnóstico...');
 
       if (!safeContext || safeContext.length < 2) {
         curiositiesRef.current = buildFallbackCuriosities('');
@@ -182,7 +182,7 @@ const LoadingSmart: React.FC<LoadingSmartProps> = ({
 
   if (!isVisible) return null;
 
-  const displayStage = processing?.stage || (companyFocus ? `Investigando ${companyFocus}...` : 'Investigando...');
+  const displayStage = processing?.stage || (companyFocus ? `Investigando ${companyFocus}...` : 'Investigação em andamento...');
   const completedStages = processing?.completedStages || [];
   const totalSteps = completedStages.length + 1;
 
@@ -209,7 +209,7 @@ const LoadingSmart: React.FC<LoadingSmartProps> = ({
           <span className={`text-xs font-semibold uppercase tracking-wider ${
             isDarkMode ? 'text-slate-500' : 'text-slate-600'
           }`}>
-            {completedStages.length > 0 ? `Etapa ${totalSteps} em andamento` : 'Analisando...'}
+            {completedStages.length > 0 ? `Passo ${totalSteps} em andamento` : 'Análise em andamento'}
           </span>
         </div>
 
