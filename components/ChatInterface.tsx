@@ -11,7 +11,8 @@ const InvestigationDashboard = React.lazy(() => import('./InvestigationDashboard
 const SettingsDrawer = React.lazy(() => import('./SettingsDrawer'));
 const WarRoom = React.lazy(() => import('./WarRoom'));
 import { cleanTitle } from '../utils/textCleaners';
-import { parseSmartOptions } from './SmartOptions'; // <-- ADICIONADO AQUI
+import { extractCompanyName } from '../utils/companyNameExtractor';
+import { parseSmartOptions } from './SmartOptions';
 import {
   PROMPT_MAPEAMENTO_DECISORES_GOD_MODE,
   PROMPT_RADAR_EXPANSAO_GOD_MODE,
@@ -22,11 +23,40 @@ import {
 } from '../prompts/megaPrompts';
 
 function resolveQuickActionCompanyName(companyName?: string | null, title?: string | null): string | null {
-  const candidate = cleanTitle(companyName || title || '').trim();
-  if (!candidate) return null;
-  if (/^nova investiga[cç][aã]o$/i.test(candidate)) return null;
-  if (/^dossi[eê] completo de$/i.test(candidate)) return null;
-  return candidate;
+  const rawCandidates = [companyName, title];
+
+  for (const rawCandidate of rawCandidates) {
+    const raw = (rawCandidate || '').trim();
+    if (!raw) continue;
+
+    const bracketMatch = raw.match(/dossi[eê]\s+completo\s+de\s+\[([^\]]+)\]/i);
+    const companyLineMatch = raw.match(/(?:^|\n)\s*-\s*Empresa:\s*([^\n]+)/i);
+    const cadastroMatch = raw.match(/Empresa=([^;\n]+)/i);
+
+    const extracted =
+      bracketMatch?.[1]?.trim() ||
+      companyLineMatch?.[1]?.trim() ||
+      cadastroMatch?.[1]?.trim() ||
+      extractCompanyName(raw) ||
+      raw;
+
+    const candidate = cleanTitle(
+      extracted
+        .split(/\.?\s*Protocolo de investiga[cç][aã]o/i)[0]
+        .split(/INVESTIGACAO_COMPLETA_INTEGRADA/i)[0]
+        .split(/\n\s*---\s*\n/i)[0]
+        .trim(),
+    );
+
+    if (!candidate) continue;
+    if (/^nova investiga[cç][aã]o$/i.test(candidate)) continue;
+    if (/^dossi[eê] completo de$/i.test(candidate)) continue;
+    if (candidate.length > 120) continue;
+
+    return candidate;
+  }
+
+  return null;
 }
 
 function buildQuickActions(companyName?: string | null) {
@@ -206,8 +236,6 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
       textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
     }
   }, [input]);
-
-  // O scroll automático para o final é gerenciado pelo Virtuoso (followOutput).
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
