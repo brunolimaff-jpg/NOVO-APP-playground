@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useTransition } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { v4 as uuidv4 } from 'uuid';
 import { useAuth } from '../contexts/AuthContext';
 import { useMode } from '../contexts/ModeContext';
@@ -25,6 +26,15 @@ export const useChat = () => {
   const { userId, user, isAuthenticated } = useAuth();
   const { mode, systemInstruction } = useMode();
   const { toast } = useToast();
+  const [, startTransition] = useTransition();
+
+  // Lista remota de sessões — cache 5 min, não re-fetcha ao focar janela
+  const { data: remoteSessions } = useQuery({
+    queryKey: ['remoteSessions'],
+    queryFn: listRemoteSessions,
+    staleTime: 1000 * 60 * 5,
+    retry: 1,
+  });
 
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
@@ -59,61 +69,61 @@ export const useChat = () => {
     [currentSessionId],
   );
 
+  // Carrega sessões locais e marca app como inicializado na primeira renderização
   useEffect(() => {
-    const initApp = async () => {
-      const savedSessions = localStorage.getItem(SESSIONS_STORAGE_KEY);
-      let localSessions: ChatSession[] = [];
-      if (savedSessions) {
-        try {
-          const parsed = JSON.parse(savedSessions);
-          localSessions = parsed.map((s: any) => ({
-            ...s,
-            messages: s.messages.map((m: any) => ({
-              ...m,
-              text: cleanStatusMarkers(m.text || "").cleanText,
-              timestamp: new Date(m.timestamp),
-            })),
-          }));
-        } catch (e) {
-          console.error("Load error", e);
-        }
-      }
+    const savedSessions = localStorage.getItem(SESSIONS_STORAGE_KEY);
+    let localSessions: ChatSession[] = [];
+    if (savedSessions) {
       try {
-        const remoteList = await listRemoteSessions();
-        const sessionMap = new Map<string, ChatSession>();
-        localSessions.forEach((s) => sessionMap.set(s.id, s));
-        remoteList.forEach((r) => {
-          const existing = sessionMap.get(r.id);
-          if (existing) {
-            sessionMap.set(r.id, {
-              ...existing,
-              ...r,
-              messages: existing.messages.length > 0 ? existing.messages : [],
-            });
-          } else {
-            sessionMap.set(r.id, r);
-          }
-        });
-        const mergedSessions = Array.from(sessionMap.values()).sort(
-          (a, b) =>
-            new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
-        );
-        setSessions(mergedSessions);
-        if (mergedSessions.length > 0)
-          setCurrentSessionId(mergedSessions[0].id);
-        else handleNewSession();
+        const parsed = JSON.parse(savedSessions);
+        localSessions = parsed.map((s: any) => ({
+          ...s,
+          messages: s.messages.map((m: any) => ({
+            ...m,
+            text: cleanStatusMarkers(m.text || "").cleanText,
+            timestamp: new Date(m.timestamp),
+          })),
+        }));
       } catch (e) {
-        setSessions(localSessions);
-        if (localSessions.length > 0) setCurrentSessionId(localSessions[0].id);
-        else handleNewSession();
+        console.error("Load error", e);
       }
-      const savedTheme = localStorage.getItem(THEME_KEY);
-      if (savedTheme) setIsDarkMode(savedTheme === "dark");
-      if (window.innerWidth < 768) setIsSidebarOpen(false);
-      setIsInitialized(true);
-    };
-    initApp();
+    }
+    if (localSessions.length > 0) {
+      setSessions(localSessions);
+      setCurrentSessionId(localSessions[0].id);
+    } else {
+      handleNewSession();
+    }
+    const savedTheme = localStorage.getItem(THEME_KEY);
+    if (savedTheme) setIsDarkMode(savedTheme === "dark");
+    if (window.innerWidth < 768) setIsSidebarOpen(false);
+    setIsInitialized(true);
   }, []);
+
+  // Mescla sessões remotas (via TanStack Query) com as locais quando chegam
+  useEffect(() => {
+    if (!remoteSessions || remoteSessions.length === 0) return;
+    setSessions((prev) => {
+      const sessionMap = new Map<string, ChatSession>();
+      prev.forEach((s) => sessionMap.set(s.id, s));
+      remoteSessions.forEach((r) => {
+        const existing = sessionMap.get(r.id);
+        if (existing) {
+          sessionMap.set(r.id, {
+            ...existing,
+            ...r,
+            messages: existing.messages.length > 0 ? existing.messages : [],
+          });
+        } else {
+          sessionMap.set(r.id, r);
+        }
+      });
+      return Array.from(sessionMap.values()).sort(
+        (a, b) =>
+          new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
+      );
+    });
+  }, [remoteSessions]);
 
   useEffect(() => {
     sessionsRef.current = sessions;
@@ -370,28 +380,32 @@ export const useChat = () => {
 
       if (activeGenerationRef.current[sessionId] !== botMessageId) return;
 
-      updateSessionById(sessionId, (s) => ({
-        ...s,
-        title:
-          s.messages.length <= 2 || s.title === "Nova Investigação"
-            ? cleanTitle(extractCompanyName(text))
-            : s.title,
-        empresaAlvo:
-          s.messages.length <= 2 ? extractCompanyName(text) : s.empresaAlvo,
-        messages: s.messages.map((msg) =>
-          msg.id === botMessageId
-            ? {
-                ...msg,
-                text: responseText,
-                groundingSources: sources,
-                suggestions,
-                scorePorta: scorePorta || undefined,
-                isThinking: false,
-                ...(ghostReason && { ghostDetails: ghostReason }),
-              }
-            : msg,
-        ),
-      }));
+      // Renderização da resposta final é não-urgente: usa startTransition
+      // para não bloquear inputs e animações durante atualização pesada.
+      startTransition(() => {
+        updateSessionById(sessionId, (s) => ({
+          ...s,
+          title:
+            s.messages.length <= 2 || s.title === "Nova Investigação"
+              ? cleanTitle(extractCompanyName(text))
+              : s.title,
+          empresaAlvo:
+            s.messages.length <= 2 ? extractCompanyName(text) : s.empresaAlvo,
+          messages: s.messages.map((msg) =>
+            msg.id === botMessageId
+              ? {
+                  ...msg,
+                  text: responseText,
+                  groundingSources: sources,
+                  suggestions,
+                  scorePorta: scorePorta || undefined,
+                  isThinking: false,
+                  ...(ghostReason && { ghostDetails: ghostReason }),
+                }
+              : msg,
+          ),
+        }));
+      });
 
       if (!investigationLogged && responseText.length > 500) {
         setInvestigationLogged(true);
