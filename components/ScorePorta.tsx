@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { ScorePortaData } from '../types';
 import { getPortaCompatibility, PORTA_FLAG_META, PORTA_SEGMENT_LABELS } from '../utils/porta';
@@ -15,6 +15,29 @@ const pillars = [
   { key: 'a', letter: 'A', short: 'Adoção', label: 'Adoção / governança + timing' },
 ] as const;
 
+const PILLAR_EXPLANATIONS: Record<string, { title: string; text: string }> = {
+  p: {
+    title: 'Porte (P)',
+    text: 'Mede escala da conta: tamanho de operação, massa crítica e potencial de projeto.',
+  },
+  o: {
+    title: 'Operação (O)',
+    text: 'Mostra complexidade operacional: processos, cadeia e necessidade real de gestão integrada.',
+  },
+  r: {
+    title: 'Retorno (R)',
+    text: 'Reflete pressão externa e risco/oportunidade de ROI para acelerar decisão comercial.',
+  },
+  t: {
+    title: 'Tecnologia (T)',
+    text: 'Avalia dor tecnológica atual, legado e espaço para troca de solução.',
+  },
+  a: {
+    title: 'Adoção (A)',
+    text: 'Indica maturidade de governança e timing político para aderir à mudança.',
+  },
+};
+
 const ScorePorta: React.FC<ScorePortaProps> = ({
   score,
   p,
@@ -27,6 +50,7 @@ const ScorePorta: React.FC<ScorePortaProps> = ({
   scoreBruto,
   isDarkMode = true,
 }) => {
+  const [activePillar, setActivePillar] = useState<string | null>(null);
   const compatibility = getPortaCompatibility(score);
   const barColor = compatibility.color;
   const barBg = compatibility.background;
@@ -46,6 +70,10 @@ const ScorePorta: React.FC<ScorePortaProps> = ({
     typeof scoreBruto === 'number'
       ? `Score final ${score} (bruto: ${scoreBruto}${flags.length > 0 ? ` - penalizado por ${flagsText}` : ''})`
       : `Score final ${score}`;
+  const activeExplanation = useMemo(
+    () => (activePillar ? PILLAR_EXPLANATIONS[activePillar] : null),
+    [activePillar],
+  );
 
   return (
     <motion.div
@@ -182,9 +210,11 @@ const ScorePorta: React.FC<ScorePortaProps> = ({
 
       <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
         {pillars.map(({ key, letter, short, label }, idx) => (
-          <motion.div
+          <motion.button
             key={key}
-            title={`${label}: ${values[key]}/10`}
+            title={`${label}: ${values[key]}/10 (clique para entender)`}
+            type="button"
+            onClick={() => setActivePillar(prev => (prev === key ? null : key))}
             initial={{ opacity: 0, scale: 0.7 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: 0.08 * (idx + 1), type: 'spring', stiffness: 300 }}
@@ -194,17 +224,38 @@ const ScorePorta: React.FC<ScorePortaProps> = ({
               gap: '6px',
               padding: '5px 10px',
               borderRadius: '20px',
-              background: badgeBg,
+              background: activePillar === key ? `${barColor}22` : badgeBg,
+              border: activePillar === key ? `1px solid ${barColor}55` : '1px solid transparent',
               fontSize: '12px',
-              cursor: 'default',
+              cursor: 'pointer',
             }}
           >
             <span style={{ fontWeight: 700, color: barColor, fontSize: '11px' }}>{letter}</span>
             <span style={{ fontWeight: 700, color: valueColor }}>{values[key]}</span>
             <span style={{ fontSize: '11px', color: labelColor }}>· {short}</span>
-          </motion.div>
+          </motion.button>
         ))}
       </div>
+
+      {activeExplanation && (
+        <motion.div
+          initial={{ opacity: 0, y: 4 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.2 }}
+          style={{
+            marginTop: '10px',
+            padding: '10px',
+            borderRadius: '10px',
+            background: subtleBg,
+            border: `1px solid ${subtleBorder}`,
+          }}
+        >
+          <div style={{ fontSize: '12px', fontWeight: 700, color: valueColor, marginBottom: '4px' }}>
+            {activeExplanation.title}
+          </div>
+          <div style={{ fontSize: '11px', color: labelColor }}>{activeExplanation.text}</div>
+        </motion.div>
+      )}
     </motion.div>
   );
 };

@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import ScorePorta from '../../components/ScorePorta';
 
@@ -32,5 +32,17 @@ describe('ScorePorta', () => {
     render(<ScorePorta score={84} p={8} o={10} r={7} t={8} a={8} segmento="AGI" flags={[]} scoreBruto={84} />);
 
     expect(screen.getByText('Flags: NONE')).toBeInTheDocument();
+  });
+
+  it('shows and toggles pillar explanation popover on badge click', () => {
+    render(<ScorePorta score={84} p={8} o={10} r={7} t={8} a={8} segmento="AGI" flags={[]} scoreBruto={84} />);
+
+    const porteBadge = screen.getByRole('button', { name: /P8· Porte/i });
+    fireEvent.click(porteBadge);
+    expect(screen.getByText('Porte (P)')).toBeInTheDocument();
+    expect(screen.getByText(/Mede escala da conta/i)).toBeInTheDocument();
+
+    fireEvent.click(porteBadge);
+    expect(screen.queryByText('Porte (P)')).not.toBeInTheDocument();
   });
 });
