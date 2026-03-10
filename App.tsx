@@ -39,6 +39,7 @@ import {
 import { getFeatureAccessForUser } from './utils/featureAccess';
 
 const PAGE_SIZE = 20;
+type FollowUpScheduleResult = { ok: boolean; method?: 'outlook' | 'ics'; error?: string };
 
 interface LastAction {
   type: 'sendMessage' | 'regenerateSuggestions';
@@ -813,42 +814,19 @@ const App: React.FC = () => {
   }
 
   // --- Follow-up ---
-  async function handleScheduleFollowUp() {
+  function handleScheduleFollowUp(result: FollowUpScheduleResult) {
     setFollowUpStatus('sending');
-    try {
-      const response = await fetch(BACKEND_URL, {
-        method: 'POST',
-        redirect: 'follow',
-        headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify({
-          action: 'scheduleFollowUp',
-          empresa: cleanTitle(extractCompanyName(currentSession?.title)),
-          vendedor: user?.displayName || 'Vendedor',
-          dias: followUpDias,
-          emailVendedor: emailTo,
-          notas: followUpNotas,
-        }),
-      });
-      const text = await response.text();
-      let result;
-      try {
-        result = JSON.parse(text);
-      } catch {
-        result = { success: true };
-      }
-      if (result.success || result.ok) {
-        setFollowUpStatus('sent');
-        setTimeout(() => {
-          setShowFollowUpModal(false);
-          setFollowUpStatus('idle');
-          setFollowUpNotas('');
-        }, 3000);
-      } else {
-        setFollowUpStatus('error');
-      }
-    } catch {
-      setFollowUpStatus('error');
+    if (result.ok) {
+      setFollowUpStatus('sent');
+      setTimeout(() => {
+        setShowFollowUpModal(false);
+        setFollowUpStatus('idle');
+        setFollowUpNotas('');
+      }, 2200);
+      return;
     }
+    setFollowUpStatus('error');
+    toast.error(result.error || 'Não foi possível preparar o follow-up.');
   }
 
   // --- CRM ---

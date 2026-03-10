@@ -1,4 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
+
+type FollowUpScheduleResult = {
+  ok: boolean;
+  method?: 'outlook' | 'ics';
+  error?: string;
+};
 
 interface FollowUpModalProps {
   emailTo: string;
@@ -9,7 +15,7 @@ interface FollowUpModalProps {
   onNotasChange: (value: string) => void;
   followUpStatus: 'idle' | 'sending' | 'sent' | 'error';
   companyName?: string;
-  onSchedule: () => void;
+  onSchedule: (result: FollowUpScheduleResult) => void;
   onClose: () => void;
 }
 
@@ -47,6 +53,7 @@ export const FollowUpModal: React.FC<FollowUpModalProps> = ({
   onSchedule,
   onClose,
 }) => {
+  const [lastMethod, setLastMethod] = useState<'outlook' | 'ics' | null>(null);
   const targetName = companyName?.trim() || 'Conta em prospecção';
   const { start, end } = buildEventWindow(followUpDias);
   const subject = `Follow-up 🦅 Senior Scout 360 | ${targetName}`;
@@ -59,39 +66,83 @@ export const FollowUpModal: React.FC<FollowUpModalProps> = ({
     emailTo.trim() ? `Email de lembrete: ${emailTo.trim()}` : '',
   ].filter(Boolean).join('\n');
 
-  const handleDownloadInvite = () => {
-    const icsContent = [
-      'BEGIN:VCALENDAR',
-      'VERSION:2.0',
-      'PRODID:-//🦅 Senior Scout 360//FollowUp//PT-BR',
-      'CALSCALE:GREGORIAN',
-      'METHOD:PUBLISH',
-      'BEGIN:VEVENT',
-      `UID:${Date.now()}@seniorscout360.local`,
-      `DTSTAMP:${formatICSDate(new Date())}`,
-      `DTSTART:${formatICSDate(start)}`,
-      `DTEND:${formatICSDate(end)}`,
-      `SUMMARY:${escapeICSText(subject)}`,
-      `DESCRIPTION:${escapeICSText(description)}`,
-      'LOCATION:Outlook',
-      'END:VEVENT',
-      'END:VCALENDAR',
-    ].join('\r\n');
+  const handleDownloadInvite = (): boolean => {
+    try {
+      const icsContent = [
+        'BEGIN:VCALENDAR',
+        'VERSION:2.0',
+        'PRODID:-//🦅 Senior Scout 360//FollowUp//PT-BR',
+        'CALSCALE:GREGORIAN',
+        'METHOD:PUBLISH',
+        'BEGIN:VEVENT',
+        `UID:${Date.now()}@seniorscout360.local`,
+        `DTSTAMP:${formatICSDate(new Date())}`,
+        `DTSTART:${formatICSDate(start)}`,
+        `DTEND:${formatICSDate(end)}`,
+        `SUMMARY:${escapeICSText(subject)}`,
+        `DESCRIPTION:${escapeICSText(description)}`,
+        'LOCATION:Outlook',
+        'END:VEVENT',
+        'END:VCALENDAR',
+      ].join('\r\n');
 
-    const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `follow_up_${targetName.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.ics`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+      const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `follow_up_${targetName.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.ics`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      return true;
+    } catch {
+      return false;
+    }
   };
 
-  const handleOpenOutlook = () => {
+  const handleOpenOutlook = (): boolean => {
     const outlookUrl = `https://outlook.office.com/calendar/0/deeplink/compose?path=/calendar/action/compose&rru=addevent&subject=${encodeURIComponent(subject)}&startdt=${encodeURIComponent(start.toISOString())}&enddt=${encodeURIComponent(end.toISOString())}&body=${encodeURIComponent(description)}`;
-    window.open(outlookUrl, '_blank', 'noopener,noreferrer');
+    const popup = window.open(outlookUrl, '_blank', 'noopener,noreferrer');
+    return !!popup;
+  };
+
+  const handleSchedulePrimary = () => {
+    setLastMethod(null);
+    if (handleOpenOutlook()) {
+      setLastMethod('outlook');
+      onSchedule({ ok: true, method: 'outlook' });
+      return;
+    }
+    if (handleDownloadInvite()) {
+      setLastMethod('ics');
+      onSchedule({ ok: true, method: 'ics' });
+      return;
+    }
+    onSchedule({
+      ok: false,
+      error: 'Não foi possível abrir o Outlook nem gerar o convite .ics.',
+    });
+  };
+
+  const handleDownloadClick = () => {
+    setLastMethod(null);
+    if (handleDownloadInvite()) {
+      setLastMethod('ics');
+      onSchedule({ ok: true, method: 'ics' });
+      return;
+    }
+    onSchedule({ ok: false, error: 'Falha ao gerar o arquivo .ics.' });
+  };
+
+  const handleOutlookClick = () => {
+    setLastMethod(null);
+    if (handleOpenOutlook()) {
+      setLastMethod('outlook');
+      onSchedule({ ok: true, method: 'outlook' });
+      return;
+    }
+    onSchedule({ ok: false, error: 'O navegador bloqueou a abertura do Outlook.' });
   };
 
   return (
@@ -136,23 +187,23 @@ export const FollowUpModal: React.FC<FollowUpModalProps> = ({
           </p>
           {followUpStatus === 'sent' && (
             <div className="text-sm mb-4 p-2 rounded-lg text-emerald-400 bg-emerald-500/10">
-              ✅ Follow-up agendado!
+              ✅ {lastMethod === 'outlook' ? 'Follow-up aberto no Outlook.' : 'Convite .ics gerado com sucesso.'}
             </div>
           )}
           {followUpStatus === 'error' && (
             <div className="text-sm mb-4 p-2 rounded-lg text-red-400 bg-red-500/10">
-              ❌ Erro ao agendar.
+              ❌ Não foi possível preparar o follow-up localmente.
             </div>
           )}
           <div className="grid grid-cols-2 gap-2 mb-4">
             <button
-              onClick={handleDownloadInvite}
+              onClick={handleDownloadClick}
               className="px-3 py-2 rounded-lg border border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/10 text-xs font-medium"
             >
               ⬇️ Baixar convite (.ics)
             </button>
             <button
-              onClick={handleOpenOutlook}
+              onClick={handleOutlookClick}
               className="px-3 py-2 rounded-lg border border-blue-500/40 text-blue-300 hover:bg-blue-500/10 text-xs font-medium"
             >
               📆 Abrir no Outlook
@@ -166,7 +217,7 @@ export const FollowUpModal: React.FC<FollowUpModalProps> = ({
               Cancelar
             </button>
             <button
-              onClick={onSchedule}
+              onClick={handleSchedulePrimary}
               disabled={followUpStatus === 'sending'}
               className="flex-1 px-4 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:bg-gray-600 text-white text-sm"
             >
