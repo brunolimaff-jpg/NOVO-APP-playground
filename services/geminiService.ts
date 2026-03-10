@@ -28,7 +28,6 @@ import {
 import { addInvestigation } from '../components/InvestigationDashboard';
 import { CompetitorDetection, getContextoConcorrentesRegionais } from './competitorService';
 import { buscarContextoPinecone, buscarContextoDocsPinecone } from './ragService';
-import { scanInput, sanitizeExternalContent, wrapUserInput, CANARY_TOKEN } from '../utils/promptGuard';
 import { parseLoadingCuriosities } from '../utils/loadingCuriosities';
 import { sanitizeLoadingContextText, stripInternalMarkers } from '../utils/textCleaners';
 import { proxyChatSendMessage, proxyGenerateContent } from './geminiProxy';
@@ -434,18 +433,6 @@ export async function sendMessageToGemini(
 
   if (signal?.aborted) throw new Error('AbortError');
 
-  // ✅ FIX: scanInput retorna { level, sanitized, reason, riskScore } — NÃO isSafe
-  const guardResult = scanInput(userMessage);
-  if (guardResult.level === 'blocked') {
-    throw Object.assign(
-      new Error(guardResult.reason || 'Entrada bloqueada por segurança.'),
-      { code: 'PROMPT_INJECTION' },
-    );
-  }
-  const safeUserMessage = guardResult.sanitized;
-
-  const wrappedMessage = wrapUserInput(safeUserMessage);
-
   // ── Detecção de empresa alvo ─────────────────────────────────────────────
   let empresaAlvo: string | null = hintedCompany || null;
   const cnpjMatch = userMessage.match(/\b(\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}|\d{14})\b/);
@@ -564,7 +551,7 @@ export async function sendMessageToGemini(
       model:             modelToUse,
       systemInstruction: fullSystemPrompt,
       history,
-      message:           wrappedMessage,
+      message:           userMessage,
       useGrounding,
       thinkingMode,
     }),
@@ -638,10 +625,7 @@ export async function sendMessageToGemini(
   const nomeVendedorFinal = nomeVendedor || NOME_VENDEDOR_PLACEHOLDER;
   const text = enforceOpeningWithSeller(finalText, nomeVendedorFinal);
 
-  // Extrai grounding sources se disponíveis
   const sources = (response as unknown as { sources?: unknown[] })?.sources ?? [];
-
-  // Extrai sugestões se o modelo as retornou embutidas (via marker futuro)
   const suggestions: string[] = [];
 
   return { text, sources, suggestions, scorePorta, ghostReason: null };
