@@ -295,13 +295,20 @@ function getDeepDiveSource(message: string): DeepDiveSource {
   return 'UNKNOWN';
 }
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 function enforceOpeningWithSeller(rawText: string, nomeVendedor: string): string {
   if (!rawText) return rawText;
-  const firstLine = rawText.split('\n')[0]?.trim();
-  if (!firstLine) return rawText;
-  const hasSellerName = new RegExp(nomeVendedor.split(' ')[0], 'i').test(firstLine);
-  if (hasSellerName) return rawText;
-  return rawText;
+  const sellerName = (nomeVendedor || '').trim() || 'Vendedor';
+  const withSellerName = rawText.replace(/\{\{\s*NOME_VENDEDOR\s*\}\}/gi, sellerName);
+  const firstLine = withSellerName.split('\n')[0]?.trim();
+  if (!firstLine) return withSellerName;
+  const firstName = sellerName.split(' ')[0] || sellerName;
+  const hasSellerName = new RegExp(escapeRegExp(firstName), 'i').test(firstLine);
+  if (hasSellerName) return withSellerName;
+  return withSellerName;
 }
 
 function looksLikeMissedOpenQuestionAnswer(text: string): boolean {

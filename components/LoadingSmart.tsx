@@ -14,9 +14,6 @@ const SOURCE_LINKS: Record<string, string> = {
   gatec:   'https://www.gatec.com.br/',
 };
 
-// Etapas estimadas para dossiê completo — usadas na barra de progresso
-const ESTIMATED_TOTAL_STEPS = 12;
-
 interface LoadingSmartProps {
   isLoading: boolean;
   mode: ChatMode;
@@ -200,7 +197,7 @@ const LoadingSmart: React.FC<LoadingSmartProps> = ({
   if (!isVisible) return null;
 
   // ── Normalização das etapas ───────────────────────────────────────────────
-  const rawCurrentStage   = processing?.stage || (companyFocus ? `Investigando ${companyFocus}...` : 'Investigação em andamento...');
+  const rawCurrentStage   = processing?.stage || 'Preparando análise...';
   const rawCompletedStages = (processing?.completedStages || []).map(s => stripInternalMarkers(s)).filter(Boolean);
 
   // Enriquece cada etapa com ícone e label
@@ -216,18 +213,9 @@ const LoadingSmart: React.FC<LoadingSmartProps> = ({
   const completedRich: RichLoadingStatus[] = rawCompletedStages.map(enrichStage);
   const currentRich: RichLoadingStatus     = enrichStage(rawCurrentStage);
 
-  // Barra de progresso
+  // Progresso real: usamos apenas eventos já concluídos, sem ETA artificial.
   const completedCount  = completedRich.length;
-  const progressPercent = Math.min(Math.round((completedCount / ESTIMATED_TOTAL_STEPS) * 100), 95);
-
-  // Tempo estimado restante (muito simples: 15s por etapa restante)
   const totalSeconds     = Math.floor(elapsedTime / 1000);
-  const secondsPerStep   = completedCount > 0 ? totalSeconds / completedCount : 20;
-  const stepsRemaining   = Math.max(ESTIMATED_TOTAL_STEPS - completedCount - 1, 0);
-  const etaSeconds       = Math.round(secondsPerStep * stepsRemaining);
-  const etaLabel         = etaSeconds > 0
-    ? (etaSeconds < 60 ? `~${etaSeconds}s restantes` : `~${Math.ceil(etaSeconds / 60)}min restantes`)
-    : null;
 
   const elapsed = (() => {
     const s = Math.floor(elapsedTime / 1000);
@@ -249,19 +237,10 @@ const LoadingSmart: React.FC<LoadingSmartProps> = ({
           }`}>
             ⏱ {elapsed}
           </span>
-          {etaLabel && (
-            <span className={`text-xs px-2 py-1 rounded-md ${
-              isDarkMode ? 'bg-slate-800/60 text-slate-400' : 'bg-white/70 text-slate-500'
-            }`}>
-              {etaLabel}
-            </span>
-          )}
           <span className={`text-xs font-semibold uppercase tracking-wider ${
             isDarkMode ? 'text-slate-500' : 'text-slate-500'
           }`}>
-            {completedCount > 0
-              ? `${completedCount + 1} de ~${ESTIMATED_TOTAL_STEPS} etapas`
-              : 'Iniciando análise...'}
+            {completedCount > 0 ? `${completedCount} etapa(s) concluída(s)` : 'Aguardando primeira etapa...'}
           </span>
         </div>
         {onStop && (
@@ -274,13 +253,12 @@ const LoadingSmart: React.FC<LoadingSmartProps> = ({
         )}
       </div>
 
-      {/* ── BARRA DE PROGRESSO ── */}
+      {/* ── BARRA DE ATIVIDADE (sem percentual estimado) ── */}
       <div className={`w-full h-1.5 rounded-full mb-4 overflow-hidden ${
         isDarkMode ? 'bg-slate-800' : 'bg-emerald-100'
       }`}>
         <div
-          className="h-full rounded-full bg-emerald-500 transition-all duration-700"
-          style={{ width: `${progressPercent}%` }}
+          className="h-full w-1/3 rounded-full bg-emerald-500 animate-pulse"
         />
       </div>
 
