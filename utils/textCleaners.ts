@@ -254,7 +254,25 @@ export function extractAllLinksFromMarkdown(text: string): SourceRef[] {
 const MARKDOWN_LINK_REGEX = /\[([^\]]+)\]\((https?:\/\/(?:[^\s()]+|\([^\s()]*\))+)\)/gi;
 
 export function normalizeSourceUrl(url: string): string {
-  return (url || '').trim().replace(/\/+$/, '');
+  const raw = (url || '').trim();
+  if (!raw) return '';
+
+  const withoutWrapping = raw.replace(/^<|>$/g, '');
+  const withoutTrailingPunctuation = withoutWrapping.replace(/[),.;:!?]+$/g, '');
+
+  try {
+    const parsed = new URL(withoutTrailingPunctuation);
+
+    // Remove params de tracking para reduzir duplicatas de auditoria.
+    const trackingParams = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_id', 'utm_term', 'utm_content', 'gclid', 'fbclid'];
+    trackingParams.forEach((param) => parsed.searchParams.delete(param));
+
+    const query = parsed.searchParams.toString();
+    const pathname = parsed.pathname.replace(/\/+$/, '');
+    return `${parsed.protocol}//${parsed.host}${pathname}${query ? `?${query}` : ''}`;
+  } catch {
+    return withoutTrailingPunctuation.replace(/\/+$/, '');
+  }
 }
 
 function extractUsageContext(text: string, index: number): string {
@@ -289,16 +307,16 @@ export function buildAuditableSources(
     const rawTitle = (match[1] || '').trim();
     const rawUrl = (match[2] || '').trim();
     if (!rawUrl) continue;
-
     const normalizedUrl = normalizeSourceUrl(rawUrl);
+    const displayUrl = normalizedUrl || rawUrl;
     let source = byUrl.get(normalizedUrl);
 
     if (!source) {
       source = {
         key: normalizedUrl || `inline-${citationIndex}`,
         citationIndex: citationIndex++,
-        title: rawTitle || rawUrl,
-        url: rawUrl,
+        title: rawTitle || displayUrl,
+        url: displayUrl,
         sourceTypes: ['inline_citation'],
         contexts: [],
         requiresManualValidation: false,
@@ -321,6 +339,7 @@ export function buildAuditableSources(
     const rawUrl = (match[0] || '').trim();
     if (!rawUrl) continue;
     const normalizedUrl = normalizeSourceUrl(rawUrl);
+    const displayUrl = normalizedUrl || rawUrl;
     if (!normalizedUrl) continue;
 
     let source = byUrl.get(normalizedUrl);
@@ -336,7 +355,7 @@ export function buildAuditableSources(
         key: normalizedUrl || `inline-${citationIndex}`,
         citationIndex: citationIndex++,
         title: hostname || rawUrl,
-        url: rawUrl,
+        url: displayUrl,
         sourceTypes: ['inline_citation'],
         contexts: [],
         requiresManualValidation: false,
@@ -355,14 +374,15 @@ export function buildAuditableSources(
     const url = (g?.url || '').trim();
     if (!url) continue;
     const normalizedUrl = normalizeSourceUrl(url);
+    const displayUrl = normalizedUrl || url;
 
     let source = byUrl.get(normalizedUrl);
     if (!source) {
       source = {
         key: normalizedUrl || `grounding-${citationIndex}`,
         citationIndex: citationIndex++,
-        title: title || url,
-        url,
+        title: title || displayUrl,
+        url: displayUrl,
         sourceTypes: ['grounding_consulted'],
         contexts: ['Fonte consultada pelo mecanismo de grounding.'],
         requiresManualValidation: false,

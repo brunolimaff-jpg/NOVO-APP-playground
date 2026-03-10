@@ -42,6 +42,7 @@ interface GeminiHealthResponse {
 
 const LOCAL_DEV_GEMINI_PROXY_URL =
   import.meta.env.VITE_GEMINI_PROXY_URL || 'https://scoutagro.vercel.app/api/gemini';
+const GEMINI_PROXY_TIMEOUT_MS = Number(import.meta.env.VITE_GEMINI_PROXY_TIMEOUT_MS || 90000);
 
 export function resolveGeminiApiEndpoint(
   hostname: string = typeof window !== 'undefined' ? window.location.hostname : '',
@@ -57,12 +58,37 @@ async function callGeminiApi<TResponse>(
   payload: GeminiGenerateRequest | GeminiChatRequest | GeminiHealthRequest,
   signal?: AbortSignal
 ): Promise<TResponse> {
-  const response = await fetch(GEMINI_API_ENDPOINT, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-    signal
-  });
+  const controller = new AbortController();
+  const timeoutMs = Number.isFinite(GEMINI_PROXY_TIMEOUT_MS) && GEMINI_PROXY_TIMEOUT_MS > 0
+    ? GEMINI_PROXY_TIMEOUT_MS
+    : 90000;
+  let timedOut = false;
+
+  const timeoutId = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, timeoutMs);
+
+  const forwardAbort = () => controller.abort();
+  signal?.addEventListener('abort', forwardAbort, { once: true });
+
+  let response: Response;
+  try {
+    response = await fetch(GEMINI_API_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      signal: controller.signal
+    });
+  } catch (error: any) {
+    if (timedOut) {
+      throw new Error(`Gemini proxy timeout after ${timeoutMs}ms`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+    signal?.removeEventListener('abort', forwardAbort);
+  }
 
   if (!response.ok) {
     const text = await response.text();

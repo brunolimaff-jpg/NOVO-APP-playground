@@ -22,4 +22,13 @@ describe('buildAuditableSources', () => {
     expect(inferred?.citationIndex).toBeNull();
     expect(inferred?.requiresManualValidation).toBe(true);
   });
+
+  it('deduplicates URLs that differ only by tracking params', () => {
+    const text = 'Veja https://example.com/docs?utm_source=google e também [Doc](https://example.com/docs).';
+    const sources = buildAuditableSources(text, []);
+    const canonical = sources.filter((s) => s.url === 'https://example.com/docs');
+
+    expect(canonical).toHaveLength(1);
+    expect(canonical[0].citationIndex).toBe(1);
+  });
 });

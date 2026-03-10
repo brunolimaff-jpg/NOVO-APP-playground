@@ -283,6 +283,7 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
       const isBadgeMatch = textContent.match(/^(🟢|🟡|🟠|🔴)/);
       const citationIndex = href ? citationMap.get(normalizeSourceUrl(href)) : undefined;
       const isDomainLike = /^(?:https?:\/\/)?(?:www\.)?[a-z0-9.-]+\.[a-z]{2,}(?:\/[^\s]*)?$/i.test(cleanText);
+      const isLongLinkLabel = cleanText.length > 36 || /https?:\/\//i.test(cleanText);
 
       if (isBadgeMatch) {
         const displayDomain = href.replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0];
@@ -303,9 +304,8 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
         );
       }
 
-      // Estilo "Wikipedia" apenas para links com cara de domínio/URL,
-      // evitando quebrar o texto com links longos no meio da frase.
-      if (citationIndex && isDomainLike) {
+      // Estilo "Wikipedia" para links citados que podem poluir visualmente.
+      if (citationIndex && (isDomainLike || isLongLinkLabel)) {
         return (
           <sup className="ml-0.5">
             <a
@@ -319,6 +319,16 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
               [{citationIndex}]
             </a>
           </sup>
+        );
+      }
+
+      // Se não houver índice, mas for URL longa, reduz visual para domínio curto.
+      if (!citationIndex && isDomainLike) {
+        const displayDomain = cleanText.replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0];
+        return (
+          <a href={href} target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 hover:underline" {...props}>
+            {displayDomain}
+          </a>
         );
       }
 

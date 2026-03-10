@@ -122,7 +122,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           systemInstruction,
           // Thinking mode trades creativity for deterministic factual output.
           temperature: thinkingMode ? 0.1 : 0.15,
-          maxOutputTokens: 65536,
+          // Limite mais conservador para reduzir latência e risco de timeout.
+          maxOutputTokens: 16384,
           tools: useGrounding ? [{ googleSearch: {} }] : undefined
         }
       });

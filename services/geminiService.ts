@@ -654,16 +654,39 @@ export async function sendMessageToGemini(
   emitDossieStatus(onStatus, 'model');
   emitDossieStatus(onStatus, 'response');
 
-  const response = await withAutoRetry('Gemini:sendMessage', () =>
-    proxyChatSendMessage({
-      model:             modelToUse,
-      systemInstruction: fullSystemPrompt,
-      history,
-      message:           userMessage,
-      useGrounding,
-      thinkingMode,
-    }),
-  );
+  let response;
+  try {
+    response = await withAutoRetry('Gemini:sendMessage', () =>
+      proxyChatSendMessage({
+        model:             modelToUse,
+        systemInstruction: fullSystemPrompt,
+        history,
+        message:           userMessage,
+        useGrounding,
+        thinkingMode,
+      }, signal),
+    );
+  } catch (error) {
+    const appError = normalizeAppError(error);
+    const canFallbackWithoutGrounding =
+      useGrounding &&
+      ['TIMEOUT', 'NETWORK', 'MODEL_OVERLOADED', 'SERVER'].includes(appError.code);
+
+    if (!canFallbackWithoutGrounding) throw error;
+
+    onStatus?.('Entrando em contingência sem busca externa...');
+    response = await withAutoRetry('Gemini:sendMessage:fallback-no-grounding', () =>
+      proxyChatSendMessage({
+        model:             TACTICAL_MODEL_ID,
+        systemInstruction: fullSystemPrompt,
+        history,
+        message:           userMessage,
+        useGrounding:      false,
+        thinkingMode,
+      }, signal),
+      { maxRetries: 1, baseDelayMs: 800, maxDelayMs: 3000 },
+    );
+  }
 
   finalText = sanitizeStreamText(response.text || '');
   emitDossieStatus(onStatus, 'validation');
