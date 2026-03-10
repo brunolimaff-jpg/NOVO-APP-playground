@@ -17,8 +17,7 @@ const CRMDetail = React.lazy(() => import('./components/CRMDetail').then(m => ({
 import { Message, Sender, Feedback, ChatSession, ExportFormat, ReportType, AppError, CRMStage } from './types';
 import {
   sendMessageToGemini,
-  generateNewSuggestions,
-  generateConsolidatedDossier,
+  generateContinuityQuestion,
 } from './services/geminiService';
 import { listRemoteSessions, getRemoteSession, saveRemoteSession } from './services/sessionRemoteStore';
 import { sendFeedbackRemote } from './services/feedbackRemoteStore';
@@ -581,31 +580,18 @@ const App: React.FC = () => {
     if (!targetMessage) return;
     const companyName =
       targetSession.empresaAlvo || extractCompanyName(targetSession.title || '') || 'Empresa não identificada';
-    let lastUserQuestion = '';
-    const msgs = targetSession.messages;
-    const idx = msgs.findIndex(m => m.id === messageId);
-    for (let i = idx - 1; i >= 0; i--) {
-      if (msgs[i].sender === Sender.User) {
-        lastUserQuestion = msgs[i].text;
-        break;
-      }
-    }
-    const snippet = (targetMessage.text || '').slice(0, 3000);
-    const contextText = [
-      `EMPRESA: ${companyName}`,
-      lastUserQuestion ? `PERGUNTA_ANTERIOR: ${lastUserQuestion}` : '',
-      'TRECHO_DOSSIE:',
-      snippet,
-    ]
-      .filter(Boolean)
-      .join('\n\n');
-    const oldSuggestions = targetMessage.suggestions || [];
+    const nomeVendedor = typeof user?.displayName === 'string' ? user.displayName : 'Vendedor';
+
     updateSessionById(sessionId, session => ({
       ...session,
       messages: session.messages.map(msg => (msg.id === messageId ? { ...msg, isRegeneratingSuggestions: true } : msg)),
     }));
     try {
-      const newSuggestions = await generateNewSuggestions(contextText, oldSuggestions);
+      const newSuggestions = await generateContinuityQuestion(
+        targetSession.messages,
+        companyName,
+        nomeVendedor,
+      );
       updateSessionById(sessionId, session => ({
         ...session,
         messages: session.messages.map(msg =>
@@ -749,12 +735,15 @@ const App: React.FC = () => {
     setExportStatus('loading');
     setExportError(null);
     try {
-      const contentMarkdown = await generateConsolidatedDossier(
-        currentSession.messages,
-        systemInstruction,
-        mode,
-        reportType,
-      );
+      const { text: fullText, sections } = collectFullReport(currentSession.messages);
+      const inconsistenciesSection = detectInconsistencies(sections);
+      const normalizedText = normalizeMermaidBlocks(fullText);
+      const executiveSummary = generateExecutiveSummary(normalizedText, sections, inconsistenciesSection);
+      const contentMarkdown =
+        reportType === 'executive'
+          ? executiveSummary
+          : `${executiveSummary}\n\n---\n\n${normalizedText}${inconsistenciesSection}`;
+
       const safeTitle = cleanTitle(currentSession.title)
         .replace(/[^a-z0-9]/gi, '_')
         .substring(0, 50);
