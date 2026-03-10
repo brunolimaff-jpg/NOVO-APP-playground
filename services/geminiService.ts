@@ -546,7 +546,7 @@ export async function sendMessageToGemini(
   // ── Envia para o modelo ──────────────────────────────────────────────────
   let finalText = '';
 
-  const response = await withAutoRetry(() =>
+  const response = await withAutoRetry('Gemini:sendMessage', () =>
     proxyChatSendMessage({
       model:             modelToUse,
       systemInstruction: fullSystemPrompt,
