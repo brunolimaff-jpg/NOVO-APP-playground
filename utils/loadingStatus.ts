@@ -1,13 +1,19 @@
 import { sanitizeLoadingContextText } from './textCleaners';
 
 const STATUS_PHASES = {
+  intent:        'Mapeando objetivo estratégico da pergunta...',
   complexity:    'Entendendo sua necessidade...',
   context:       'Estruturando contexto da conta...',
+  history:       'Reorganizando histórico da conversa...',
+  enrichment:    'Enriquecendo sinais e contexto comercial...',
+  prompt:        'Orquestrando protocolo de análise...',
   deepResearch:  'Sinais externos em análise...',
   benchmark:     'Cruzando referências de mercado...',
   knowledgeBase: 'Consultando inteligência interna...',
   model:         'Consultando modelo analítico...',
   validation:    'Validando consistência dos achados...',
+  synthesis:     'Sintetizando narrativa executiva...',
+  finalReview:   'Revisando consistência final da entrega...',
   response:      'Montando resposta prática...',
   hooks:         'Preparando próximos passos...',
   cadastral:     'Consultando dados cadastrais...',
@@ -46,13 +52,19 @@ const LIVE_PHASE_LABELS: Record<number, { label: string; icon: string }> = {
 };
 
 const STATUS_ICON_MAP: Record<StatusPhaseKey, string> = {
+  intent:       '🧭',
   complexity:   '🧠',
   context:      '🧩',
+  history:      '🗂️',
+  enrichment:   '🧬',
+  prompt:       '🧱',
   deepResearch: '🔭',
   benchmark:    '📊',
   knowledgeBase:'📚',
   model:        '🤖',
   validation:   '🧪',
+  synthesis:    '📝',
+  finalReview:  '✅',
   response:     '✍️',
   hooks:        '🎯',
   cadastral:    '🏢',
@@ -85,8 +97,12 @@ function parseLivePhaseStatus(status: string): RichLoadingStatus | null {
 
 function matchCategory(status: string): { key: StatusPhaseKey; extra?: string } | null {
   const s = status.trim();
+  if (/^(Mapeando objetivo estratégico|Entendendo o objetivo da pergunta)/i.test(s)) return { key: 'intent' };
   if (/^(Analisando complexidade|Entendendo sua necessidade)/i.test(s))   return { key: 'complexity' };
   if (/^(Estruturando contexto|Preparando contexto|Consolidando contexto)/i.test(s)) return { key: 'context' };
+  if (/^(Reorganizando histórico|Organizando histórico da conversa)/i.test(s)) return { key: 'history' };
+  if (/^(Enriquecendo sinais|Enriquecendo contexto comercial)/i.test(s)) return { key: 'enrichment' };
+  if (/^(Orquestrando protocolo|Montando protocolo de análise)/i.test(s)) return { key: 'prompt' };
   if (/^(Deep Research ativado|Sinais externos em análise)/i.test(s))      return { key: 'deepResearch' };
   if (/^Buscando histórico de/i.test(s)) {
     const rawCompany = s.replace(/^Buscando histórico de\s*/i, '').replace(/\.{0,3}\s*$/, '').trim();
@@ -96,6 +112,8 @@ function matchCategory(status: string): { key: StatusPhaseKey; extra?: string } 
   if (/^(Consultando bases de conhecimento|Consultando inteligência interna|base RAG)/i.test(s)) return { key: 'rag' };
   if (/^(Consultando modelo analítico|Consultando modelo de IA|Processando no modelo)/i.test(s)) return { key: 'model' };
   if (/^(Validando consistência|Validando coerência|Validando achados)/i.test(s)) return { key: 'validation' };
+  if (/^(Sintetizando narrativa executiva|Sintetizando resposta executiva)/i.test(s)) return { key: 'synthesis' };
+  if (/^(Revisando consistência final|Revisando entrega final)/i.test(s)) return { key: 'finalReview' };
   if (/^(Gerando resposta|Montando resposta prática)/i.test(s))            return { key: 'response' };
   if (/^(Gerando ganchos|Preparando próximos passos)/i.test(s))            return { key: 'hooks' };
   if (/^(Consultando dados cadastrais|Buscando CNPJ|dados da empresa)/i.test(s)) return { key: 'cadastral' };

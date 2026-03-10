@@ -82,8 +82,12 @@ const RECOVERY_DEBUG_FLAG_KEY           = 'scout360_debug_recovery';
 
 // ─── Status granulares emitidos durante o dossiê ─────────────────────────────
 const DOSSIE_STATUS = {
+  intent:       'Mapeando objetivo estratégico da pergunta...',
   complexity:   'Entendendo sua necessidade...',
   context:      'Estruturando contexto da conta...',
+  history:      'Reorganizando histórico da conversa...',
+  enrichment:   'Enriquecendo sinais e contexto comercial...',
+  prompt:       'Orquestrando protocolo de análise...',
   cadastral:    'Consultando dados cadastrais...',
   rag:          'Consultando base de conhecimento interna...',
   concorrentes: 'Cruzando concorrentes regionais...',
@@ -97,6 +101,8 @@ const DOSSIE_STATUS = {
   scoring:      'Calculando Score PORTA...',
   model:        'Consultando modelo analítico...',
   validation:   'Validando consistência dos achados...',
+  synthesis:    'Sintetizando narrativa executiva...',
+  finalReview:  'Revisando consistência final da entrega...',
   response:     'Montando resposta prática...',
   hooks:        'Preparando próximos passos...',
   consolidando: 'Consolidando dossiê final...',
@@ -445,6 +451,7 @@ export async function sendMessageToGemini(
   } = options;
 
   if (signal?.aborted) throw new Error('AbortError');
+  emitDossieStatus(onStatus, 'intent');
   emitDossieStatus(onStatus, 'complexity');
 
   // ── Detecção de empresa alvo ─────────────────────────────────────────────
@@ -454,6 +461,7 @@ export async function sendMessageToGemini(
   let clienteData: LookupResponse | null = null;
   let benchmarkData: BenchmarkResponse | null = null;
   emitDossieStatus(onStatus, 'context');
+  emitDossieStatus(onStatus, 'enrichment');
 
   // ── Contexto RAG ────────────────────────────────────────────────────────
   let ragContext      = '';
@@ -536,8 +544,10 @@ export async function sendMessageToGemini(
     ? `${systemPrompt}\n\n${extraContext}`
     : systemPrompt;
   emitDossieStatus(onStatus, 'context');
+  emitDossieStatus(onStatus, 'prompt');
 
   // ── Histórico ────────────────────────────────────────────────────────────
+  emitDossieStatus(onStatus, 'history');
   const history = conversationHistory
     .filter(m => m.text && m.text.trim().length > 0)
     .map(m => ({
@@ -577,6 +587,7 @@ export async function sendMessageToGemini(
 
   finalText = sanitizeStreamText(response.text || '');
   emitDossieStatus(onStatus, 'validation');
+  emitDossieStatus(onStatus, 'synthesis');
 
   // ── Sinaliza score PORTA ──────────────────────────────────────────────────
   if (isMegaPromptMessage || isDeepDive) {
@@ -626,6 +637,7 @@ export async function sendMessageToGemini(
   if (onText && finalText) {
     onText(finalText);
   }
+  emitDossieStatus(onStatus, 'finalReview');
   emitDossieStatus(onStatus, 'hooks');
 
   // ── Recovery de perguntas abertas ────────────────────────────────────────
