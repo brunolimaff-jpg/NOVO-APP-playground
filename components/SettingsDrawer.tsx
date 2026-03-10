@@ -17,7 +17,6 @@ interface SettingsDrawerProps {
   onOpenDashboard: () => void;
   onExportPDF: () => void;
   onCopyMarkdown: () => void;
-  onSendEmail: () => void;
   onScheduleFollowUp: () => void;
   onLogout?: () => void;
   exportStatus: 'idle' | 'loading' | 'success' | 'error';
@@ -37,7 +36,6 @@ const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
   onOpenDashboard,
   onExportPDF,
   onCopyMarkdown,
-  onSendEmail,
   onScheduleFollowUp,
   onLogout,
   exportStatus,

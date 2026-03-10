@@ -70,8 +70,7 @@ const ErrorMessageCard: React.FC<ErrorMessageCardProps> = ({
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            {/* Botão retry: exibido apenas quando erro é recuperável */}
-            {error.retryable && (
+            {/* Sempre oferecemos regeneração manual, mesmo quando o backend marca como não-retryable. */}
             <button
               onClick={(e) => {
                   e.stopPropagation();
@@ -87,16 +86,21 @@ const ErrorMessageCard: React.FC<ErrorMessageCardProps> = ({
               {isLoadingRetry ? (
                   <>
                   <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
-                  <span>Tentando de novo...</span>
+                  <span>{error.retryable ? 'Tentando de novo...' : 'Regenerando...'}</span>
                   </>
               ) : (
                   <>
                   <span>🔄</span>
-                  <span>{mode === 'operacao' ? 'Tentar de novo' : 'Tentar novamente'}</span>
+                  <span>
+                    {error.retryable
+                      ? mode === 'operacao'
+                        ? 'Tentar de novo'
+                        : 'Tentar novamente'
+                      : 'Regenerar resposta'}
+                  </span>
                   </>
               )}
             </button>
-            )}
 
             {/* Report Button */}
             {onReportError && (

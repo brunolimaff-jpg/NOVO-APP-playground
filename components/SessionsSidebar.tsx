@@ -37,6 +37,9 @@ const SessionsSidebar: React.FC<SessionsSidebarProps> = ({
     if (session.empresaAlvo) {
         return cleanTitle(session.empresaAlvo);
     }
+
+    const bracketMatch = session.title?.match(/dossi[êe]\s+completo\s+de\s*\[([^\]]+)\]/i);
+    if (bracketMatch?.[1]) return cleanTitle(bracketMatch[1]);
     
     const clean = session.title
         ?.replace(/^(investigar|analisar|pesquisar|dossiê\s*de\s*)/i, '')

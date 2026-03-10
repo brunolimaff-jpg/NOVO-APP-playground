@@ -29,6 +29,14 @@ interface MermaidProps {
   isDarkMode?: boolean;
 }
 
+function extractNodeText(node: React.ReactNode): string {
+  if (node == null || typeof node === 'boolean') return '';
+  if (typeof node === 'string' || typeof node === 'number') return String(node);
+  if (Array.isArray(node)) return node.map(extractNodeText).join('');
+  if (React.isValidElement(node)) return extractNodeText(node.props.children);
+  return '';
+}
+
 // ---------------------------------------------------------------------------
 // MermaidChart
 // ---------------------------------------------------------------------------
@@ -213,7 +221,7 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
         if (!citationIndex) {
           return `<a href="${fullUrl}" target="_blank" rel="noopener noreferrer">${displayDomain}</a>`;
         }
-        return `<sup><a href="${fullUrl}" target="_blank" rel="noopener noreferrer" class="citation-link" title="${displayDomain}">^${citationIndex}</a></sup>`;
+        return `<sup><a href="${fullUrl}" target="_blank" rel="noopener noreferrer" class="citation-link" title="${displayDomain}">[${citationIndex}]</a></sup>`;
       }
     );
 
@@ -254,7 +262,7 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
         );
       }
 
-      const textContent = String(children || '');
+      const textContent = extractNodeText(children);
       const cleanText = textContent.trim();
 
       // Se ainda sobrou algum link markdown com emoji da IA que não foi capturado
@@ -275,12 +283,14 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
               title={displayDomain}
               {...props}
             >
-              ^{citationIndex ?? '?'}
+              [{citationIndex ?? '?'}]
             </a>
           </sup>
         );
       }
 
+      // Estilo "Wikipedia" apenas para links com cara de domínio/URL,
+      // evitando quebrar o texto com links longos no meio da frase.
       if (citationIndex && isDomainLike) {
         return (
           <sup className="ml-0.5">
@@ -289,10 +299,10 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
               target="_blank"
               rel="noopener noreferrer"
               className="text-[11px] text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline no-underline"
-              title={cleanText}
+              title={cleanText || href}
               {...props}
             >
-              ^{citationIndex}
+              [{citationIndex}]
             </a>
           </sup>
         );
@@ -304,9 +314,7 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
           <a href={href} target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 hover:underline break-words" {...props}>
             {children}
           </a>
-          {citationIndex ? (
-            <sup className="ml-1 text-[10px] text-blue-600 dark:text-blue-400">^{citationIndex}</sup>
-          ) : null}
+          {citationIndex ? <sup className="ml-1 text-[10px] text-blue-600 dark:text-blue-400">[{citationIndex}]</sup> : null}
         </span>
       );
     },

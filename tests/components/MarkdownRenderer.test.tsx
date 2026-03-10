@@ -29,7 +29,7 @@ describe('MarkdownRenderer', () => {
       <MarkdownRenderer content={content} allowRawHtml={false} auditableSources={auditableSources} />
     );
 
-    expect(container.textContent).toContain('^1');
-    expect(container.textContent).toContain('^2');
+    expect(container.textContent).toContain('[1]');
+    expect(container.textContent).toContain('[2]');
   });
 });

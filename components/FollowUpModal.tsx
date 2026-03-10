@@ -54,7 +54,8 @@ export const FollowUpModal: React.FC<FollowUpModalProps> = ({
   onClose,
 }) => {
   const [lastMethod, setLastMethod] = useState<'outlook' | 'ics' | null>(null);
-  const targetName = companyName?.trim() || 'Conta em prospecção';
+  const rawTargetName = (companyName || '').trim() || 'Conta em prospecção';
+  const targetName = rawTargetName.length > 80 ? `${rawTargetName.slice(0, 77)}...` : rawTargetName;
   const { start, end } = buildEventWindow(followUpDias);
   const subject = `Follow-up 🦅 Senior Scout 360 | ${targetName}`;
   const notes = followUpNotas.trim()

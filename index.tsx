@@ -24,6 +24,23 @@ if (!rootElement) {
   throw new Error("Could not find root element to mount to");
 }
 
+// Evita que um Service Worker antigo contamine o ambiente local/dev com assets desatualizados.
+if (typeof window !== 'undefined') {
+  const isLocalHost = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+  if (import.meta.env.DEV || isLocalHost) {
+    void navigator.serviceWorker?.getRegistrations?.().then((registrations) => {
+      registrations.forEach((registration) => {
+        void registration.unregister();
+      });
+    });
+    void window.caches?.keys?.().then((keys) => {
+      keys.forEach((key) => {
+        void window.caches.delete(key);
+      });
+    });
+  }
+}
+
 const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY || 'pk_test_dG91Z2gta2l3aS05MS5jbGVyay5hY2NvdW50cy5kZXYk';
 
 if (!PUBLISHABLE_KEY) {

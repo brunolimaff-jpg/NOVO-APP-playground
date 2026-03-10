@@ -46,6 +46,29 @@ interface LastAction {
   payload: { text?: string; displayText?: string; messageId?: string };
 }
 
+function pickCompanyLabel(...candidates: Array<string | null | undefined>): string {
+  for (const value of candidates) {
+    const raw = (value || '').trim();
+    if (!raw) continue;
+
+    const fromEmpresaField = raw.match(/(?:^|\n)\s*-\s*Empresa:\s*([^\n\r]+)/i)?.[1]?.trim();
+    if (fromEmpresaField) return cleanTitle(fromEmpresaField);
+
+    const fromDossieBracket = raw.match(/dossi[êe]\s+completo\s+de\s*\[([^\]]+)\]/i)?.[1]?.trim();
+    if (fromDossieBracket) return cleanTitle(fromDossieBracket);
+
+    const extracted = cleanTitle(extractCompanyName(raw));
+    if (
+      extracted &&
+      extracted.length <= 80 &&
+      !/investigacao_completa_integrada|protocolo de investiga|contexto cadastral obrigat/i.test(extracted)
+    ) {
+      return extracted;
+    }
+  }
+  return '';
+}
+
 const App: React.FC = () => {
   const { userId, user, logout, isAuthenticated } = useAuth();
   const { mode, systemInstruction } = useMode();
@@ -319,6 +342,13 @@ const App: React.FC = () => {
     let historyToPass: Message[] = [];
     const sessionForHint = sessionsRef.current.find(s => s.id === sessionId);
     const hintedCompany = sessionForHint?.empresaAlvo || cleanTitle(extractCompanyName(safeVisibleText)) || null;
+    const normalizedCompany = pickCompanyLabel(
+      hintedCompany,
+      safeVisibleText,
+      sessionForHint?.empresaAlvo,
+      sessionForHint?.title,
+      text,
+    );
     setLastQuery(sanitizeLoadingContextText(safeVisibleText, hintedCompany || ''));
     if (explicitHistory) {
       historyToPass = explicitHistory;
@@ -406,11 +436,19 @@ const App: React.FC = () => {
 
       if (activeGenerationRef.current[sessionId] !== botMessageId) return;
 
-      updateSessionById(sessionId, s => ({
-        ...s,
-        title:
-          s.messages.length <= 2 || s.title === 'Nova Investigação' ? cleanTitle(extractCompanyName(text)) : s.title,
-        empresaAlvo: s.messages.length <= 2 ? extractCompanyName(text) : s.empresaAlvo,
+      updateSessionById(sessionId, s => {
+        const shouldRewriteTitle =
+          s.messages.length <= 2 ||
+          s.title === 'Nova Investigação' ||
+          /dossi[êe]\s+completo/i.test(s.title) ||
+          s.title.length > 90;
+
+        const finalCompany = normalizedCompany || s.empresaAlvo || pickCompanyLabel(s.title);
+
+        return {
+          ...s,
+          title: shouldRewriteTitle ? finalCompany || s.title : s.title,
+          empresaAlvo: finalCompany || s.empresaAlvo,
         scoreOportunidade: scorePorta?.score ?? s.scoreOportunidade,
         messages: s.messages.map(msg =>
           msg.id === botMessageId
@@ -425,7 +463,7 @@ const App: React.FC = () => {
               }
             : msg,
         ),
-      }));
+      }});
 
       if (!investigationLogged && responseText.length > 500) {
         setInvestigationLogged(true);
@@ -436,7 +474,7 @@ const App: React.FC = () => {
           body: JSON.stringify({
             action: 'logInvestigation',
             vendedor: user?.displayName || 'Anônimo',
-            empresa: cleanTitle(extractCompanyName(text)),
+            empresa: normalizedCompany || cleanTitle(extractCompanyName(safeVisibleText)),
             modo: mode || '',
             resumo: responseText.substring(0, 200),
           }),

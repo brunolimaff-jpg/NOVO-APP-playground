@@ -61,7 +61,6 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
   exportStatus,
   exportError,
   pdfReportContent,
-  onOpenEmailModal,
   onOpenFollowUpModal,
   onLogout,
   lastUserQuery,
@@ -162,7 +161,10 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
     [messages],
   );
 
+  // Só escondemos sugestões antigas durante uma geração ativa.
+  // Se a geração falhar, as sugestões voltam a aparecer para o usuário continuar.
   const hideSuggestionsForMessageId =
+    isLoading &&
     lastBotWithSuggestionsIndex !== undefined &&
     lastUserIndex !== undefined &&
     lastUserIndex > lastBotWithSuggestionsIndex
@@ -233,8 +235,11 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
     setShowRetryToast(false);
     if (onRetry) onRetry();
   };
+  const handleExportDoc = () => {
+    onExportConversation('doc', 'complete');
+  };
 
-  const headerTitle = cleanTitle(currentSession?.title || 'Nova Investigação');
+  const headerTitle = cleanTitle(currentSession?.empresaAlvo || currentSession?.title || 'Nova Investigação');
   const displayTitle = headerTitle.length > 35 ? headerTitle.substring(0, 32) + '...' : headerTitle;
   const hasReport = messages.some(
     m => m.sender === Sender.Bot && !m.isThinking && !m.isError && (m.text?.length || 0) > 100,
@@ -333,22 +338,13 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
             {hasReport && !isLoading && (
               <>
                 <button
-                  onClick={onExportPDF}
+                  onClick={handleExportDoc}
                   className={`p-1.5 text-sm transition-colors ${
                     isDarkMode ? 'text-gray-400 hover:text-emerald-400' : 'text-gray-500 hover:text-emerald-500'
                   }`}
-                  title="Exportar PDF"
+                  title="Exportar DOC"
                 >
-                  📄
-                </button>
-                <button
-                  onClick={onOpenEmailModal}
-                  className={`p-1.5 text-sm transition-colors ${
-                    isDarkMode ? 'text-gray-400 hover:text-emerald-400' : 'text-gray-500 hover:text-emerald-500'
-                  }`}
-                  title="Enviar por email"
-                >
-                  📧
+                  📝
                 </button>
                 <button
                   onClick={onOpenFollowUpModal}
@@ -403,7 +399,6 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
               onOpenDashboard={() => canAccessDashboard && setShowDashboard(true)}
               onExportPDF={onExportPDF}
               onCopyMarkdown={handleCopyMarkdown}
-              onSendEmail={onOpenEmailModal}
               onScheduleFollowUp={onOpenFollowUpModal}
               onLogout={onLogout}
               exportStatus={exportStatus}
