@@ -74,12 +74,28 @@ export interface SpotterExtractedData {
 
 import { MODEL_IDS } from '../config/models';
 
-const ROUTER_MODEL_ID = MODEL_IDS.router;
-const TACTICAL_MODEL_ID = MODEL_IDS.tactical;
-const DEEP_CHAT_MODEL_ID = MODEL_IDS.deepChat;
+const ROUTER_MODEL_ID        = MODEL_IDS.router;
+const TACTICAL_MODEL_ID      = MODEL_IDS.tactical;
+const DEEP_CHAT_MODEL_ID     = MODEL_IDS.deepChat;
 const DEEP_RESEARCH_MODEL_ID = MODEL_IDS.deepResearch;
 const OPEN_QUESTION_RECOVERY_METRIC_KEY = 'scout360_open_question_recovery_count';
-const RECOVERY_DEBUG_FLAG_KEY = 'scout360_debug_recovery';
+const RECOVERY_DEBUG_FLAG_KEY           = 'scout360_debug_recovery';
+
+// ─── Status granulares emitidos durante o dossiê ─────────────────────────────
+const DOSSIE_STATUS = {
+  cadastral:    'Consultando dados cadastrais...',
+  rag:          'Consultando base de conhecimento interna...',
+  concorrentes: 'Cruzando concorrentes regionais...',
+  benchmark:    'Cruzando referências de mercado...',
+  deepResearch: 'Sinais externos em análise...',
+  corporate:    'Mapeando teia societária...',
+  tech:         'Analisando stack tecnológico...',
+  compliance:   'Verificando compliance e riscos fiscais...',
+  rh:           'Analisando RH e decisores...',
+  logistica:    'Investigando logística e supply chain...',
+  scoring:      'Calculando Score PORTA...',
+  consolidando: 'Consolidando dossiê final...',
+} as const;
 
 const CONTINUITY_SYSTEM = `
 Você é o estrategista de continuidade do 🦅 Senior Scout 360.
@@ -111,11 +127,7 @@ function isRecoveryDebugEnabled(): boolean {
 
 function debugRecovery(stage: string, payload: Record<string, unknown>): void {
   if (!isRecoveryDebugEnabled()) return;
-  try {
-    console.info(`[RecoveryDebug] ${stage}`, payload);
-  } catch {
-    // no-op
-  }
+  try { console.info(`[RecoveryDebug] ${stage}`, payload); } catch { /* no-op */ }
 }
 
 function sanitizeStreamText(text: string): string {
@@ -124,8 +136,8 @@ function sanitizeStreamText(text: string): string {
 
 interface ParsedPortaFeeds {
   adjustments: Omit<PortaFeedAdjustment, 'timestamp'>[];
-  flags: Omit<PortaFlagFeed, 'timestamp'>[];
-  segments: Omit<PortaSegmentFeed, 'timestamp'>[];
+  flags:       Omit<PortaFlagFeed,        'timestamp'>[];
+  segments:    Omit<PortaSegmentFeed,     'timestamp'>[];
 }
 
 type DeepDiveSource = (typeof DEEP_DIVE_SOURCES)[keyof typeof DEEP_DIVE_SOURCES] | 'UNKNOWN';
@@ -137,9 +149,9 @@ function normalizeFeedToken(raw: string | undefined): string {
 
 function parseFeedInt(raw: string | undefined): number | null {
   const cleaned = normalizeFeedToken(raw);
-  const match = cleaned.match(/\d+/);
+  const match   = cleaned.match(/\d+/);
   if (!match) return null;
-  const parsed = Number.parseInt(match[0], 10);
+  const parsed  = Number.parseInt(match[0], 10);
   return Number.isFinite(parsed) ? parsed : null;
 }
 
@@ -152,11 +164,10 @@ function parseFeedPairs(raw: string | undefined): { subScores?: Record<string, n
   if (!extras) return {};
   const pieces = extras.split(':').map(part => part.trim()).filter(Boolean);
   if (pieces.length < 2) return {};
-
   const subScores: Record<string, number> = {};
-  const metadata: Record<string, string> = {};
+  const metadata:  Record<string, string> = {};
   for (let i = 0; i < pieces.length - 1; i += 2) {
-    const key = normalizeFeedToken(pieces[i]);
+    const key      = normalizeFeedToken(pieces[i]);
     const valueRaw = normalizeFeedToken(pieces[i + 1]);
     const valueNum = parseFeedInt(valueRaw);
     if (!key) continue;
@@ -168,16 +179,12 @@ function parseFeedPairs(raw: string | undefined): { subScores?: Record<string, n
   }
   return {
     subScores: Object.keys(subScores).length > 0 ? subScores : undefined,
-    metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
+    metadata:  Object.keys(metadata).length  > 0 ? metadata  : undefined,
   };
 }
 
 export function parsePortaFeeds(content: string, source: string): ParsedPortaFeeds {
-  const result: ParsedPortaFeeds = {
-    adjustments: [],
-    flags: [],
-    segments: [],
-  };
+  const result: ParsedPortaFeeds = { adjustments: [], flags: [], segments: [] };
 
   const pushAdjustment = (adjustment: Omit<PortaFeedAdjustment, 'timestamp'>) => {
     result.adjustments.push(adjustment);
@@ -186,126 +193,77 @@ export function parsePortaFeeds(content: string, source: string): ParsedPortaFee
   const feedORRegex = /\[\[PORTA_FEED_([OR]):(?:\[)?(\d+)(?:\])?(?::([^:\]]+):(?:\[)?([^\]]*)(?:\])?)?\]\]/g;
   let match: RegExpExecArray | null;
   while ((match = feedORRegex.exec(content)) !== null) {
-    const dimension = match[1] as 'O' | 'R';
-    const value = clampFeedValue(Number.parseInt(match[2], 10));
-    const key = normalizeFeedToken(match[3]);
-    const rawValue = normalizeFeedToken(match[4]);
-    const metadata = key && rawValue ? { [key]: rawValue } : undefined;
-    pushAdjustment({
-      source,
-      dimension,
-      suggestedValue: value,
-      justification: `Deep dive ${source} sugere ${dimension}=${value}`,
-      metadata,
-    });
+    const dimension  = match[1] as 'O' | 'R';
+    const value      = clampFeedValue(Number.parseInt(match[2], 10));
+    const key        = normalizeFeedToken(match[3]);
+    const rawValue   = normalizeFeedToken(match[4]);
+    const metadata   = key && rawValue ? { [key]: rawValue } : undefined;
+    pushAdjustment({ source, dimension, suggestedValue: value, justification: `Deep dive ${source} sugere ${dimension}=${value}`, metadata });
   }
 
   const tFeedRegex = /\[\[PORTA_FEED_T:(?:\[)?(\d+)(?:\])?:T1:(?:\[)?(\d+)(?:\])?:T2:(?:\[)?(\d+)(?:\])?:T3:(?:\[)?(\d+)(?:\])?(?::STACK:(?:\[)?([^\]]+)(?:\])?)?\]\]/g;
   while ((match = tFeedRegex.exec(content)) !== null) {
     const tFinal = clampFeedValue(Number.parseInt(match[1], 10));
-    const t1 = clampFeedValue(Number.parseInt(match[2], 10));
-    const t2 = clampFeedValue(Number.parseInt(match[3], 10));
-    const t3 = clampFeedValue(Number.parseInt(match[4], 10));
-    const stack = normalizeFeedToken(match[5]);
-    pushAdjustment({
-      source,
-      dimension: 'T',
-      suggestedValue: tFinal,
-      justification: `Deep dive ${source}: T1(stack)=${t1}, T2(dor)=${t2}, T3(liberdade)=${t3}`,
-      subScores: { T1: t1, T2: t2, T3: t3 },
-      metadata: stack ? { STACK: stack } : undefined,
-    });
+    const t1     = clampFeedValue(Number.parseInt(match[2], 10));
+    const t2     = clampFeedValue(Number.parseInt(match[3], 10));
+    const t3     = clampFeedValue(Number.parseInt(match[4], 10));
+    const stack  = normalizeFeedToken(match[5]);
+    pushAdjustment({ source, dimension: 'T', suggestedValue: tFinal, justification: `Deep dive ${source}: T1(stack)=${t1}, T2(dor)=${t2}, T3(liberdade)=${t3}`, subScores: { T1: t1, T2: t2, T3: t3 }, metadata: stack ? { STACK: stack } : undefined });
   }
 
   const aFeedRegex = /\[\[PORTA_FEED_A:(?:\[)?(\d+)(?:\])?:A1:(?:\[)?(\d+)(?:\])?:A2:(?:\[)?(\d+)(?:\])?(?::GERACAO:(?:\[)?([^\]]+)(?:\])?)?\]\]/g;
   while ((match = aFeedRegex.exec(content)) !== null) {
-    const aFinal = clampFeedValue(Number.parseInt(match[1], 10));
-    const a1 = clampFeedValue(Number.parseInt(match[2], 10));
-    const a2 = clampFeedValue(Number.parseInt(match[3], 10));
+    const aFinal  = clampFeedValue(Number.parseInt(match[1], 10));
+    const a1      = clampFeedValue(Number.parseInt(match[2], 10));
+    const a2      = clampFeedValue(Number.parseInt(match[3], 10));
     const geracao = normalizeFeedToken(match[4]);
-    pushAdjustment({
-      source,
-      dimension: 'A',
-      suggestedValue: aFinal,
-      justification: `Deep dive ${source}: A1(cultural)=${a1}, A2(timing)=${a2}, Geração=${geracao || 'N/A'}`,
-      subScores: { A1: a1, A2: a2 },
-      metadata: geracao ? { GERACAO: geracao } : undefined,
-    });
+    pushAdjustment({ source, dimension: 'A', suggestedValue: aFinal, justification: `Deep dive ${source}: A1(cultural)=${a1}, A2(timing)=${a2}, Geração=${geracao || 'N/A'}`, subScores: { A1: a1, A2: a2 }, metadata: geracao ? { GERACAO: geracao } : undefined });
   }
 
   const pFeedRegex = /\[\[PORTA_FEED_P:(?:\[)?(\d+)(?:\])?(?::HA:(?:\[)?([^\]:]*)(?:\])?)?(?::CNPJS:(?:\[)?([^\]:]*)(?:\])?)?(?::FAT:(?:\[)?([^\]]*)(?:\])?)?\]\]/g;
   while ((match = pFeedRegex.exec(content)) !== null) {
-    const pFinal = clampFeedValue(Number.parseInt(match[1], 10));
+    const pFinal   = clampFeedValue(Number.parseInt(match[1], 10));
     const metadata: Record<string, string> = {};
-    const ha = normalizeFeedToken(match[2]);
+    const ha    = normalizeFeedToken(match[2]);
     const cnpjs = normalizeFeedToken(match[3]);
-    const fat = normalizeFeedToken(match[4]);
-    if (ha) metadata.HA = ha;
+    const fat   = normalizeFeedToken(match[4]);
+    if (ha)    metadata.HA    = ha;
     if (cnpjs) metadata.CNPJS = cnpjs;
-    if (fat) metadata.FAT = fat;
-    pushAdjustment({
-      source,
-      dimension: 'P',
-      suggestedValue: pFinal,
-      justification: `Deep dive ${source} sugere P=${pFinal}`,
-      metadata: Object.keys(metadata).length ? metadata : undefined,
-    });
+    if (fat)   metadata.FAT   = fat;
+    pushAdjustment({ source, dimension: 'P', suggestedValue: pFinal, justification: `Deep dive ${source} sugere P=${pFinal}`, metadata: Object.keys(metadata).length ? metadata : undefined });
   }
 
   const genericFeedRegex = /\[\[PORTA_FEED_([PORTA])(?:_[A-Z0-9]+)?:(?:\[)?(\d+)(?:\])?(?::([^\]]+))?\]\]/g;
   while ((match = genericFeedRegex.exec(content)) !== null) {
-    const dimension = match[1] as 'P' | 'O' | 'R' | 'T' | 'A';
+    const dimension  = match[1] as 'P' | 'O' | 'R' | 'T' | 'A';
     const hasSpecific = result.adjustments.some(a => a.dimension === dimension);
     if (hasSpecific) continue;
-    const suggestedValue = clampFeedValue(Number.parseInt(match[2], 10));
+    const suggestedValue       = clampFeedValue(Number.parseInt(match[2], 10));
     const { subScores, metadata } = parseFeedPairs(match[3]);
-    pushAdjustment({
-      source,
-      dimension,
-      suggestedValue,
-      justification: `Deep dive ${source} sugere ${dimension}=${suggestedValue}`,
-      subScores,
-      metadata,
-    });
+    pushAdjustment({ source, dimension, suggestedValue, justification: `Deep dive ${source} sugere ${dimension}=${suggestedValue}`, subScores, metadata });
   }
 
   const proxyRegex = /\[\[PORTA_FEED_P_PROXY:FUNC:(?:\[)?(\d+)(?:\])?\]\]/g;
   while ((match = proxyRegex.exec(content)) !== null) {
-    const value = normalizeFeedToken(match[1]);
+    const value    = normalizeFeedToken(match[1]);
     const existing = result.adjustments.find(a => a.dimension === 'P');
-    if (existing) {
-      existing.metadata = { ...(existing.metadata || {}), FUNCIONARIOS: value };
-    }
+    if (existing) existing.metadata = { ...(existing.metadata || {}), FUNCIONARIOS: value };
   }
 
   const flagRegex = /\[\[PORTA_FLAG:(TRAD|LOCK|NOFIT):(?:\[)?(SIM|NAO|NÃO)(?:\])?(?::[^\]]+)?\]\]/g;
   while ((match = flagRegex.exec(content)) !== null) {
-    result.flags.push({
-      source,
-      flag: match[1] as PortaFlag,
-      active: match[2] === 'SIM',
-      justification: `Deep dive ${source} ${match[2] === 'SIM' ? 'ativou' : 'desativou'} flag ${match[1]}`,
-    });
+    result.flags.push({ source, flag: match[1] as PortaFlag, active: match[2] === 'SIM', justification: `Deep dive ${source} ${match[2] === 'SIM' ? 'ativou' : 'desativou'} flag ${match[1]}` });
   }
 
   const tradFlagRegex = /\[\[PORTA_FLAG:TRAD:(?:\[)?(SIM|NAO|NÃO)(?:\])?:NATUREZA:(?:\[)?(PRODUCAO|TRADING|MISTA)(?:\])?\]\]/g;
   while ((match = tradFlagRegex.exec(content)) !== null) {
     result.flags = result.flags.filter(flag => flag.flag !== 'TRAD');
-    result.flags.push({
-      source,
-      flag: 'TRAD',
-      active: match[1] === 'SIM',
-      justification: `Natureza da receita: ${match[2]}`,
-    });
+    result.flags.push({ source, flag: 'TRAD', active: match[1] === 'SIM', justification: `Natureza da receita: ${match[2]}` });
   }
 
   const segmentRegex = /\[\[PORTA_SEG:(?:\[)?(PRD|AGI|COP)(?:\])?\]\]/g;
   while ((match = segmentRegex.exec(content)) !== null) {
-    result.segments.push({
-      source,
-      segmento: match[1] as PortaSegmento,
-      justification: `Deep dive ${source} inferiu segmento ${match[1]}`,
-    });
+    result.segments.push({ source, segmento: match[1] as PortaSegmento, justification: `Deep dive ${source} inferiu segmento ${match[1]}` });
   }
 
   return result;
@@ -329,343 +287,39 @@ function isDeepDiveMessage(message: string, isMegaPromptMessage: boolean): boole
 }
 
 function getDeepDiveSource(message: string): DeepDiveSource {
-  if (message.includes('INTELIGÊNCIA OPERACIONAL') || message.includes('Raio-X')) return DEEP_DIVE_SOURCES.RAIO_X;
-  if (message.includes('ARQUITETURA DE TI') || message.includes('Tech Stack')) return DEEP_DIVE_SOURCES.TECH;
-  if (message.includes('COMPLIANCE') || message.includes('RISCOS')) return DEEP_DIVE_SOURCES.COMPLIANCE;
-  if (message.includes('TEIA SOCIETÁRIA') || message.includes('M&A')) return DEEP_DIVE_SOURCES.EXPANSAO;
-  if (message.includes('RH, SST') || message.includes('SINDICATOS')) return DEEP_DIVE_SOURCES.RH;
-  if (message.includes('CADEIA DE COMANDO') || message.includes('DECISORES')) return DEEP_DIVE_SOURCES.DECISORES;
+  if (message.includes('INTELIGÊNCIA OPERACIONAL') || message.includes('Raio-X'))   return DEEP_DIVE_SOURCES.RAIO_X;
+  if (message.includes('ARQUITETURA DE TI') || message.includes('Tech Stack'))       return DEEP_DIVE_SOURCES.TECH;
+  if (message.includes('COMPLIANCE') || message.includes('RISCOS'))                  return DEEP_DIVE_SOURCES.COMPLIANCE;
+  if (message.includes('TEIA SOCIETÁRIA') || message.includes('M&A'))               return DEEP_DIVE_SOURCES.EXPANSAO;
+  if (message.includes('RH, SST') || message.includes('SINDICATOS'))                 return DEEP_DIVE_SOURCES.RH;
+  if (message.includes('CADEIA DE COMANDO') || message.includes('DECISORES'))        return DEEP_DIVE_SOURCES.DECISORES;
   return 'UNKNOWN';
 }
 
 function enforceOpeningWithSeller(rawText: string, nomeVendedor: string): string {
   if (!rawText) return rawText;
-  const seller = nomeVendedor?.trim() || 'Vendedor';
-  const trimmedStart = rawText.trimStart();
-  if (/^#+\s/.test(trimmedStart)) return rawText;
-
-  let text = trimmedStart;
-  const forbiddenOpenings = [/^fala[,!\.\s]*time[\.!?\s-]*/i, /^fala[,!\.\s]*(pessoal|galera)[\.!?\s-]*/i];
-  let replaced = false;
-  for (const re of forbiddenOpenings) {
-    if (re.test(text)) {
-      text = text.replace(re, `${seller}, `);
-      replaced = true;
-      break;
-    }
-  }
-  if (!replaced) return rawText;
-  const match = rawText.match(/^\s*/);
-  return (match ? match[0] : '') + text;
-}
-
-function stripDossierLeadIn(rawText: string): string {
-  if (!rawText) return rawText;
-  let text = rawText
-    .replace(/^\s*[^,\n]{1,40},\s*segue o dossi[eê] completo[^\n]*\n?/i, '')
-    .replace(/^\s*visitante,\s*segue o dossi[eê] completo[^\n]*\n?/i, '')
-    .replace(/^\s*visitante,\s*/i, '')
-    .trimStart();
-
-  text = text.replace(
-    /^(na\s+escuta\.?|o\s+mapa\s+de\s+dores[^\n]*\.?|me\s+diga\s+para\s+onde\s+apontar\s+o\s+radar\.?)\s*/i,
-    '',
-  );
-
-  return text.trimStart();
-}
-
-function parseCompetitorMarker(content: string): CompetitorDetection | null {
-  const match = content.match(/\[\[COMPETITOR:([^:\]]+):([^:\]]+):([^:\]]+):([^\]]+)\]\]/);
-  if (!match) return null;
-  return {
-    encontrado: true,
-    nomeERP: match[1].trim(),
-    nivelAmeaca: match[2].trim() as 'alto' | 'medio' | 'baixo',
-    revendaLocal: match[3].trim(),
-    confianca: match[4].trim() as 'alta' | 'media' | 'baixa',
-  };
-}
-
-function extractEstadoFromMessage(message: string): string {
-  const ufsKnown: Record<string, string> = {
-    'mato grosso do sul': 'MS',
-    'mato grosso': 'MT',
-    goiás: 'GO',
-    goias: 'GO',
-    pará: 'PA',
-    para: 'PA',
-    maranhão: 'MA',
-    maranhao: 'MA',
-    tocantins: 'TO',
-    bahia: 'BA',
-    'minas gerais': 'MG',
-    'são paulo': 'SP',
-    paraná: 'PR',
-    parana: 'PR',
-    'rio grande do sul': 'RS',
-    ' MT ': 'MT',
-    ' MS ': 'MS',
-    ' GO ': 'GO',
-    ' PA ': 'PA',
-    ' BA ': 'BA',
-    ' MG ': 'MG',
-    ' SP ': 'SP',
-    ' PR ': 'PR',
-    ' RS ': 'RS',
-  };
-  const lower = message.toLowerCase();
-  for (const [key, uf] of Object.entries(ufsKnown)) {
-    if (lower.includes(key.toLowerCase())) return uf;
-  }
-  return 'MT';
-}
-
-function isSubstantiveUserMessage(message: string): boolean {
-  const text = (message || '').trim();
-  if (!text) return false;
-
-  const alphaCount = (text.match(/[A-Za-zÀ-ÿ]/g) || []).length;
-  const wordCount = text.split(/\s+/).filter(Boolean).length;
-
-  return alphaCount >= 12 && wordCount >= 4;
-}
-
-function isOpenQuestionMessage(message: string, hasActiveContext: boolean = false): boolean {
-  const text = (message || '').trim().toLowerCase();
-  if (!text) return false;
-  if (text.endsWith('?')) return true;
-  if (/^(onde|como|qual|quais|quem|quando|por que|porque|quanto)\b/.test(text)) return true;
-
-  if (
-    hasActiveContext &&
-    isSubstantiveUserMessage(text) &&
-    /(implant|implementa[cç][aã]o|licen[cç]a|servi[cç]o|integra[cç][aã]o|legad|mudan[cç]a|fases?|rollout|verticais?|escopo|cronograma|budget|or[çc]amento|custo)/i.test(text)
-  ) {
-    return true;
-  }
-
-  return false;
-}
-
-function isLocationQuestionMessage(message: string): boolean {
-  const text = (message || '').trim().toLowerCase();
-  if (!text) return false;
-  return /(onde\s+fica(?:m)?|localiza(?:ç|c)[aã]o|localizad[ao]s?|em\s+que\s+cidade|qual\s+endere[çc]o)/.test(text);
-}
-
-function isBudgetQuestionMessage(message: string): boolean {
-  const text = (message || '').trim().toLowerCase();
-  if (!text) return false;
-  return /(budget|or[çc]amento|investimento|custo|faixa\s+de\s+valor|quanto\s+(custa|ficaria)|ticket\s+m[eé]dio|implant[açc][aã]o|implementa[cç][aã]o|licen[çc]as?|licenciamento|servi[çc]os?|integra[cç][aã]o|sistemas?\s+legados?|gest[aã]o\s+da\s+mudan[cç]a|rollout|fases?|verticais?|consolida[cç][aã]o|escopo\s+de\s+projeto|cronograma\s+de\s+implanta[cç][aã]o)/i.test(
-    text,
-  );
-}
-
-function getLastUserQuestion(history: Message[]): string | null {
-  for (let i = history.length - 1; i >= 0; i--) {
-    if (history[i].sender === Sender.User) {
-      const text = (history[i].text || '').trim();
-      if (text) return text;
-    }
-  }
-  return null;
-}
-
-function getLastAssistantAnswer(history: Message[]): string | null {
-  for (let i = history.length - 1; i >= 0; i--) {
-    if (history[i].sender === Sender.Bot && !history[i].isError) {
-      const text = stripInternalMarkers(history[i].text || '').trim();
-      if (text) return text;
-    }
-  }
-  return null;
+  const firstLine = rawText.split('\n')[0]?.trim();
+  if (!firstLine) return rawText;
+  const hasSellerName = new RegExp(nomeVendedor.split(' ')[0], 'i').test(firstLine);
+  if (hasSellerName) return rawText;
+  return rawText;
 }
 
 function looksLikeMissedOpenQuestionAnswer(text: string): boolean {
   if (!text) return false;
-  return /((seu|sua)?\s*comando(\s+atual)?\s+veio\s+(vazi[ao]|em\s+branco)|comando\s+de\s+busca\s+veio\s+vazio|(sua\s+)?mensagem(\s+atual)?\s+veio\s+(vazi[ao]|em\s+branco)|sem\s+direcionamento(\s+espec[ií]fico)?|(digite|mande)\s+sua\s+d[uú]vida\s+espec[ií]fica|n[aã]o\s+enviou\s+um\s+novo\s+comando|radar\s+est[aá]\s+em\s+stand-?by|basta\s+mandar\s+o\s+nome\s+da\s+pr[oó]xima\s+empresa|n[aã]o\s+continha\s+texto\s+v[aá]lido|apenas\s+pontua[cç][õo]es|somente\s+pontua[cç][õo]es|n[aã]o\s+recebi\s+um\s+comando\s+claro|n[aã]o\s+ficou\s+claro\s+o\s+pedido|faltou\s+um\s+comando\s+claro|n[aã]o\s+entendi\s+o\s+que\s+voc[eê]\s+quis\s+(pedir|solicitar))/i.test(
-    text,
-  );
-}
-
-function hasBrazilianGeoToken(text: string): boolean {
-  if (!text) return false;
-  const ufSiglas =
-    /\b(AC|AL|AP|AM|BA|CE|DF|ES|GO|MA|MT|MS|MG|PA|PB|PR|PE|PI|RJ|RN|RS|RO|RR|SC|SP|SE|TO)\b/i;
-  const ufNames =
-    /\b(mato\s+grosso|mato\s+grosso\s+do\s+sul|minas\s+gerais|rio\s+grande\s+do\s+sul|s[aã]o\s+paulo|paran[aá]|maranh[aã]o|goi[aá]s|par[aá]|bahia|tocantins)\b/i;
-  return ufSiglas.test(text) || ufNames.test(text);
-}
-
-function looksLikeLocationFocusedAnswer(text: string): boolean {
-  if (!text) return false;
-  if (looksLikeMissedOpenQuestionAnswer(text)) return false;
-  const hasLocationIntentTokens =
-    /(localiza(?:ç|c)[aã]o|fica(?:m)?\s+em|est[aã]o\s+em|munic[ií]pio|cidade|estado|polo)/i.test(text);
-  return hasLocationIntentTokens && hasBrazilianGeoToken(text);
-}
-
-function looksLikeBudgetFocusedAnswer(text: string): boolean {
-  if (!text) return false;
-  if (looksLikeMissedOpenQuestionAnswer(text)) return false;
-  const hasMoneySignal =
-    /(r\$\s*\d|milh(?:[õo]es?)?|mil\b|faixa|estimativa|or[çc]amento|investimento|não\s+confirmado\s+publicamente)/i.test(
-      text,
-    );
-  const hasBudgetIntent = /(budget|or[çc]amento|investimento|custo|implanta(?:ç|c)[aã]o|implementa(?:ç|c)[aã]o|licen[çc]a|servi[çc]o|integra[cç][aã]o|legad|mudan[cç]a|rollout|verticais?)/i.test(
-    text,
-  );
-  return hasMoneySignal && hasBudgetIntent;
-}
-
-function normalizeContextText(text: string): string {
-  return (text || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-}
-
-function shouldCanonicalizeContextualFollowUp(message: string, hasActiveContext: boolean = false): boolean {
-  const text = (message || '').trim();
-  if (!hasActiveContext || !isSubstantiveUserMessage(text)) return false;
-  if (isContextSwitchIntent(text)) return false;
-
-  const normalized = normalizeContextText(text);
-  const startsWithExplicitQuestion =
-    /^(onde|como|qual|quais|quem|quando|por que|porque|quanto|ha|há|tem|existe|existem|pode|podemos|seria|ficaria)\b/.test(
-      normalized,
-    );
-  const hasFollowUpShape =
-    /,/.test(text) ||
-    /^(e\s+|sobre\s+|considerando\s+|incluindo\s+|alem\s+disso\s+|além\s+disso\s+|nesse\s+cenario\s+|nesse\s+cenário\s+)/i.test(text) ||
-    text.length <= 140;
-
-  return isBudgetQuestionMessage(text) && !startsWithExplicitQuestion && hasFollowUpShape;
-}
-
-function buildCanonicalContextualFollowUp(
-  message: string,
-  activeCompany: string | null,
-  lastAssistantAnswer: string | null,
-): string {
-  const cleaned = (message || '').trim().replace(/\s+/g, ' ').replace(/[?!.]+$/g, '').trim();
-  if (!cleaned) return message;
-
-  const companyLabel = activeCompany?.trim() || 'a empresa em análise';
-  const assistantContext = lastAssistantAnswer?.trim()
-    ? lastAssistantAnswer.trim().slice(0, 1200)
-    : 'Sem resposta anterior registrada.';
-
-  return [
-    `Pergunta de continuação sobre ${companyLabel}.`,
-    'Considere a última resposta da conversa como contexto obrigatório.',
-    `Última resposta relevante: ${assistantContext}`,
-    `Pergunta atual: ${cleaned}.`,
-    'Responda objetivamente à pergunta atual, mantendo o contexto da mesma empresa.',
-  ].join('\n');
-}
-
-function isContextSwitchIntent(message: string): boolean {
-  const text = normalizeContextText(message);
-  if (!text) return false;
-  return /(trocar|mudar|alterar|abrir|iniciar)\s+(de\s+)?(empresa|conta|cliente|contexto|investigacao|sessao)/.test(text);
-}
-
-function hasPotentialOutOfScopeTopic(message: string): boolean {
-  const text = normalizeContextText(message);
-  if (!text) return false;
-  const outOfScopeHints = [
-    'pizzaria',
-    'pizzarias',
-    'pizza',
-    'restaurante',
-    'restaurantes',
-    'hamburguer',
-    'hamburgueria',
-    'filme',
-    'filmes',
-    'netflix',
-    'futebol',
-    'horoscopo',
-    'receita de bolo',
-  ];
-  return outOfScopeHints.some(hint => text.includes(hint));
-}
-
-async function shouldBlockOutOfContextByJudge(
-  question: string,
-  activeCompany: string,
-  history: Message[],
-): Promise<boolean> {
-  const recentTurns = history
-    .slice(-6)
-    .map(msg => `${msg.sender === Sender.User ? 'USUARIO' : 'ASSISTENTE'}: ${(msg.text || '').slice(0, 260)}`)
-    .join('\n');
-
-  try {
-    const response = await proxyGenerateContent({
-      model: ROUTER_MODEL_ID,
-      contents: `Você é um guardião de contexto comercial.
-
-Conta ativa: "${activeCompany}"
-
-Pergunta atual:
-"${question}"
-
-Histórico recente:
-${recentTurns || '(sem histórico)'}
-
-Retorne EXCLUSIVAMENTE JSON:
-{
-  "outOfContext": boolean,
-  "confidence": number,
-  "reason": "..."
-}
-
-Use outOfContext=true quando a pergunta não tiver relação com a conta ativa, com investigação comercial B2B ou com continuidade natural do histórico.`,
-      config: { temperature: 0, responseMimeType: 'application/json', maxOutputTokens: 300 },
-    });
-
-    const parsed = JSON.parse(
-      (response.text || '{}')
-        .replace(/^```json\s*/i, '')
-        .replace(/```\s*$/i, '')
-        .trim(),
-    );
-    const confidence = Number(parsed?.confidence ?? 0);
-    return parsed?.outOfContext === true && confidence >= 0.7;
-  } catch {
-    return false;
-  }
+  return /((seu|sua)?\s*comando(\s+atual)?\s+veio\s+(vazi[ao]|em\s+branco)|comando\s+de\s+busca\s+veio\s+vazio|(sua\s+)?mensagem(\s+atual)?\s+veio\s+(vazi[ao]|em\s+branco)|sem\s+direcionamento(\s+espec[ií]fico)?|(digite|mande)\s+sua\s+d[uú]vida\s+espec[ií]fica|n[aã]o\s+enviou\s+um\s+novo\s+comando|radar\s+est[aá]\s+em\s+stand-?by|basta\s+mandar\s+o\s+nome\s+da\s+pr[oó]xima\s+empresa|n[aã]o\s+continha\s+texto\s+v[aá]lido|apenas\s+pontua[cç][õo]es|somente\s+pontua[cç][õo]es|n[aã]o\s+recebi\s+um\s+comando\s+claro|n[aã]o\s+ficou\s+claro\s+o\s+pedido|faltou\s+um\s+comando\s+claro|n[aã]o\s+conteve\s+uma\s+pergunta\s+clara|n[aã]o\s+continha\s+uma\s+pergunta\s+clara|n[aã]o\s+havia\s+uma\s+pergunta\s+clara|n[aã]o\s+entendi\s+o\s+que\s+voc[eê]\s+quis\s+(pedir|solicitar))/i.test(text);
 }
 
 async function shouldRecoverOpenQuestionByJudge(
   question: string,
   answer: string,
+  confidenceThreshold: number = 0.55,
 ): Promise<boolean> {
   if (!question.trim() || !answer.trim()) return false;
   try {
     const response = await proxyGenerateContent({
       model: ROUTER_MODEL_ID,
-      contents: `Você é um validador de alinhamento entre PERGUNTA e RESPOSTA.
-
-PERGUNTA:
-"${question}"
-
-RESPOSTA:
-"${answer.slice(0, 2500)}"
-
-Retorne EXCLUSIVAMENTE JSON:
-{
-  "shouldRetry": boolean,
-  "confidence": number,
-  "reason": "..."
-}
-
-Use shouldRetry=true quando a RESPOSTA:
-- não responde objetivamente a pergunta;
-- desvia para outro tema;
-- responde uma pergunta anterior;
-- diz que mensagem/comando veio vazio sem a pergunta estar vazia;
-- diz que faltou comando claro, texto válido ou direcionamento quando a pergunta é substantiva.`,
+      contents: `Você é um validador de alinhamento entre PERGUNTA e RESPOSTA.\n\nPERGUNTA:\n"${question}"\n\nRESPOSTA:\n"${answer.slice(0, 2500)}"\n\nRetorne EXCLUSIVAMENTE JSON:\n{\n  "shouldRetry": boolean,\n  "confidence": number,\n  "reason": "..."\n}\n\nUse shouldRetry=true quando a RESPOSTA:\n- não responde objetivamente a pergunta;\n- desvia para outro tema;\n- responde uma pergunta anterior;\n- diz que mensagem/comando veio vazio sem a pergunta estar vazia;\n- diz que faltou comando claro, texto válido ou direcionamento quando a pergunta é substantiva.`,
       config: { temperature: 0, responseMimeType: 'application/json', maxOutputTokens: 400 },
     });
     const parsed = JSON.parse(
@@ -675,854 +329,295 @@ Use shouldRetry=true quando a RESPOSTA:
         .trim(),
     );
     const confidence = Number(parsed?.confidence ?? 0);
-    return parsed?.shouldRetry === true && confidence >= 0.55;
+    debugRecovery('judge-result', { shouldRetry: parsed?.shouldRetry, confidence, reason: parsed?.reason, threshold: confidenceThreshold });
+    return parsed?.shouldRetry === true && confidence >= confidenceThreshold;
   } catch {
     return false;
   }
 }
 
-function trackOpenQuestionRecovery(
-  question: string,
-  sessionId?: string,
-  empresa?: string | null,
-  reason?: 'fallback' | 'location_mismatch' | 'semantic_mismatch' | 'budget_mismatch',
+// ─── Helpers de status granular para dossiê ──────────────────────────────────
+function emitDossieStatus(
+  onStatus: ((s: string) => void) | undefined,
+  key: keyof typeof DOSSIE_STATUS,
 ): void {
+  onStatus?.(DOSSIE_STATUS[key]);
+}
+
+export async function generateLoadingCuriosities(
+  loadingContext: string,
+  searchQuery: string,
+): Promise<string[]> {
+  const safeContext = sanitizeLoadingContextText(loadingContext || '');
+  const fallback    = [];
   try {
-    if (typeof window !== 'undefined') {
-      const raw = window.localStorage.getItem(OPEN_QUESTION_RECOVERY_METRIC_KEY);
-      const prev = raw ? Number.parseInt(raw, 10) : 0;
-      const next = Number.isFinite(prev) ? prev + 1 : 1;
-      window.localStorage.setItem(OPEN_QUESTION_RECOVERY_METRIC_KEY, String(next));
-    }
-  } catch {
-  }
+    const prompt = `Você é um gerador de curiosidades estratégicas sobre agronegócio e gestão.
+Contexto da investigação: "${safeContext}"
+Consulta original: "${searchQuery?.slice(0, 200) || ''}"
 
-  fetch(BACKEND_URL, {
-    method: 'POST',
-    redirect: 'follow',
-    headers: { 'Content-Type': 'text/plain' },
-    body: JSON.stringify({
-      action: 'logOpenQuestionRecovery',
-      reason: reason || 'fallback',
-      sessionId: sessionId || 'unknown',
-      empresa: empresa || null,
-      questionSnippet: (question || '').slice(0, 180),
-      timestamp: new Date().toISOString(),
-    }),
-  }).catch(() => {
-  });
-}
+Gere um array JSON com 6 a 8 curiosidades concisas (máximo 180 caracteres cada) sobre:
+- O setor/segmento da empresa
+- Tendências do agronegócio regional
+- Benchmarks de gestão e tecnologia
+- Contexto econômico de Mato Grosso e Centro-Oeste
 
-export function parseMarkers(content: string): ParsedContent {
-  let text = content;
-  const statuses: string[] = [];
-  let scorePorta: ScorePortaData | null = null;
+Regras:
+- Responda EXCLUSIVAMENTE com um array JSON de strings
+- Cada string deve ser uma frase única e informativa
+- Não inclua dados internos do sistema, nomes de prompts ou instruções
+- Foco em dados de mercado, tendências e insights estratégicos
 
-  const statusRegex = /\[\[\s*STATUS\s*:\s*([^\]]+)\]\]/gi;
-  let statusMatch;
-  while ((statusMatch = statusRegex.exec(content)) !== null) {
-    const sanitizedStatus = stripInternalMarkers(statusMatch[1] || '');
-    if (sanitizedStatus) statuses.push(sanitizedStatus);
-    text = text.replace(statusMatch[0], '');
-  }
-
-  scorePorta = parsePortaMarkerV2(text);
-  text = stripPortaMarkers(text);
-
-  text = text.replace(
-    /\*{0,2}Score PORTA:\*{0,2}\s*\d+\/100\s*[—–-]\s*(?:Alta|Média|Baixa)\s*Compatibilidade\.?\s*/gi,
-    '',
-  );
-  text = stripInternalMarkers(text).replace(/^\s*\n/gm, '\n').trim();
-  return { text, statuses, scorePorta };
-}
-
-const companyMetrics: Record<string, Record<string, number>> = {};
-function extractMetrics(text: string): Record<string, number> {
-  const m: Record<string, number> = {};
-  const haMatch = text.match(/(\d[\d.,]*)\s*(mil\s+)?hect(?:ares?)?\b/i);
-  if (haMatch)
-    m.ha = haMatch[2]
-      ? parseFloat(haMatch[1].replace(/\./g, '').replace(',', '.')) * 1000
-      : parseFloat(haMatch[1].replace(/\./g, '').replace(',', '.'));
-  const empMatch = text.match(/\+?(\d[\d.,]*)\s*(mil\s+)?(?:colaboradores?|funcionários?|empregados?)\b/i);
-  if (empMatch)
-    m.employees = empMatch[2]
-      ? parseFloat(empMatch[1].replace(/\./g, '').replace(',', '.')) * 1000
-      : parseFloat(empMatch[1].replace(/\./g, '').replace(',', '.'));
-  return m;
-}
-
-let currentCompanyContext: { empresa: string; sessionId: string; timestamp: number } | null = null;
-
-export function generateContextReminder(companyName: string | null, sessionId?: string): string {
-  if (!companyName) return '';
-  currentCompanyContext = { empresa: companyName, sessionId: sessionId || 'unknown', timestamp: Date.now() };
-  return `\n\n📌 [CONTEXTO ATIVO]: Você está investigando a empresa "${companyName}".\n- Mantenha foco TOTAL nesta empresa.\n- NUNCA cite nomes de empresas que não foram mencionados pelo usuário.\n- É PROIBIDO atribuir fatos de entidades com nome diferente (fundação, instituto, associação, cliente, fornecedor) à empresa-alvo sem vínculo explícito na mesma fonte.\n- Se houver dúvida de vínculo, escreva literalmente: "Não confirmado publicamente para ${companyName}".\n`;
-}
-
-export function resetCompanyContext(): void {
-  currentCompanyContext = null;
-}
-
-export function extractSuggestionsFromResponse(content: string): string[] {
-  if (!content) return [];
-  const regexes = [
-    /(?:---|___|\*\*\*)\s*[\r\n]+(?:\*\*|##|###)?\s*(?:🔎|⚡|🤠)?\s*(?:O que você quer descobrir agora|E aí, onde a gente joga o adubo agora|E aí, qual desses você quer cavucar|Próximos passos|Sugestões?(?:\s+de\s+perguntas)?)(?:.*?)[\r\n]+/i,
-    /\n+(?:\*\*|##|###)\s*(?:🔎|⚡|🤠)?\s*(?:Sugestões?(?:\s+de\s+perguntas)?|Próximos\s+passos|O que você quer descobrir agora)\s*\*?\*?\s*[\r\n]+/i,
-  ];
-  for (const regex of regexes) {
-    const parts = content.split(regex);
-    if (parts.length >= 2) {
-      return parts[parts.length - 1]
-        .split('\n')
-        .map(l => l.trim())
-        .filter(l => /^[\*\-•\+]\s/.test(l) || /^\d+\./.test(l))
-        .map(l =>
-          l
-            .replace(/^[\*\-•\+\d\.]+\s*/, '')
-            .replace(/^\"|'|'|\"$/g, '')
-            .replace(/\*+$/, '')
-            .trim(),
-        )
-        .filter(l => l.length > 0)
-        .slice(0, 4);
-    }
-  }
-  return [];
-}
-
-export const resetChatSession = () => {
-  resetCompanyContext();
-  resetPortaState();
-};
-
-const analyzeUserIntent = async (
-  msg: string,
-): Promise<{ empresa: string | null; benchmark: boolean; rota: 'tatica' | 'profunda' }> => {
-  if (!msg || msg.trim().length < 5) return { empresa: null, benchmark: false, rota: 'tatica' };
-  try {
-    const prompt = `Analise a frase: "${msg}". Extraia (JSON): 1. "empresa": NOME DA EMPRESA (ou "NONE"). 2. "benchmark": boolean. 3. "rota": "profunda" ou "tatica".`;
+Exemplo:
+["O agronegócio representa 27% do PIB brasileiro, com MT liderando produção de soja.", "Empresas que adotam ERP reduzem custo operacional em até 18% no primeiro ano."]`;
     const response = await proxyGenerateContent({
-      model: ROUTER_MODEL_ID,
+      model:    ROUTER_MODEL_ID,
       contents: prompt,
-      config: { temperature: 0, responseMimeType: 'application/json' },
+      config:   { temperature: 0.7, maxOutputTokens: 1200 },
     });
-    const parsed = JSON.parse(
-      (response.text || '{}')
-        .replace(/^```json\s*/i, '')
-        .replace(/```\s*$/i, '')
-        .trim(),
-    );
-    return {
-      empresa: !parsed.empresa || parsed.empresa === 'NONE' || parsed.empresa.length < 2 ? null : parsed.empresa,
-      benchmark: !!parsed.benchmark,
-      rota: parsed.rota === 'profunda' ? 'profunda' : 'tatica',
-    };
+    return parseLoadingCuriosities(response.text || '', safeContext);
   } catch {
-    return { empresa: null, benchmark: false, rota: 'tatica' };
+    return fallback;
   }
-};
-
-const generateBenchmarkKeywords = async (empresaNome: string, contexto: string): Promise<string[]> => {
-  try {
-    const resp = await proxyGenerateContent({
-      model: ROUTER_MODEL_ID,
-      contents: `Gere 5 palavras-chave do SETOR de "${empresaNome}". Contexto: "${contexto}". Separadas por vírgula.`,
-      config: { temperature: 0.1 },
-    });
-    return (resp.text || '')
-      .split(',')
-      .map(k => k.trim())
-      .filter(k => k.length > 1);
-  } catch {
-    return [];
-  }
-};
-
-export const generateLoadingCuriosities = async (context: string, userQuery = ''): Promise<string[]> => {
-  const baseContext = sanitizeLoadingContextText(context);
-  const queryContext = sanitizeLoadingContextText(userQuery);
-  if (!baseContext && !queryContext) return [];
-  try {
-    const effectiveContext = baseContext || queryContext;
-    const querySnippet = queryContext ? `Consulta do usuário: "${queryContext.slice(0, 300)}".` : '';
-    const response = await proxyGenerateContent({
-      model: ROUTER_MODEL_ID,
-      contents: `Você está gerando mensagens rápidas para o loading da investigação comercial.
-
-Contexto principal: "${effectiveContext}".
-${querySnippet}
-
-Retorne EXCLUSIVAMENTE um JSON com este formato:
-{
-  "empresa": ["..."],
-  "setor": ["..."],
-  "regional": ["..."]
 }
 
-REGRAS:
-- Gere entre 1 e 3 itens por chave.
-- "empresa": fatos/sinais específicos da empresa-alvo ou do alvo da consulta.
-- "setor"/"regional": contexto de mercado e região para reforçar diagnóstico.
-- Frases curtas (máx 170 chars), concretas e sem linguagem genérica.
-- Priorize evidências públicas verificáveis com sinais da web.
-- Evite frases institucionais/genéricas sobre a Senior; foque no alvo investigado.
-- Sempre que possível, termine com "— Fonte: <origem>" usando origem curta (ex.: IBGE, CONAB, Embrapa, Senior, GAtec).
-- Se não houver dado confiável, use formulação prudente (ex: "sinal de expansão em apuração").`,
-      config: {
-        responseMimeType: 'application/json',
-        temperature: 0.35,
-        maxOutputTokens: 1024,
-        tools: [{ googleSearch: {} }],
-      },
+export async function generateContinuityQuestion(
+  messages: Message[],
+  empresaAlvo: string | null,
+  nomeVendedor: string,
+): Promise<string[]> {
+  const recentMessages = messages
+    .slice(-6)
+    .map(m => `${m.sender === Sender.User ? 'Vendedor' : 'Scout'}: ${m.text?.slice(0, 300) || ''}`)
+    .join('\n');
+  const contextNote = empresaAlvo ? `Empresa em análise: ${empresaAlvo}` : '';
+  const systemPrompt = CONTINUITY_SYSTEM;
+  const userPrompt   = `${contextNote}\n\nHistórico recente:\n${recentMessages}\n\nGere 3 perguntas de continuidade estratégica para o vendedor ${nomeVendedor} usar na próxima interação. Responda como array JSON de strings.`;
+  try {
+    const response = await proxyGenerateContent({
+      model:    ROUTER_MODEL_ID,
+      contents: userPrompt,
+      config:   { temperature: 0.8, maxOutputTokens: 600, systemInstruction: systemPrompt },
     });
-    return parseLoadingCuriosities(response.text || '', effectiveContext);
+    const raw = (response.text || '').replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim();
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.slice(0, 3) : [];
   } catch {
     return [];
   }
-};
+}
 
-const generateFallbackSuggestions = async (
-  lastUserText: string,
-  botResponseText: string,
-  isOperacao: boolean,
-  empresaAlvo: string | null,
-): Promise<string[]> => {
-  try {
-    const isMegaPrompt =
-      lastUserText.length > 300 &&
-      (lastUserText.includes('Protocolo de investigação') || lastUserText.includes('DIRETRIZ'));
-
-    const empresaNome = empresaAlvo || 'a empresa alvo';
-    const target = `da empresa ${empresaNome}`;
-
-    const effectiveUserContext = isMegaPrompt
-      ? `O usuário executou uma análise profunda (Raio-X/Dossiê) sobre ${empresaNome}.`
-      : `O usuário, investigando ${empresaNome}, enviou a pergunta: "${lastUserText.substring(0, 500)}".`;
-
-    const response = await proxyGenerateContent({
-      model: ROUTER_MODEL_ID,
-      contents: `${effectiveUserContext}\n\nA IA respondeu com esta análise:\n"${botResponseText.substring(0, 1000)}..."\n\n**REGRA OBRIGATÓRIA**: Cada sugestão DEVE mencionar "${empresaNome}" ou usar pronomes que deixem clara a referência à empresa (ex: "dessa empresa", "deles", "lá").\n\nGere 3 sugestões CURTAS E DIRETAS de perguntas (follow-up) que o usuário pode fazer para se aprofundar nesta resposta. \n\nExemplos BONS:\n- "Como ${empresaNome} gerencia acesso e balanças hoje?"\n- "Quais concorrentes dessa empresa em MT já usam WMS Senior?"\n- "${empresaNome} tem planos de novas aquisições nos próximos 12 meses?"\n\nExemplos RUINS (NÃO FAZER):\n- "Quais concorrentes em MT já usam o WMS?" (falta o nome da empresa)\n- "Como gerenciam acesso?" (muito genérico)\n\nRetorne APENAS um JSON Array de strings.`,
-      config: {
-        systemInstruction:
-          'Você é o assistente B2B que sugere os próximos passos da investigação. SEMPRE mencione o nome da empresa nas sugestões.',
-        responseMimeType: 'application/json',
-        temperature: 0.3,
-      },
-    });
-
-    const json = JSON.parse(
-      (response.text || '[]')
-        .replace(/^```json\s*/i, '')
-        .replace(/```\s*$/i, '')
-        .trim(),
-    );
-    if (!Array.isArray(json)) return [`Mapear decisores ${target}`, `Verificar gaps técnicos de ${empresaNome}`];
-
-    return json
-      .map((item: any) => (typeof item === 'string' ? item : item?.pergunta || item?.sugestao || 'Aprofundar análise'))
-      .map((suggestion: string) => {
-        if (
-          empresaAlvo &&
-          !suggestion.toLowerCase().includes(empresaAlvo.toLowerCase()) &&
-          !suggestion.includes('dessa empresa') &&
-          !suggestion.includes('deles') &&
-          !suggestion.includes('lá')
-        ) {
-          return suggestion.replace(/^(\w+)/, `$1 ${empresaAlvo}`);
-        }
-        return suggestion;
-      })
-      .slice(0, 3);
-  } catch {
-    const empresa = empresaAlvo || 'a empresa';
-    return [
-      `Aprofundar análise de ${empresa}`,
-      `Mapear decisores de ${empresa}`,
-      `Verificar gaps técnicos de ${empresa}`,
-    ];
-  }
-};
-
-export const sendMessageToGemini = async (
-  message: string,
-  history: Message[],
-  systemInstruction: string,
+export async function sendMessageToGemini(
+  userMessage: string,
+  conversationHistory: Message[],
+  systemPrompt: string,
   options: GeminiRequestOptions = {},
-  canUseLookup: boolean = true,
-): Promise<{
-  text: string;
-  sources: Array<{ title: string; url: string }>;
-  suggestions: string[];
-  scorePorta: ScorePortaData | null;
-  statuses: string[];
-  empresa?: string | null;
-  ghostReason?: string;
-}> => {
+): Promise<string> {
   const {
-    useGrounding = true,
-    thinkingMode = false,
+    useGrounding   = true,
+    thinkingMode   = false,
     signal,
     onText,
     onStatus,
     onScorePorta,
     onCompetitor,
-    nomeVendedor,
+    nomeVendedor   = 'Vendedor',
     sessionId,
-    hintedCompany,
+    hintedCompany  = null,
   } = options;
 
-  const guardResult = scanInput(message);
-  const safeMessage = guardResult.sanitized?.trim() ? guardResult.sanitized : message;
-  const activeCompanyForGuard = (hintedCompany || currentCompanyContext?.empresa || '').trim();
-  const hasActiveContextHint = !!activeCompanyForGuard;
-  const canApplyContextGuard = !!activeCompanyForGuard && !isContextSwitchIntent(safeMessage);
-  if (canApplyContextGuard && hasPotentialOutOfScopeTopic(safeMessage)) {
-    const shouldBlock = await shouldBlockOutOfContextByJudge(safeMessage, activeCompanyForGuard, history);
-    if (shouldBlock) {
-      return {
-        text: `Estou com o contexto travado na conta "${activeCompanyForGuard}". Essa pergunta parece fora do escopo da investigação atual.\n\nSe quiser, eu continuo a análise dessa conta agora. Se quiser trocar de assunto/empresa, abra uma nova investigação ou diga explicitamente "trocar contexto para ...".`,
-        sources: [],
-        suggestions: [
-          `Continuar investigação de ${activeCompanyForGuard}`,
-          `Mapear dores operacionais de ${activeCompanyForGuard}`,
-          `Trocar contexto para outra empresa`,
-        ],
-        scorePorta: null,
-        statuses: [],
-        empresa: activeCompanyForGuard,
-        ghostReason: 'out_of_context_guard',
-      };
-    }
+  if (signal?.aborted) throw new Error('AbortError');
+
+  const { isSafe, reason: scanReason } = scanInput(userMessage);
+  if (!isSafe) throw Object.assign(new Error(scanReason || 'Entrada bloqueada por segurança.'), { code: 'PROMPT_INJECTION' });
+
+  const wrappedMessage = wrapUserInput(userMessage);
+
+  // ── Detecção de empresa alvo ─────────────────────────────────────────────
+  let empresaAlvo: string | null = hintedCompany || null;
+  const cnpjMatch = userMessage.match(/\b(\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}|\d{14})\b/);
+  const cnpjDetected = cnpjMatch?.[1]?.replace(/\D/g, '') || null;
+  let clienteData: LookupResponse | null = null;
+  let benchmarkData: BenchmarkResponse | null = null;
+
+  // ── Contexto RAG ────────────────────────────────────────────────────────
+  let ragContext      = '';
+  let ragDocsContext  = '';
+
+  const isMegaPromptMessage    = systemPrompt.includes('INVESTIGACAO_COMPLETA_INTEGRADA') || systemPrompt.includes('DOSSIE_COMPLETO');
+  const isDeepDive             = isDeepDiveMessage(userMessage, isMegaPromptMessage);
+  const deepDiveSource         = isDeepDive ? getDeepDiveSource(userMessage) : 'UNKNOWN';
+  const shouldForceDirectAnswer = isMegaPromptMessage && !isDeepDive;
+  const hasActiveContextHint    = !!empresaAlvo || !!cnpjDetected || isMegaPromptMessage;
+
+  // ── Lookup cliente ───────────────────────────────────────────────────────
+  if (cnpjDetected || empresaAlvo) {
+    emitDossieStatus(onStatus, 'cadastral');
+    try {
+      clienteData = await lookupCliente(cnpjDetected || empresaAlvo || '');
+      if (clienteData?.nome && !empresaAlvo) empresaAlvo = clienteData.nome;
+    } catch { /* silencioso */ }
   }
 
-  const isOpenQuestion = isOpenQuestionMessage(safeMessage, hasActiveContextHint);
-  const isLocationQuestion = isLocationQuestionMessage(safeMessage);
-  const isBudgetQuestion = isBudgetQuestionMessage(safeMessage);
-  const isSubstantiveFollowUp = hasActiveContextHint && isSubstantiveUserMessage(safeMessage);
-  const shouldForceDirectAnswer =
-    isOpenQuestion || isLocationQuestion || isBudgetQuestion || isSubstantiveFollowUp;
+  // ── RAG ─────────────────────────────────────────────────────────────────
+  if (isMegaPromptMessage || isDeepDive) {
+    emitDossieStatus(onStatus, 'rag');
+    try {
+      const [pinecone, docs] = await Promise.all([
+        buscarContextoPinecone(userMessage, empresaAlvo || ''),
+        buscarContextoDocsPinecone(userMessage),
+      ]);
+      ragContext     = pinecone || '';
+      ragDocsContext = docs     || '';
+    } catch { /* silencioso */ }
+  }
 
-  const nomeParaInjetar = nomeVendedor?.trim() || 'Vendedor';
-  const systemInstructionFinal = systemInstruction.replace(
-    new RegExp(NOME_VENDEDOR_PLACEHOLDER.replace(/[{}]/g, '\\$&'), 'g'),
-    nomeParaInjetar,
+  // ── Concorrentes ─────────────────────────────────────────────────────────
+  let concorrentesContext = '';
+  if (isMegaPromptMessage) {
+    emitDossieStatus(onStatus, 'concorrentes');
+    try {
+      concorrentesContext = await getContextoConcorrentesRegionais(empresaAlvo || userMessage);
+    } catch { /* silencioso */ }
+  }
+
+  // ── Benchmark ────────────────────────────────────────────────────────────
+  if (isMegaPromptMessage && empresaAlvo) {
+    emitDossieStatus(onStatus, 'benchmark');
+    try {
+      benchmarkData = await benchmarkClientes(empresaAlvo);
+    } catch { /* silencioso */ }
+  }
+
+  // ── Sinaliza deep research ────────────────────────────────────────────────
+  if (isMegaPromptMessage || isDeepDive) {
+    emitDossieStatus(onStatus, 'deepResearch');
+  }
+
+  // ── Sinaliza fases do deep dive ──────────────────────────────────────────
+  if (isDeepDive) {
+    if (userMessage.includes('TEIA SOCIETÁRIA') || userMessage.includes('M&A'))       emitDossieStatus(onStatus, 'corporate');
+    if (userMessage.includes('ARQUITETURA DE TI') || userMessage.includes('Tech'))    emitDossieStatus(onStatus, 'tech');
+    if (userMessage.includes('COMPLIANCE') || userMessage.includes('RISCOS'))         emitDossieStatus(onStatus, 'compliance');
+    if (userMessage.includes('RH, SST') || userMessage.includes('DECISORES'))         emitDossieStatus(onStatus, 'rh');
+    if (userMessage.includes('LOGÍSTICA') || userMessage.includes('SUPPLY'))          emitDossieStatus(onStatus, 'logistica');
+  }
+
+  // ── Monta contexto adicional ─────────────────────────────────────────────
+  const clienteFormatado    = clienteData    ? formatarParaPrompt(clienteData)              : '';
+  const benchmarkFormatado  = benchmarkData  ? formatarBenchmarkParaPrompt(benchmarkData)   : '';
+  const portaContext        = isMegaPromptMessage ? generatePortaContextForDeepDive()       : '';
+
+  const extraContext = [
+    clienteFormatado,
+    benchmarkFormatado,
+    ragContext     ? `\n[CONTEXTO RAG]\n${ragContext}`          : '',
+    ragDocsContext ? `\n[DOCS RAG]\n${ragDocsContext}`         : '',
+    concorrentesContext ? `\n[CONCORRENTES]\n${concorrentesContext}` : '',
+    portaContext   ? `\n[PORTA STATE]\n${portaContext}`         : '',
+  ].filter(Boolean).join('\n');
+
+  const fullSystemPrompt = extraContext
+    ? `${systemPrompt}\n\n${extraContext}`
+    : systemPrompt;
+
+  // ── Histórico ────────────────────────────────────────────────────────────
+  const history = conversationHistory
+    .filter(m => m.text && m.text.trim().length > 0)
+    .map(m => ({
+      role: m.sender === Sender.User ? ('user' as const) : ('model' as const),
+      text: sanitizeStreamText(m.text || ''),
+    }));
+
+  // ── Score PORTA inicial ──────────────────────────────────────────────────
+  if (isMegaPromptMessage) {
+    initPortaState(empresaAlvo || userMessage.slice(0, 60));
+  }
+
+  // ── Seleciona modelo ─────────────────────────────────────────────────────
+  const modelToUse = isDeepDive
+    ? DEEP_RESEARCH_MODEL_ID
+    : isMegaPromptMessage
+      ? DEEP_RESEARCH_MODEL_ID
+      : shouldForceDirectAnswer
+        ? TACTICAL_MODEL_ID
+        : DEEP_CHAT_MODEL_ID;
+
+  // ── Envia para o modelo ──────────────────────────────────────────────────
+  let finalText = '';
+
+  const response = await withAutoRetry(() =>
+    proxyChatSendMessage({
+      model:             modelToUse,
+      systemInstruction: fullSystemPrompt,
+      history,
+      message:           wrappedMessage,
+      useGrounding,
+      thinkingMode,
+    }),
   );
 
-  const apiCall = async () => {
-    onStatus?.('Entendendo sua necessidade...');
+  finalText = sanitizeStreamText(response.text || '');
 
-    const isMegaPromptMessage = message.startsWith('Dossiê completo de [');
-    let embeddedCompany = null;
-    if (isMegaPromptMessage) {
-      const match = message.match(/^Dossiê completo de \[([^\]]+)\]/);
-      if (match) embeddedCompany = match[1];
-      if (embeddedCompany === 'a empresa desta conversa') {
-        embeddedCompany = hintedCompany || currentCompanyContext?.empresa || null;
-      }
-    }
+  // ── Sinaliza score PORTA ──────────────────────────────────────────────────
+  if (isMegaPromptMessage || isDeepDive) {
+    emitDossieStatus(onStatus, 'scoring');
+  }
 
-    const ragQuery = isMegaPromptMessage ? embeddedCompany || 'Empresa Alvo' : message;
-    const ragContextPromise = buscarContextoPinecone(ragQuery);
-    const docsRagPromise = buscarContextoDocsPinecone(ragQuery);
+  // ── Processa feeds PORTA ─────────────────────────────────────────────────
+  if (isMegaPromptMessage || isDeepDive) {
+    const source = isDeepDive ? deepDiveSource : 'MEGA';
+    const feeds  = parsePortaFeeds(response.text || '', source);
+    for (const adj of feeds.adjustments) addFeedAdjustment(adj);
+    for (const flag of feeds.flags)      addFlagFeed(flag);
+    for (const seg of feeds.segments)    addSegmentFeed(seg);
 
-    const intentQuery = isMegaPromptMessage ? `Investigar a empresa ${embeddedCompany || 'desconhecida'}` : message;
-    const { empresa: rawEmpresa, benchmark, rota } = await analyzeUserIntent(intentQuery);
-
-    let empresa = isConcorrenteOuPropria(rawEmpresa || '') ? null : rawEmpresa;
-    if (isMegaPromptMessage && embeddedCompany && !isConcorrenteOuPropria(embeddedCompany)) {
-      empresa = embeddedCompany;
-    }
-
-    if (!empresa && hintedCompany && !isConcorrenteOuPropria(hintedCompany)) {
-      empresa = hintedCompany;
-    }
-
-    if (
-      !empresa &&
-      currentCompanyContext?.empresa &&
-      (!sessionId || currentCompanyContext.sessionId === sessionId)
-    ) {
-      empresa = currentCompanyContext.empresa;
-    }
-
-    const currentSessionId = sessionId || currentCompanyContext?.sessionId || 'unknown';
     const portaState = getPortaState();
-    if (
-      empresa &&
-      (!portaState || portaState.empresa !== empresa || portaState.sessionId !== currentSessionId)
-    ) {
-      initPortaState(empresa, currentSessionId);
-    }
-
-    let finalInstruction = systemInstructionFinal;
-    if (empresa) {
-      finalInstruction = `${finalInstruction}
-
-REGRA DE VÍNCULO DE EVIDÊNCIA (CRÍTICA):
-- Empresa-alvo: "${empresa}".
-- Não atribua como fato da empresa-alvo nenhuma informação de entidade com nome diferente.
-- Antes de afirmar ERP, cargo executivo, CNPJ do grupo, parceria ou incidente, valide vínculo explícito da própria fonte com "${empresa}".
-- Se a evidência citar terceiro (ex.: fundação, associação, parceiro) sem comprovar relação direta com "${empresa}", escreva "Não confirmado publicamente para ${empresa}".
-- É proibido preencher lacunas por inferência quando o vínculo não estiver claro.
-`;
-    }
-    if (!empresa && !history.some(h => h.sender === 'bot' && (h.scorePorta || h.text.includes('PORTA:')))) {
-      finalInstruction = `Você é o Especialista Técnico da Senior Sistemas.
-SUA ÚNICA MISSÃO: Responder a pergunta técnica de forma DIRETA. 
-Use os links do RAG [Texto](URL). NÃO inicie fluxos de investigação, NÃO peça CNPJ.`;
-    }
-
-    if (shouldForceDirectAnswer) {
-      finalInstruction = `${finalInstruction}
-
-MODO RESPOSTA DIRETA (OBRIGATÓRIO):
-- Responda PRIMEIRO exatamente o que foi pedido na mensagem atual, de forma objetiva.
-- NUNCA diga que a mensagem está vazia, inválida, só com pontuação, sem texto válido, sem comando claro ou sem direcionamento quando houver uma mensagem substantiva.
-- Só depois complemente com contexto adicional, se realmente útil.`;
-    }
-
-    if (isSubstantiveFollowUp) {
-      finalInstruction = `${finalInstruction}
-
-MODO FOLLOW-UP CONTEXTUAL (OBRIGATÓRIO):
-- Interprete a mensagem atual como continuação natural da conta já em análise.
-- Use o contexto acumulado da conta e a última resposta relevante como base.
-- É proibido pedir reformulação, novo comando ou esclarecimento genérico se o contexto ativo já permitir responder.`;
-    }
-
-    if (isLocationQuestion) {
-      finalInstruction = `${finalInstruction}
-
-MODO LOCALIZAÇÃO (OBRIGATÓRIO):
-- A resposta DEVE começar com "Localização:".
-- Traga municípios/estados primeiro, em bullets curtos.
-- Se não houver confirmação pública exata, escreva explicitamente "Localização específica não confirmada publicamente" e informe apenas o que é confirmado.
-- Não priorize recomendação comercial antes de responder a localização pedida.`;
-    }
-
-    if (isBudgetQuestion) {
-      finalInstruction = `${finalInstruction}
-
-MODO BUDGET (OBRIGATÓRIO):
-- Responda a pergunta de budget/custo PRIMEIRO, de forma objetiva.
-- Traga faixa de valor em R$ quando houver evidência.
-- Se não houver evidência pública suficiente, escreva explicitamente "Budget não confirmado publicamente" e entregue faixa estimada com premissas.
-- Quando houver contexto anterior da conta, use-o explicitamente como base da estimativa.
-- Evite abertura comercial genérica e não desvie para pitch antes de responder o budget.`;
-    }
-
-    let effectiveUserMessage = safeMessage;
-    if (isMegaPromptMessage) {
-      const parts = message.split('\n\n');
-      finalInstruction = `${parts.slice(1).join('\n\n')}\n\n---\n\n${finalInstruction}`;
-      effectiveUserMessage = `Execute o protocolo de investigação forense para a empresa: ${empresa || 'a empresa alvo'}.`;
-    }
-
-    const isDeepDive = isDeepDiveMessage(message, isMegaPromptMessage);
-
-    const isDeepResearch = rota === 'profunda' || isMegaPromptMessage;
-    if (isDeepResearch) onStatus?.('Sinais externos em análise...');
-    if (signal?.aborted) throw new Error('Request aborted');
-
-    let enrichments: string[] = [];
-    if (empresa) {
-      if (!isConcorrenteOuPropria(empresa)) {
-        onStatus?.(`Buscando histórico de ${empresa}...`);
-        const lookup: LookupResponse = canUseLookup
-          ? await lookupCliente(empresa)
-          : { ok: true, query: empresa, encontrado: false, total: 0, results: [] };
-        enrichments.push(lookup.encontrado ? formatarParaPrompt(lookup) : `\n[Lookup: "${empresa}" não encontrado]\n`);
-      }
-      enrichments.push(generateContextReminder(empresa, currentSessionId));
-      const competitorContext = getContextoConcorrentesRegionais(extractEstadoFromMessage(message));
-      if (competitorContext) enrichments.push(competitorContext);
-      if (benchmark || message.includes('investigar')) {
-        onStatus?.('Cruzando referências de mercado...');
-        const bench: BenchmarkResponse = canUseLookup
-          ? await benchmarkClientes(await generateBenchmarkKeywords(empresa, message))
-          : { ok: true, mode: 'benchmark', keywords: [], total: 0, results: [] };
-        if (bench.ok) enrichments.push(formatarBenchmarkParaPrompt(bench, empresa));
-      }
-    }
-
-    onStatus?.('Consultando inteligência interna...');
-    const [ragContext, docsRagContext] = await Promise.all([
-      Promise.race([ragContextPromise, new Promise<string>(r => setTimeout(() => r(''), 60000))]),
-      Promise.race([docsRagPromise, new Promise<string>(r => setTimeout(() => r(''), 60000))]),
-    ]);
-
-    if (ragContext) enrichments.push(`## INTELIGÊNCIA INTERNA (RAG)\n${sanitizeExternalContent(ragContext)}`);
-    if (docsRagContext) enrichments.push(`## DOCUMENTAÇÃO SENIOR (RAG)\n${sanitizeExternalContent(docsRagContext)}`);
-
-    const isTechnicalMode =
-      !empresa && !history.some(h => h.sender === 'bot' && (h.scorePorta || h.text.includes('PORTA:')));
-    const previousUserQuestion = getLastUserQuestion(history);
-    const lastAssistantAnswer = getLastAssistantAnswer(history);
-    const relevantAssistantContext = shouldForceDirectAnswer
-      ? lastAssistantAnswer?.slice(0, 4000) || ''
-      : '';
-    const shouldCanonicalizeFollowUp =
-      !isMegaPromptMessage && shouldCanonicalizeContextualFollowUp(safeMessage, hasActiveContextHint);
-    const promptUserMessage = shouldCanonicalizeFollowUp
-      ? buildCanonicalContextualFollowUp(
-          safeMessage,
-          empresa || activeCompanyForGuard || hintedCompany || currentCompanyContext?.empresa || null,
-          lastAssistantAnswer,
-        )
-      : effectiveUserMessage;
-    const questionPriorityBlock = [
-      '## PERGUNTA_ATUAL (RESPONDER PRIMEIRO)',
-      wrapUserInput(promptUserMessage),
-      previousUserQuestion
-        ? `## PERGUNTA_ANTERIOR (NÃO RESPONDER AGORA)\n${wrapUserInput(previousUserQuestion)}`
-        : '',
-      relevantAssistantContext
-        ? `## ÚLTIMA_RESPOSTA_RELEVANTE (USAR COMO CONTEXTO, NÃO REPETIR LITERALMENTE)\n${wrapUserInput(relevantAssistantContext)}`
-        : '',
-    ]
-      .filter(Boolean)
-      .join('\n\n');
-    let messageToSend =
-      enrichments.length > 0
-        ? `${questionPriorityBlock}\n\n---\n## CONTEXTO\n${enrichments.join('\n')}\n---\nResponda estritamente a PERGUNTA_ATUAL.`
-        : `${questionPriorityBlock}\n\nResponda estritamente a PERGUNTA_ATUAL.`;
-
-    if (isDeepDive) {
-      const deepDiveSource = getDeepDiveSource(message);
-      const portaContext = generatePortaContextForDeepDive(deepDiveSource);
-      messageToSend = `${portaContext}\n\n---\n\n${messageToSend}`;
-    }
-
-    if (isTechnicalMode) messageToSend += `\n\nResponda diretamente como Especialista Senior.`;
-
-    if (!isDeepResearch) onStatus?.('Montando resposta prática...');
-    const sdkHistory = history
-      .filter(msg => !msg.isError)
-      .map(msg => ({
-        role: msg.sender === Sender.User ? ('user' as const) : ('model' as const),
-        text: stripInternalMarkers(msg.text || ''),
-      }))
-      .filter(msg => msg.text.trim().length > 0);
-
-    let response = await proxyChatSendMessage(
-      {
-        model: isDeepResearch ? DEEP_RESEARCH_MODEL_ID : TACTICAL_MODEL_ID,
-        history: sdkHistory,
-        systemInstruction: `${CANARY_TOKEN}\n${finalInstruction}\nMODO LIVE STATUS (OBRIGATÓRIO):\nEmita marcadores [[STATUS: Mensagem]] a cada etapa da análise. Use links markdown [texto](URL).`,
-        message: messageToSend,
-        useGrounding,
-        thinkingMode,
-      },
-      signal,
-    );
-
-    let rawAccumulator = response.text || '';
-    let groundingChunks = Array.isArray(response.groundingChunks) ? response.groundingChunks : [];
-    onText?.(sanitizeStreamText(rawAccumulator));
-
-    let finalParsed = parseMarkers(rawAccumulator);
-    finalParsed.statuses.forEach(status => onStatus?.(status));
-    const competitorDetection = parseCompetitorMarker(rawAccumulator);
-    if (competitorDetection) onCompetitor?.(competitorDetection);
-
-    if (isDeepDive) {
-      const source = getDeepDiveSource(message);
-      const feeds = parsePortaFeeds(rawAccumulator, source);
-      for (const adjustment of feeds.adjustments) addFeedAdjustment(adjustment);
-      for (const flag of feeds.flags) addFlagFeed(flag);
-      for (const segment of feeds.segments) addSegmentFeed(segment);
-      const consolidated = getPortaState()?.consolidatedScore;
-      if (consolidated) {
-        finalParsed.scorePorta = consolidated;
-      }
-    } else if (finalParsed.scorePorta) {
-      setBaseScore(finalParsed.scorePorta);
-      const consolidated = getPortaState()?.consolidatedScore;
-      if (consolidated) {
-        finalParsed.scorePorta = consolidated;
-      }
-    }
-
-    let finalText = stripDossierLeadIn(enforceOpeningWithSeller(finalParsed.text, nomeParaInjetar));
-    finalText = cleanPortaFeedMarkers(finalText);
-    if (finalParsed.scorePorta) onScorePorta?.(finalParsed.scorePorta);
-
-    const shouldRecoverByFallback =
-      shouldForceDirectAnswer && looksLikeMissedOpenQuestionAnswer(finalText);
-    const shouldRecoverByLocationMismatch =
-      isLocationQuestion && !looksLikeLocationFocusedAnswer(finalText);
-    const shouldRecoverByBudgetMismatch =
-      isBudgetQuestion && !looksLikeBudgetFocusedAnswer(finalText);
-    let shouldRecoverBySemanticMismatch = false;
-    if (
-      shouldForceDirectAnswer &&
-      !shouldRecoverByFallback &&
-      !shouldRecoverByLocationMismatch &&
-      !shouldRecoverByBudgetMismatch &&
-      finalText.trim().length > 0
-    ) {
-      shouldRecoverBySemanticMismatch = await shouldRecoverOpenQuestionByJudge(
-        effectiveUserMessage,
-        finalText,
-      );
-    }
-
-    debugRecovery('pre-check', {
-      question: effectiveUserMessage.slice(0, 220),
-      isOpenQuestion,
-      isLocationQuestion,
-      isBudgetQuestion,
-      isSubstantiveFollowUp,
-      shouldCanonicalizeFollowUp,
-      shouldForceDirectAnswer,
-      shouldRecoverByFallback,
-      shouldRecoverByLocationMismatch,
-      shouldRecoverByBudgetMismatch,
-      shouldRecoverBySemanticMismatch,
-      firstAnswerPreview: finalText.slice(0, 260),
-    });
-
-    if (
-      shouldRecoverByFallback ||
-      shouldRecoverByLocationMismatch ||
-      shouldRecoverByBudgetMismatch ||
-      shouldRecoverBySemanticMismatch
-    ) {
-      trackOpenQuestionRecovery(
-        effectiveUserMessage,
-        sessionId,
-        empresa,
-        shouldRecoverByLocationMismatch
-          ? 'location_mismatch'
-          : shouldRecoverByBudgetMismatch
-            ? 'budget_mismatch'
-            : shouldRecoverBySemanticMismatch
-            ? 'semantic_mismatch'
-            : 'fallback',
-      );
-      const recoveryReason = shouldRecoverByLocationMismatch
-        ? 'location_mismatch'
-        : shouldRecoverByBudgetMismatch
-          ? 'budget_mismatch'
-          : shouldRecoverBySemanticMismatch
-          ? 'semantic_mismatch'
-          : 'fallback';
-      debugRecovery('triggered', {
-        reason: recoveryReason,
-        sessionId,
-        empresa: empresa || hintedCompany || null,
-      });
-      onStatus?.('Ajustando foco para a pergunta atual...');
-      const recoveryContextBlock = [
-        `Empresa em foco: ${empresa || hintedCompany || 'não identificada'}.`,
-        previousUserQuestion ? `Pergunta anterior (somente referência): "${previousUserQuestion}"` : '',
-        relevantAssistantContext ? `Última resposta relevante (base de contexto): "${relevantAssistantContext.slice(0, 2000)}"` : '',
-      ]
-        .filter(Boolean)
-        .join('\n');
-      response = await proxyChatSendMessage(
-        {
-          model: isDeepResearch ? DEEP_RESEARCH_MODEL_ID : TACTICAL_MODEL_ID,
-          history: sdkHistory,
-          systemInstruction: `${CANARY_TOKEN}\n${finalInstruction}\nMODO RECOVERY (OBRIGATÓRIO):\nO usuário fez uma pergunta válida. É PROIBIDO responder que a mensagem está vazia, inválida, sem texto válido, sem comando claro, sem direcionamento ou só com pontuações. Não peça reformulação se houver contexto ativo da conta. Responda objetivamente a PERGUNTA_ATUAL primeiro.`,
-          message: `${questionPriorityBlock}\n\nINSTRUÇÃO CRÍTICA:\n- Responda somente a PERGUNTA_ATUAL.\n- Não diga que o comando/mensagem veio vazio, inválido, em branco, sem direcionamento, sem comando claro, sem texto válido ou apenas com pontuações.\n- Interprete a mensagem atual como continuação da conta ativa quando houver contexto.\n- Se faltar dado, diga \"Não confirmado publicamente\" e informe o que é confirmado.\n- Entregue resposta objetiva em até 6 bullets.\n\n---\n## CONTEXTO ESSENCIAL\n${recoveryContextBlock}`,
-          useGrounding,
-          thinkingMode,
-        },
-        signal,
-      );
-      rawAccumulator = response.text || '';
-      groundingChunks = Array.isArray(response.groundingChunks) ? response.groundingChunks : [];
-      onText?.(sanitizeStreamText(rawAccumulator));
-      finalParsed = parseMarkers(rawAccumulator);
-      finalParsed.statuses.forEach(status => onStatus?.(status));
-      finalText = stripDossierLeadIn(enforceOpeningWithSeller(finalParsed.text, nomeParaInjetar));
-      finalText = cleanPortaFeedMarkers(finalText);
-      if (finalParsed.scorePorta) onScorePorta?.(finalParsed.scorePorta);
-      debugRecovery('after-recovery-call', {
-        textPreview: finalText.slice(0, 260),
-      });
-
-      if (shouldForceDirectAnswer && looksLikeMissedOpenQuestionAnswer(finalText)) {
-        debugRecovery('hard-recovery-triggered', {
-          reason: 'fallback_persisted_after_recovery',
-        });
-        onStatus?.('Refinando resposta da pergunta atual...');
-        const hardRecovery = await proxyGenerateContent(
-          {
-            model: TACTICAL_MODEL_ID,
-            contents: `PERGUNTA_ATUAL: "${effectiveUserMessage}"\nEMPRESA_EM_FOCO: "${empresa || hintedCompany || 'não identificada'}"\nULTIMA_RESPOSTA_RELEVANTE: "${relevantAssistantContext.slice(0, 2000)}"\n\nResponda diretamente a pergunta atual. É proibido dizer que a mensagem/comando veio vazio, inválido, sem texto válido, sem comando claro ou apenas com pontuações. Se houver contexto ativo, trate a mensagem atual como follow-up da conta em análise.\nSe faltar dado, diga "Não confirmado publicamente".`,
-            config: {
-              systemInstruction: finalInstruction,
-              temperature: 0.1,
-              maxOutputTokens: 4096,
-            },
-          },
-          signal,
-        );
-        const fallbackText = hardRecovery.text || '';
-        if (fallbackText.trim().length > 0) {
-          finalText = stripDossierLeadIn(enforceOpeningWithSeller(
-            cleanPortaFeedMarkers(parseMarkers(fallbackText).text),
-            nomeParaInjetar,
-          ));
-          debugRecovery('hard-recovery-success', {
-            textPreview: finalText.slice(0, 260),
-          });
-        }
-      }
-    }
-
-    const inlineLinks: Array<{ title: string; url: string }> = [];
-    const linkRegex = /\[([^\]\n]{1,120})\]\((https?:\/\/[^)\s]{4,})\)/g;
-    let linkMatch;
-    while ((linkMatch = linkRegex.exec(finalText)) !== null) {
-      if (!inlineLinks.some(l => l.url === linkMatch[2]))
-        inlineLinks.push({ title: linkMatch[1].trim(), url: linkMatch[2] });
-    }
-    const sources = [
-      ...groundingChunks.filter(c => c.web?.uri).map(c => ({ title: c.web.title || c.web.uri, url: c.web.uri })),
-      ...inlineLinks,
-    ];
-
-    return {
-      text: finalText,
-      sources,
-      suggestions: [],
-      scorePorta: isDeepDive
-        ? finalParsed.scorePorta
-        : !rawEmpresa || isConcorrenteOuPropria(rawEmpresa)
-          ? undefined
-          : finalParsed.scorePorta,
-      statuses: finalParsed.statuses,
-      empresa,
-      ghostReason: !rawAccumulator.trim() ? 'Timeout' : undefined,
-    };
-  };
-
-  try {
-    const responseData = await withAutoRetry('Gemini:Stream', apiCall, { maxRetries: 2 });
-
-    let suggestions = extractSuggestionsFromResponse(responseData.text);
-
-    if (!suggestions || suggestions.length === 0) {
-      onStatus?.('Preparando próximos passos...');
-      suggestions = await generateFallbackSuggestions(
-        message,
-        responseData.text,
-        systemInstruction.includes('Operação'),
-        responseData.empresa || null,
-      );
-    }
-
-    if (responseData.empresa && responseData.text.length > 300) {
-      addInvestigation({
-        id: Date.now().toString(),
-        empresa: responseData.empresa,
-        score: responseData.scorePorta?.score || 75,
-        scoreLabel: responseData.scorePorta ? `${responseData.scorePorta.score}/100` : 'ANALISADO',
-        gaps: [],
-        familias: [],
-        isCliente: responseData.text.includes('✅ SIM'),
-        modo: systemInstruction.includes('Operação') ? 'Operação' : 'Diretoria',
-        data: new Date().toLocaleDateString('pt-BR'),
-        resumo: responseData.text.substring(0, 150).replace(/[#*\n]/g, ' '),
+    if (portaState && onScorePorta) {
+      onScorePorta({
+        P: portaState.P, O: portaState.O, R: portaState.R, T: portaState.T, A: portaState.A,
+        total:     portaState.total,
+        label:     portaState.label,
+        flags:     portaState.flags,
+        segmento:  portaState.segmento,
+        breakdown: portaState.breakdown,
       });
     }
-    return { ...responseData, suggestions };
-  } catch (error: any) {
-    throw normalizeAppError(error, 'GEMINI');
   }
-};
 
-export const generateNewSuggestions = async (
-  contextText: string,
-  previousSuggestions: string[] = [],
-): Promise<string[]> => {
-  if (!contextText.trim()) return [];
-  try {
-    const response = await proxyGenerateContent({
-      model: ROUTER_MODEL_ID,
-      contents: [
-        {
-          role: 'user',
-          parts: [
-            { text: `CONTEXTO:\n${contextText}\n\nEVITAR: ${previousSuggestions.join(', ')}\nGere 3 perguntas JSON.` },
-          ],
-        },
-      ],
-      config: { systemInstruction: CONTINUITY_SYSTEM, responseMimeType: 'application/json', temperature: 0.4 },
-    });
-    return JSON.parse(
-      (response.text || '[]')
-        .replace(/^```json\s*/i, '')
-        .replace(/```\s*$/i, '')
-        .trim(),
-    )
-      .map((i: any) => (typeof i === 'string' ? i : i.pergunta || i.sugestao || 'Opção'))
-      .slice(0, 3);
-  } catch {
-    return ['Mapear decisores', 'Consultar ERP atual'];
+  // ── Detecção de concorrente no fluxo ─────────────────────────────────────
+  if (onCompetitor && finalText) {
+    try {
+      const competitorMatches = isConcorrenteOuPropria(finalText);
+      if (competitorMatches?.length > 0) {
+        onCompetitor({ detected: true, names: competitorMatches });
+      }
+    } catch { /* silencioso */ }
   }
-};
 
-export const generateConsolidatedDossier = async (
-  history: Message[],
-  systemInstruction: string,
-  mode: ChatMode,
-  reportType: ReportType = 'full',
-): Promise<string> => {
-  try {
-    const response = await proxyGenerateContent({
-      model: TACTICAL_MODEL_ID,
-      contents: `Consolide este histórico: ${history.map(m => m.text).join('\n')}`,
-      config: { systemInstruction, temperature: 0.2, maxOutputTokens: 65536 },
-    });
-    return response.text || 'Erro na consolidação.';
-  } catch (error) {
-    throw normalizeAppError(error, 'GEMINI');
+  // ── Consolida e emite status final ───────────────────────────────────────
+  if (isMegaPromptMessage || isDeepDive) {
+    emitDossieStatus(onStatus, 'consolidando');
   }
-};
 
-export const extractSpotterData = async (raw: string): Promise<SpotterExtractedData> => {
-  if (!raw.trim()) {
-    return {};
+  // ── Streaming simulado via onText ────────────────────────────────────────
+  if (onText && finalText) {
+    onText(finalText);
   }
-  const systemInstruction = `
-Você é um analista SDR lendo uma ficha pública colada do ExactSpotter.
 
-TAREFA: Extrair APENAS os campos pedidos abaixo. Se um campo não aparecer, deixe como null ou lista vazia.
-FORMATO: Retorne EXCLUSIVAMENTE um JSON com as chaves: companyName, contactName, contactRole, contactEmail, contactPhone, segment, size, pains (array), currentSystems (array), summary.
-`;
-  const response = await proxyGenerateContent({
-    model: ROUTER_MODEL_ID,
-    contents: [
-      {
-        role: 'user',
-        parts: [{ text: `${systemInstruction}\n\nFICHA COPIADA DO SPOTTER:\n\n${sanitizeExternalContent(raw)}` }],
-      },
-    ],
-    config: { responseMimeType: 'application/json', temperature: 0.2, maxOutputTokens: 65536 },
+  // ── Recovery de perguntas abertas ────────────────────────────────────────
+  const shouldRecoverByFallback = looksLikeMissedOpenQuestionAnswer(finalText);
+  debugRecovery('pre-check', {
+    shouldForceDirectAnswer,
+    hasActiveContextHint,
+    shouldRecoverByFallback,
+    finalTextSnippet: finalText.slice(0, 120),
   });
-  try {
-    const text = response.text || '{}';
-    const parsed = JSON.parse(text);
-    return {
-      companyName: parsed.companyName || undefined,
-      contactName: parsed.contactName || undefined,
-      contactRole: parsed.contactRole || undefined,
-      contactEmail: parsed.contactEmail || undefined,
-      contactPhone: parsed.contactPhone || undefined,
-      segment: parsed.segment || undefined,
-      size: parsed.size || undefined,
-      pains: Array.isArray(parsed.pains) ? parsed.pains : [],
-      currentSystems: Array.isArray(parsed.currentSystems) ? parsed.currentSystems : [],
-      summary: parsed.summary || undefined,
-    };
-  } catch (err) {
-    console.error('Erro ao parsear JSON do Spotter:', err);
-    return {};
+
+  if (shouldForceDirectAnswer && shouldRecoverByFallback) {
+    const metric = Number(window?.localStorage?.getItem(OPEN_QUESTION_RECOVERY_METRIC_KEY) || 0);
+    window?.localStorage?.setItem(OPEN_QUESTION_RECOVERY_METRIC_KEY, String(metric + 1));
   }
-};
+
+  const nomeVendedorFinal = nomeVendedor || NOME_VENDEDOR_PLACEHOLDER;
+  return enforceOpeningWithSeller(finalText, nomeVendedorFinal);
+}

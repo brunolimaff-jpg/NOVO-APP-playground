@@ -1,69 +1,141 @@
 import { sanitizeLoadingContextText } from './textCleaners';
 
 const STATUS_PHASES = {
-  complexity: 'Entendendo sua necessidade...',
-  deepResearch: 'Sinais externos em análise...',
-  benchmark: 'Cruzando referências de mercado...',
+  complexity:    'Entendendo sua necessidade...',
+  deepResearch:  'Sinais externos em análise...',
+  benchmark:     'Cruzando referências de mercado...',
   knowledgeBase: 'Consultando inteligência interna...',
-  response: 'Montando resposta prática...',
-  hooks: 'Preparando próximos passos...',
+  response:      'Montando resposta prática...',
+  hooks:         'Preparando próximos passos...',
+  cadastral:     'Consultando dados cadastrais...',
+  corporate:     'Mapeando teia societária...',
+  tech:          'Analisando stack tecnológico...',
+  compliance:    'Verificando compliance e riscos fiscais...',
+  rh:            'Analisando RH e decisores...',
+  logistica:     'Investigando logística e supply chain...',
+  fiscal:        'Verificando incentivos fiscais...',
+  territorio:    'Mapeando inteligência territorial...',
+  scoring:       'Calculando Score PORTA...',
+  consolidando:  'Consolidando dossiê final...',
+  rag:           'Consultando base de conhecimento interna...',
+  concorrentes:  'Cruzando concorrentes regionais...',
 } as const;
 
-const LIVE_PHASE_LABELS: Record<number, string> = {
-  [-1]: 'Riscos Ocultos',
-  1: 'Incentivos Fiscais',
-  2: 'Intel Territorial',
-  3: 'Logística & Supply',
-  4: 'Donos e Sócios',
-  5: 'Executivos',
-  6: 'Sinais de Venda',
-  7: 'Storytelling',
-  8: 'Recomendações de Produtos Senior',
+export type StatusPhaseKey = keyof typeof STATUS_PHASES;
+
+export interface RichLoadingStatus {
+  label: string;
+  icon: string;
+  category: StatusPhaseKey | 'fase' | 'unknown';
+  phaseNumber?: number;
+}
+
+const LIVE_PHASE_LABELS: Record<number, { label: string; icon: string }> = {
+  [-1]: { label: 'Riscos Ocultos',                    icon: '⚠️'  },
+  1:    { label: 'Incentivos Fiscais',                icon: '💰'  },
+  2:    { label: 'Intel Territorial',                 icon: '🗺️'  },
+  3:    { label: 'Logística & Supply',                icon: '🚛'  },
+  4:    { label: 'Donos e Sócios',                    icon: '🤝'  },
+  5:    { label: 'Executivos',                        icon: '👔'  },
+  6:    { label: 'Sinais de Venda',                   icon: '📈'  },
+  7:    { label: 'Storytelling',                      icon: '✍️'  },
+  8:    { label: 'Recomendações de Produtos Senior',  icon: '🏆'  },
 };
 
-function parseLivePhaseStatus(status: string): string | null {
+const STATUS_ICON_MAP: Record<StatusPhaseKey, string> = {
+  complexity:   '🧠',
+  deepResearch: '🔭',
+  benchmark:    '📊',
+  knowledgeBase:'📚',
+  response:     '✍️',
+  hooks:        '🎯',
+  cadastral:    '🏢',
+  corporate:    '🌐',
+  tech:         '💻',
+  compliance:   '⚖️',
+  rh:           '👥',
+  logistica:    '🚛',
+  fiscal:       '💰',
+  territorio:   '🗺️',
+  scoring:      '🎯',
+  consolidando: '📋',
+  rag:          '📚',
+  concorrentes: '🔍',
+};
+
+function parseLivePhaseStatus(status: string): RichLoadingStatus | null {
   const match = status.match(/^Executando Fase\s*(-?\d+)\b/i);
   if (!match) return null;
   const phaseNumber = Number.parseInt(match[1], 10);
-  const phaseLabel = LIVE_PHASE_LABELS[phaseNumber];
-  if (!Number.isFinite(phaseNumber) || !phaseLabel) return null;
-  return `Fase ${phaseNumber}: ${phaseLabel}`;
+  const phase = LIVE_PHASE_LABELS[phaseNumber];
+  if (!Number.isFinite(phaseNumber) || !phase) return null;
+  return {
+    label: `Fase ${phaseNumber}: ${phase.label}`,
+    icon: phase.icon,
+    category: 'fase',
+    phaseNumber,
+  };
 }
 
+function matchCategory(status: string): { key: StatusPhaseKey; extra?: string } | null {
+  const s = status.trim();
+  if (/^(Analisando complexidade|Entendendo sua necessidade)/i.test(s))   return { key: 'complexity' };
+  if (/^(Deep Research ativado|Sinais externos em análise)/i.test(s))      return { key: 'deepResearch' };
+  if (/^Buscando histórico de/i.test(s)) {
+    const rawCompany = s.replace(/^Buscando histórico de\s*/i, '').replace(/\.{0,3}\s*$/, '').trim();
+    return { key: 'deepResearch', extra: rawCompany };
+  }
+  if (/^(Mapeando benchmarks|Cruzando referências de mercado)/i.test(s))   return { key: 'benchmark' };
+  if (/^(Consultando bases de conhecimento|Consultando inteligência interna|base RAG)/i.test(s)) return { key: 'rag' };
+  if (/^(Gerando resposta|Montando resposta prática)/i.test(s))            return { key: 'response' };
+  if (/^(Gerando ganchos|Preparando próximos passos)/i.test(s))            return { key: 'hooks' };
+  if (/^(Consultando dados cadastrais|Buscando CNPJ|dados da empresa)/i.test(s)) return { key: 'cadastral' };
+  if (/^(Mapeando teia societária|sócios|grupos econômicos)/i.test(s))     return { key: 'corporate' };
+  if (/^(Analisando stack|stack tecnológico|sistemas utilizados)/i.test(s)) return { key: 'tech' };
+  if (/^(Verificando compliance|riscos fiscais|SINTEGRA|SEFAZ)/i.test(s))  return { key: 'compliance' };
+  if (/^(Analisando RH|decisores|gestores|diretores)/i.test(s))            return { key: 'rh' };
+  if (/^(Investigando logística|supply chain|frota|armazenagem)/i.test(s)) return { key: 'logistica' };
+  if (/^(Verificando incentivos fiscais|benefícios fiscais)/i.test(s))     return { key: 'fiscal' };
+  if (/^(Mapeando inteligência territorial|contexto regional|região)/i.test(s)) return { key: 'territorio' };
+  if (/^(Calculando Score|PORTA score)/i.test(s))                          return { key: 'scoring' };
+  if (/^(Consolidando dossiê|dossiê final|relatório final)/i.test(s))     return { key: 'consolidando' };
+  if (/^(Cruzando concorrentes|concorrentes regionais|mapeamento competitivo)/i.test(s)) return { key: 'concorrentes' };
+  return null;
+}
+
+export function toRichStatus(rawStatus?: string | null): RichLoadingStatus | null {
+  const status = rawStatus?.trim();
+  if (!status) return null;
+
+  const livePhase = parseLivePhaseStatus(status);
+  if (livePhase) return livePhase;
+
+  const matched = matchCategory(status);
+  if (matched) {
+    const key = matched.key;
+    let label = STATUS_PHASES[key];
+    if (key === 'deepResearch' && matched.extra) {
+      const safeCompany = sanitizeLoadingContextText(matched.extra);
+      if (safeCompany) label = `Buscando histórico de ${safeCompany}...`;
+    }
+    return { label, icon: STATUS_ICON_MAP[key], category: key };
+  }
+
+  return null;
+}
+
+// Retrocompatibilidade — usada em ChatInterface e outros locais
 export function isPhaseTimelineStatus(status: string): boolean {
   return /^Fase\s*-?\d+\s*:/i.test(status.trim());
 }
 
 export function normalizeLoadingStatus(rawStatus?: string | null): string | null {
-  const status = rawStatus?.trim();
-  if (!status) return null;
-
-  const livePhaseStatus = parseLivePhaseStatus(status);
-  if (livePhaseStatus) return livePhaseStatus;
-  if (/^(Analisando complexidade do pedido|Entendendo sua necessidade)/i.test(status)) return STATUS_PHASES.complexity;
-  if (/^(Deep Research ativado|Sinais externos em análise)/i.test(status)) return STATUS_PHASES.deepResearch;
-  if (/^Buscando histórico de/i.test(status)) {
-    const rawCompany = status.replace(/^Buscando histórico de\s*/i, '').replace(/\.{0,3}\s*$/, '').trim();
-    const safeCompany = sanitizeLoadingContextText(rawCompany);
-    return safeCompany ? `Buscando histórico de ${safeCompany}...` : STATUS_PHASES.deepResearch;
-  }
-  if (/^(Mapeando benchmarks|Cruzando referências de mercado)/i.test(status)) return STATUS_PHASES.benchmark;
-  if (/^(Consultando bases de conhecimento|Consultando inteligência interna)/i.test(status)) return STATUS_PHASES.knowledgeBase;
-  if (/^(Gerando resposta|Montando resposta prática)/i.test(status)) return STATUS_PHASES.response;
-  if (/^(Gerando ganchos comerciais finais|Preparando próximos passos)/i.test(status)) return STATUS_PHASES.hooks;
-
-  return null;
+  return toRichStatus(rawStatus)?.label ?? null;
 }
 
 export function statusKey(status: string): string {
-  const phaseMatch = status.match(/^Fase\s*(-?\d+)\s*:/i);
-  if (phaseMatch) return `fase_${phaseMatch[1]}`;
-  if (/^(Analisando complexidade do pedido|Entendendo sua necessidade)/i.test(status)) return 'complexidade';
-  if (/^(Deep Research ativado|Sinais externos em análise)/i.test(status)) return 'deep_research';
-  if (/^Buscando histórico de/i.test(status)) return 'historico';
-  if (/^(Mapeando benchmarks|Cruzando referências de mercado)/i.test(status)) return 'benchmarks';
-  if (/^(Consultando bases de conhecimento|Consultando inteligência interna)/i.test(status)) return 'bases';
-  if (/^(Gerando resposta|Montando resposta prática)/i.test(status)) return 'resposta';
-  if (/^(Gerando ganchos comerciais finais|Preparando próximos passos)/i.test(status)) return 'ganchos';
-  return status;
+  const rich = toRichStatus(status);
+  if (!rich) return status;
+  if (rich.category === 'fase' && rich.phaseNumber !== undefined) return `fase_${rich.phaseNumber}`;
+  return rich.category;
 }
