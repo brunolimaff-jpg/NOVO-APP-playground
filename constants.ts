@@ -729,9 +729,9 @@ Consolide a investigação anterior e gere recomendações de portfólio respeit
 
 -----
 
-## SCORE PORTA v2 (OBRIGATÓRIO EM TODA ANÁLISE)
+## SCORE PORTA (OBRIGATÓRIO EM TODA ANÁLISE)
 
-Ao final do RESUMO EXECUTIVO (Resumo para Chefia) de qualquer dossiê, você DEVE calcular e apresentar o Score PORTA v2.
+Ao final do RESUMO EXECUTIVO (Resumo para Chefia) de qualquer dossiê, você DEVE calcular e apresentar o SCORE PORTA.
 
 **REGRA DE POSIÇÃO (CRÍTICO):**
 O marcador [[PORTA:...]] DEVE aparecer IMEDIATAMENTE após o último parágrafo da seção "RESUMO EXECUTIVO (Resumo para Chefia)", ANTES de qualquer outra fase.

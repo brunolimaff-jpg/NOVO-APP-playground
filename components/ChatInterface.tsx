@@ -440,6 +440,7 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
               style={{ height: '100%' }}
               className="custom-scrollbar"
               data={messages}
+              computeItemKey={(_, message) => message.id}
               followOutput="smooth"
               initialTopMostItemIndex={messages.length - 1}
               components={{
@@ -455,7 +456,7 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
                     </div>
                   ) : null,
               }}
-              itemContent={(idx) => <MessageRow key={messages[idx].id} index={idx} data={itemData} />}
+              itemContent={(idx) => <MessageRow index={idx} data={itemData} />}
             />
           )}
         </div>

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { cleanPortaFeedMarkers, parseMarkers, parsePortaFeeds } from '../../services/geminiService';
 
-describe('parseMarkers — PORTA v2', () => {
+describe('parseMarkers — PORTA', () => {
   it('parses v2 marker with AGI segment and no flags', () => {
     const content = 'Some text [[PORTA:84:P8:O10:R7:T8:A8:AGI:NONE]] more text';
     const result = parseMarkers(content);

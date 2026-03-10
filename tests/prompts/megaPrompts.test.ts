@@ -8,7 +8,7 @@ import {
   PROMPT_TECH_STACK_GOD_MODE_ATAQUE,
 } from '../../prompts/megaPrompts';
 
-describe('PORTA v2 mega prompts', () => {
+describe('PORTA mega prompts', () => {
   it('includes anti-repetition deep dive scope block in all prompts', () => {
     const requiredSentence = '⚠️ REGRA DE ESCOPO (CRÍTICA — NUNCA VIOLE):';
     expect(PROMPT_RAIO_X_OPERACIONAL_ATAQUE).toContain(requiredSentence);

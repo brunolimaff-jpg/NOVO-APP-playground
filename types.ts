@@ -36,7 +36,7 @@ export interface AppError {
 }
 
 // ===================================================================
-// SCORE PORTA v2
+// SCORE PORTA
 // ===================================================================
 export type PortaSegmento = 'PRD' | 'AGI' | 'COP';
 

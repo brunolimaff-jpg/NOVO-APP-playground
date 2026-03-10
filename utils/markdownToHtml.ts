@@ -31,7 +31,7 @@ export function convertMarkdownToHTML(md: string, includeSources: boolean = true
           : '<span class="pill">Flags: NONE</span>';
 
         return `<div class="porta-score" style="border:2px solid ${compatibility.color};background:${bgColor};">
-            <div class="header"><span class="label-porta">🎯 PORTA v2</span><span><span class="score-num" style="color:${compatibility.color};">${porta.score}</span><span class="score-max">/100</span></span></div>
+            <div class="header"><span class="label-porta">🎯 PORTA</span><span><span class="score-num" style="color:${compatibility.color};">${porta.score}</span><span class="score-max">/100</span></span></div>
             <div style="font-size:11px;color:#64748b;margin:6px 0 8px;">${scoreDetail}</div>
             <div class="bar-bg" style="background:${compatibility.color}20;"><div class="bar-fill" style="width:${Math.min(porta.score, 100)}%;background:${compatibility.color};"></div></div>
             <div class="compat" style="color:${compatibility.color};">${compatibility.emoji} ${compatibility.label}</div>

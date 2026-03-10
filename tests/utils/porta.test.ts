@@ -7,7 +7,7 @@ import {
   stripPortaMarkers,
 } from '../../utils/porta';
 
-describe('PORTA v2 helpers', () => {
+describe('PORTA helpers', () => {
   it('parses a v2 marker with segment, flags and score bruto', () => {
     const parsed = parsePortaMarkerV2('[[PORTA:51:P7:O8:R6:T7:A7:PRD:TRAD]]');
 
