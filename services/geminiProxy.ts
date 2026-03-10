@@ -41,7 +41,7 @@ interface GeminiHealthResponse {
 }
 
 const LOCAL_DEV_GEMINI_PROXY_URL =
-  import.meta.env.VITE_GEMINI_PROXY_URL || 'https://scoutagro.vercel.app/api/gemini';
+  import.meta.env.VITE_GEMINI_PROXY_URL || '/api/gemini';
 const GEMINI_PROXY_TIMEOUT_MS = Number(import.meta.env.VITE_GEMINI_PROXY_TIMEOUT_MS || 90000);
 
 export function resolveGeminiApiEndpoint(

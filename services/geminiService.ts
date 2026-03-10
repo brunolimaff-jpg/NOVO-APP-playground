@@ -77,6 +77,7 @@ const ROUTER_MODEL_ID        = MODEL_IDS.router;
 const TACTICAL_MODEL_ID      = MODEL_IDS.tactical;
 const DEEP_CHAT_MODEL_ID     = MODEL_IDS.deepChat;
 const DEEP_RESEARCH_MODEL_ID = MODEL_IDS.deepResearch;
+const STABLE_RESEARCH_MODEL_ID = 'gemini-3.1-pro-preview';
 const LOADING_CURIOSITY_MODEL_ID = (import.meta.env.VITE_LOADING_CURIOSITIES_MODEL || 'gemini-3-flash-preview').trim();
 const OPEN_QUESTION_RECOVERY_METRIC_KEY = 'scout360_open_question_recovery_count';
 const RECOVERY_DEBUG_FLAG_KEY           = 'scout360_debug_recovery';
@@ -642,9 +643,9 @@ export async function sendMessageToGemini(
 
   // ── Seleciona modelo ─────────────────────────────────────────────────────
   const modelToUse = isDeepDive
-    ? DEEP_RESEARCH_MODEL_ID
+    ? STABLE_RESEARCH_MODEL_ID
     : isMegaPromptMessage
-      ? DEEP_RESEARCH_MODEL_ID
+      ? STABLE_RESEARCH_MODEL_ID
       : shouldForceDirectAnswer
         ? TACTICAL_MODEL_ID
         : DEEP_CHAT_MODEL_ID;

@@ -9,6 +9,14 @@ export default defineConfig(() => {
     server: {
       port: 3000,
       host: '0.0.0.0',
+      proxy: {
+        // Em dev local, evita CORS do browser usando proxy same-origin.
+        '/api/gemini': {
+          target: 'https://scoutagro.vercel.app',
+          changeOrigin: true,
+          secure: true,
+        },
+      },
     },
     plugins: [
       react({
