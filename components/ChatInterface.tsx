@@ -69,7 +69,7 @@ function buildQuickActions(companyName?: string | null) {
         icon: '💰',
         label: 'Budget',
         prompt:
-          'Considerando o contexto já investigado desta conta, qual o budget estimado para uma implementação completa com ERP Senior, HCM, GAtec e Senior Flow, incluindo faixas de investimento por fase, implantação, licenças, serviços e complexidade operacional?',
+          'Considerando o contexto já investigado desta conta, qual o budget estimado para uma implementação completa com ERP Senior, HCM, WMS e GATec, incluindo faixas de investimento por fase, implantação, licenças, serviços e complexidade operacional?',
       },
       { icon: '💡', label: 'Abordagem', prompt: 'Me sugira a melhor abordagem comercial para esse decisor.' },
       { icon: '✨', label: 'Senior', prompt: 'Como os produtos Senior resolveriam as principais dores dessa empresa?' },
@@ -659,7 +659,7 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
                       isDarkMode ? 'border-slate-700 text-emerald-400' : 'border-slate-100 text-emerald-600'
                     }`}
                   >
-                    <span>⚡</span> Ações Rápidas
+                    Ações Rápidas
                   </div>
                   <div className="flex flex-col py-1 max-h-[40vh] overflow-y-auto">
                     {quickActions.map(qa => (
@@ -691,7 +691,7 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
                     }`}
                     title="Ações Rápidas"
                   >
-                    ⚡
+                    🎯
                   </button>
                 )}
 
