@@ -110,8 +110,8 @@ const SessionsSidebar: React.FC<SessionsSidebarProps> = ({
                       }}
                       className={`flex-1 py-2.5 px-4 rounded-lg flex items-center justify-center gap-2 font-medium transition-colors shadow-md ${theme.newChatBtn}`}
                     >
-                      <span>✨</span>
-                      <span>Nova</span>
+                      <span>🦅</span>
+                      <span>Nova Investigação</span>
                     </button>
 
                     {canAccessMiniCRM && (
