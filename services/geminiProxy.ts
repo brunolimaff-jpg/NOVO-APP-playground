@@ -42,9 +42,9 @@ interface GeminiHealthResponse {
 
 const LOCAL_DEV_GEMINI_PROXY_URL =
   import.meta.env.VITE_GEMINI_PROXY_URL || '/api/gemini';
-// O serverless tem timeout de 55s por tentativa, com fallback interno
-// (grounding → sem grounding) = até ~110s. Frontend dá margem de 120s.
-const GEMINI_PROXY_TIMEOUT_MS = Number(import.meta.env.VITE_GEMINI_PROXY_TIMEOUT_MS || 120000);
+// O serverless usa 55s para chat normal e até 180s para investigações pesadas.
+// Frontend dá margem de 210s para cobrir o cenário mais longo + overhead de rede.
+const GEMINI_PROXY_TIMEOUT_MS = Number(import.meta.env.VITE_GEMINI_PROXY_TIMEOUT_MS || 210000);
 
 export function resolveGeminiApiEndpoint(
   hostname: string = typeof window !== 'undefined' ? window.location.hostname : '',

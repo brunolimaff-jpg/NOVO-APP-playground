@@ -31,10 +31,11 @@ export const config = {
 };
 
 export const maxDuration = 300;
-// Timeout interno deve ficar abaixo do maxDuration da Vercel.
-// No plano Hobby (60s) o Vercel mata a função antes dos 90s originais,
-// causando 500 sem mensagem útil. Com 55s damos margem de segurança.
+// Timeout interno para chat normal (com grounding).
 const CHAT_TIMEOUT_MS = 55_000;
+// Investigações pesadas (mega-prompt / deep dive) desativam grounding e
+// precisam de mais tempo para o modelo processar prompts grandes.
+const LONG_CHAT_TIMEOUT_MS = 180_000;
 const DEFAULT_GEMINI_MODEL = 'gemini-3.1-pro-preview';
 
 function getRequiredEnv(name: string): string {
@@ -146,9 +147,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           }
         });
 
+        const timeout = withGrounding ? CHAT_TIMEOUT_MS : LONG_CHAT_TIMEOUT_MS;
         return withTimeout(
           chat.sendMessage({ message }),
-          CHAT_TIMEOUT_MS,
+          timeout,
           withGrounding ? 'chat-with-grounding' : 'chat-no-grounding',
         );
       };
