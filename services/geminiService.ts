@@ -667,7 +667,7 @@ export async function sendMessageToGemini(
         useGrounding:      shouldUseGrounding,
         thinkingMode,
       }, signal),
-      { maxRetries: 1 },
+      { maxRetries: 2 },
     );
   } catch (error) {
     const appError = normalizeAppError(error);
@@ -687,7 +687,7 @@ export async function sendMessageToGemini(
         useGrounding:      false,
         thinkingMode,
       }, signal),
-      { maxRetries: 1, baseDelayMs: 800, maxDelayMs: 3000 },
+      { maxRetries: 2, baseDelayMs: 800, maxDelayMs: 3000 },
     );
   }
 
