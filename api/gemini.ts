@@ -19,7 +19,7 @@ const GeminiRequestSchema = z.discriminatedUnion('action', [
     action: z.literal('chatSendMessage'),
     model: z.string().min(1).max(200).optional(),
     systemInstruction: z.string().max(100000).optional(),
-    history: z.array(HistoryItemSchema).max(40).optional(),
+    history: z.array(HistoryItemSchema).optional(),
     message: z.string().min(1).max(50000),
     useGrounding: z.boolean().optional(),
     thinkingMode: z.boolean().optional(),
@@ -30,7 +30,7 @@ export const config = {
   runtime: 'nodejs',
 };
 
-export const maxDuration = 60;
+export const maxDuration = 300;
 const DEFAULT_GEMINI_MODEL = 'gemini-3.1-pro-preview';
 
 function getRequiredEnv(name: string): string {
@@ -48,7 +48,6 @@ function normalizeHistory(
 ): Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }> {
   if (!input) return [];
   return input
-    .slice(-40)
     .map((item) => ({ role: item.role, parts: [{ text: item.text }] }))
     .filter((msg) => msg.parts[0].text.trim().length > 0);
 }
