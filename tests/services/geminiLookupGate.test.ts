@@ -22,13 +22,6 @@ vi.mock('../../services/ragService', () => ({
   buscarContextoDocsPinecone: vi.fn(async () => ''),
 }));
 
-vi.mock('../../utils/promptGuard', () => ({
-  CANARY_TOKEN: 'canary',
-  scanInput: (input: string) => ({ level: 'safe', sanitized: input }),
-  sanitizeExternalContent: (input: string) => input,
-  wrapUserInput: (input: string) => `<user_input>\n${input}\n</user_input>`,
-}));
-
 vi.mock('../../utils/retry', () => ({
   withAutoRetry: vi.fn(async (_name: string, fn: () => Promise<unknown>) => fn()),
 }));
