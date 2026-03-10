@@ -649,6 +649,7 @@ export async function sendMessageToGemini(
       : shouldForceDirectAnswer
         ? TACTICAL_MODEL_ID
         : DEEP_CHAT_MODEL_ID;
+  const shouldUseGrounding = useGrounding && !isMegaPromptMessage && !isDeepDive;
 
   // ── Envia para o modelo ──────────────────────────────────────────────────
   let finalText = '';
@@ -663,14 +664,14 @@ export async function sendMessageToGemini(
         systemInstruction: fullSystemPrompt,
         history,
         message:           userMessage,
-        useGrounding,
+        useGrounding:      shouldUseGrounding,
         thinkingMode,
       }, signal),
     );
   } catch (error) {
     const appError = normalizeAppError(error);
     const canFallbackWithoutGrounding =
-      useGrounding &&
+      shouldUseGrounding &&
       ['TIMEOUT', 'NETWORK', 'MODEL_OVERLOADED', 'SERVER'].includes(appError.code);
 
     if (!canFallbackWithoutGrounding) throw error;
