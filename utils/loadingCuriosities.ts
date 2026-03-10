@@ -57,10 +57,6 @@ function interleaveGroups(groups: string[][], limit = MAX_ITEMS): string[] {
   return out;
 }
 
-function removeInstitutionalSeniorLines(lines: string[]): string[] {
-  return lines.filter((line) => !/senior sistemas|proposta de valor da senior/i.test(line));
-}
-
 export function buildLoadingCuriositiesFallback(context: string): string[] {
   const safeCompany = sanitizeLoadingContext(context || '');
 
@@ -94,8 +90,8 @@ export function parseLoadingCuriosities(rawText: string, context: string): strin
     const parsed = JSON.parse(cleaned);
 
     if (Array.isArray(parsed)) {
-      const generic = safeContext ? removeInstitutionalSeniorLines(toLines(parsed)) : toLines(parsed);
-      return generic.length > 0 ? [...generic, ...fallback].slice(0, MAX_ITEMS) : fallback;
+      const curated = toLines(parsed);
+      return curated.length > 0 ? [...curated, ...fallback].slice(0, MAX_ITEMS) : fallback;
     }
 
     if (parsed && typeof parsed === 'object') {

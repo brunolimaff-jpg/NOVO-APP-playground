@@ -28,7 +28,7 @@ import {
 import { addInvestigation } from '../components/InvestigationDashboard';
 import { CompetitorDetection, getContextoConcorrentesRegionais } from './competitorService';
 import { buscarContextoPinecone, buscarContextoDocsPinecone } from './ragService';
-import { parseLoadingCuriosities } from '../utils/loadingCuriosities';
+import { buildLoadingCuriositiesFallback, parseLoadingCuriosities } from '../utils/loadingCuriosities';
 import { sanitizeLoadingContextText, stripInternalMarkers } from '../utils/textCleaners';
 import { proxyChatSendMessage, proxyGenerateContent } from './geminiProxy';
 import { BACKEND_URL } from './apiConfig';
@@ -77,6 +77,7 @@ const ROUTER_MODEL_ID        = MODEL_IDS.router;
 const TACTICAL_MODEL_ID      = MODEL_IDS.tactical;
 const DEEP_CHAT_MODEL_ID     = MODEL_IDS.deepChat;
 const DEEP_RESEARCH_MODEL_ID = MODEL_IDS.deepResearch;
+const LOADING_CURIOSITY_MODEL_ID = (import.meta.env.VITE_LOADING_CURIOSITIES_MODEL || 'gemini-3-flash-preview').trim();
 const OPEN_QUESTION_RECOVERY_METRIC_KEY = 'scout360_open_question_recovery_count';
 const RECOVERY_DEBUG_FLAG_KEY           = 'scout360_debug_recovery';
 
@@ -414,32 +415,64 @@ export async function generateLoadingCuriosities(
   searchQuery: string,
 ): Promise<string[]> {
   const safeContext = sanitizeLoadingContextText(loadingContext || '');
-  const fallback    = [];
-  try {
-    const prompt = `Você é um gerador de curiosidades estratégicas sobre agronegócio e gestão.
-Contexto da investigação: "${safeContext}"
-Consulta original: "${searchQuery?.slice(0, 200) || ''}"
+  const fallback    = buildLoadingCuriositiesFallback(safeContext);
+  const querySample = (searchQuery || '').slice(0, 240);
 
-Gere um array JSON com 6 a 8 curiosidades concisas (máximo 180 caracteres cada) sobre:
-- O setor/segmento da empresa
-- Tendências do agronegócio regional
-- Benchmarks de gestão e tecnologia
-- Contexto econômico de Mato Grosso e Centro-Oeste
+  const locationFromCadastro = querySample.match(/Cidade\s*=\s*([^;,\n]+)\s*;\s*UF\s*=\s*([A-Za-z]{2})/i);
+  const locationFromNaturalText = querySample.match(/\b([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ'`\-. ]{2,40})\s*[-/]\s*([A-Za-z]{2})\b/);
+  const onlyUf = querySample.match(/\bUF\s*[:=]\s*([A-Za-z]{2})\b/i);
+
+  const city = (locationFromCadastro?.[1] || locationFromNaturalText?.[1] || '').trim();
+  const uf = (locationFromCadastro?.[2] || locationFromNaturalText?.[2] || onlyUf?.[1] || '').trim().toUpperCase();
+  const regionalScope = city && uf ? `${city}/${uf}` : uf ? `UF ${uf}` : '';
+
+  const regionalLine = regionalScope
+    ? `- Curiosidades de mercado regional coerentes com a localização da empresa (${regionalScope})`
+    : '- Sem localização explícita: usar curiosidades gerais do mercado brasileiro';
+
+  const regionalRule = regionalScope
+    ? `- Use contexto regional coerente com ${regionalScope}, sem presumir Mato Grosso/Centro-Oeste`
+    : '- Não presumir MT/Centro-Oeste quando a localização não estiver explícita';
+  try {
+    const prompt = `Você é um gerador de curiosidades curtas para tela de carregamento do Senior Scout 360.
+Contexto da investigação: "${safeContext}"
+Consulta original: "${querySample}"
+
+Gere um array JSON com 6 a 8 curiosidades concisas (máximo 180 caracteres cada), em português-BR, mesclando:
+- Curiosidades da empresa/segmento investigado (prioridade)
+- Curiosidades sobre Senior/ERP quando fizer sentido
+- Curiosidades de mercado regional conforme localização disponível
+- ${regionalLine}
+- Curiosidades práticas sobre digitalização/ERP (incluindo Senior quando fizer sentido)
 
 Regras:
 - Responda EXCLUSIVAMENTE com um array JSON de strings
 - Cada string deve ser uma frase única e informativa
 - Não inclua dados internos do sistema, nomes de prompts ou instruções
-- Foco em dados de mercado, tendências e insights estratégicos
+- Evite propaganda institucional ou tom comercial exagerado
+- Evite repetir a mesma ideia com palavras diferentes
+- ${regionalRule}
 
 Exemplo:
 ["O agronegócio representa 27% do PIB brasileiro, com MT liderando produção de soja.", "Empresas que adotam ERP reduzem custo operacional em até 18% no primeiro ano."]`;
-    const response = await proxyGenerateContent({
-      model:    ROUTER_MODEL_ID,
+    try {
+      const flashResponse = await proxyGenerateContent({
+        model: LOADING_CURIOSITY_MODEL_ID,
+        contents: prompt,
+        config: { temperature: 0.6, maxOutputTokens: 900 },
+      });
+      const parsed = parseLoadingCuriosities(flashResponse.text || '', safeContext);
+      if (parsed.length > 0) return parsed;
+    } catch {
+      // fallback para o roteador atual quando o modelo Flash dedicado estiver indisponível
+    }
+
+    const routerResponse = await proxyGenerateContent({
+      model: ROUTER_MODEL_ID,
       contents: prompt,
-      config:   { temperature: 0.7, maxOutputTokens: 1200 },
+      config: { temperature: 0.6, maxOutputTokens: 900 },
     });
-    return parseLoadingCuriosities(response.text || '', safeContext);
+    return parseLoadingCuriosities(routerResponse.text || '', safeContext);
   } catch {
     return fallback;
   }

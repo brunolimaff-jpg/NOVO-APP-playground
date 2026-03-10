@@ -187,6 +187,20 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
     if (!content) return '';
 
     let text = content;
+    const preservedMermaidBlocks: string[] = [];
+
+    const preserveMermaid = (input: string): string =>
+      input.replace(/```mermaid[\s\S]*?```/gi, (block) => {
+        const key = `@@__MERMAID_BLOCK_${preservedMermaidBlocks.length}__@@`;
+        preservedMermaidBlocks.push(block);
+        return key;
+      });
+
+    const restoreMermaid = (input: string): string =>
+      input.replace(/@@__MERMAID_BLOCK_(\d+)__@@/g, (_match, index) => preservedMermaidBlocks[Number(index)] || '');
+
+    // Protege blocos Mermaid para evitar que tratamentos de links/citações quebrem o parser.
+    text = preserveMermaid(text);
 
     // 1) Converter {"mermaid":"..."} → bloco mermaid
     const FENCE = '`'.repeat(3);
@@ -225,7 +239,7 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
       }
     );
 
-    return text;
+    return restoreMermaid(text);
   }, [content, citationMap]);
 
   const components: any = {

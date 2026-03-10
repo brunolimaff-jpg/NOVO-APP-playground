@@ -315,6 +315,41 @@ export function buildAuditableSources(
     pushUniqueContext(source.contexts, extractUsageContext(text, match.index));
   }
 
+  // Captura URLs "cruas" no texto para não perder fontes que não vieram em markdown.
+  const RAW_URL_REGEX = /https?:\/\/[^\s<>"')\]]+/gi;
+  while ((match = RAW_URL_REGEX.exec(text || '')) !== null) {
+    const rawUrl = (match[0] || '').trim();
+    if (!rawUrl) continue;
+    const normalizedUrl = normalizeSourceUrl(rawUrl);
+    if (!normalizedUrl) continue;
+
+    let source = byUrl.get(normalizedUrl);
+    if (!source) {
+      let hostname = rawUrl;
+      try {
+        hostname = new URL(rawUrl).hostname.replace(/^www\./i, '');
+      } catch {
+        // mantém URL como título se parser falhar
+      }
+
+      source = {
+        key: normalizedUrl || `inline-${citationIndex}`,
+        citationIndex: citationIndex++,
+        title: hostname || rawUrl,
+        url: rawUrl,
+        sourceTypes: ['inline_citation'],
+        contexts: [],
+        requiresManualValidation: false,
+      };
+      byUrl.set(normalizedUrl, source);
+      items.push(source);
+    } else if (!source.sourceTypes.includes('inline_citation')) {
+      source.sourceTypes.push('inline_citation');
+    }
+
+    pushUniqueContext(source.contexts, extractUsageContext(text, match.index));
+  }
+
   for (const g of groundingSources || []) {
     const title = (g?.title || '').trim();
     const url = (g?.url || '').trim();

@@ -115,8 +115,6 @@ const App: React.FC = () => {
   const { toasts, toast, dismiss: dismissToast } = useToast();
   const lastActionRef = useRef<LastAction | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
-  const lastStatusRef = useRef<string | null>(null);
-  const lastStatusKeyRef = useRef<string | null>(null);
   const activeGenerationRef = useRef<Record<string, string>>({});
 
   useEffect(() => {
@@ -332,8 +330,6 @@ const App: React.FC = () => {
     setIsLoading(true);
     setLoadingStatus('Realizando pesquisa...');
     setCompletedLoadingStatuses([]);
-    lastStatusRef.current = null;
-    lastStatusKeyRef.current = null;
     abortControllerRef.current = new AbortController();
     const signal = abortControllerRef.current.signal;
     const safeVisibleText = visibleTextForUi || text;
@@ -405,27 +401,19 @@ const App: React.FC = () => {
           onStatus: newStatus => {
             const normalizedStatus = normalizeLoadingStatus(newStatus);
             if (!normalizedStatus) return;
-            const newKey = statusKey(normalizedStatus);
             setLoadingStatus(prev => {
               const normalizedPrev = normalizeLoadingStatus(prev) || prev;
-              if (normalizedPrev && normalizedPrev !== normalizedStatus) {
-                lastStatusRef.current = normalizedPrev;
-                lastStatusKeyRef.current = statusKey(normalizedPrev);
+              const prevKey = normalizedPrev ? statusKey(normalizedPrev) : null;
+              const newKey = statusKey(normalizedStatus);
+              if (normalizedPrev && normalizedPrev !== normalizedStatus && prevKey !== newKey) {
+                setCompletedLoadingStatuses(completed =>
+                  completed.some(existing => statusKey(existing) === prevKey)
+                    ? completed
+                    : [...completed, normalizedPrev],
+                );
               }
               return normalizedStatus;
             });
-            if (
-              lastStatusRef.current &&
-              lastStatusRef.current !== normalizedStatus &&
-              lastStatusKeyRef.current !== newKey
-            ) {
-              const statusToAdd = lastStatusRef.current;
-              setCompletedLoadingStatuses(completed =>
-                statusToAdd && !completed.some(existing => statusKey(existing) === statusKey(statusToAdd))
-                  ? [...completed, statusToAdd]
-                  : completed,
-              );
-            }
           },
           nomeVendedor: typeof user?.displayName === 'string' ? user.displayName : 'Vendedor',
           sessionId,

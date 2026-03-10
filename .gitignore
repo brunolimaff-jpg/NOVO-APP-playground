@@ -25,3 +25,9 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Local agent/cursor artifacts
+.cursor/
+
+# Local presentation/export artifacts
+NOVO-APP/
