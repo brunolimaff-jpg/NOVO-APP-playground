@@ -38,6 +38,7 @@ interface SourceLink {
 export class PDFGenerator {
   private doc: jsPDF;
   private y: number;
+  private static mermaidInitialized = false;
 
   private readonly ML = 18;  // margin left
   private readonly MR = 18;  // margin right
@@ -289,6 +290,16 @@ export class PDFGenerator {
     return code;
   }
 
+  private withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error(message)), ms);
+    });
+    return Promise.race([promise, timeout]).finally(() => {
+      if (timer) clearTimeout(timer);
+    }) as Promise<T>;
+  }
+
   private renderCodeBlock(lines: string[]) {
     const text = lines.join('\n').trimEnd() || '(bloco de código vazio)';
     const wrapped = this.doc.splitTextToSize(text, this.CW - 6);
@@ -311,20 +322,28 @@ export class PDFGenerator {
     const url = URL.createObjectURL(svgBlob);
 
     try {
-      const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const img = await this.withTimeout(new Promise<HTMLImageElement>((resolve, reject) => {
         const image = new Image();
         image.onload = () => resolve(image);
         image.onerror = () => reject(new Error('Falha ao converter SVG do Mermaid para imagem.'));
         image.src = url;
-      });
+      }), 12000, 'Timeout ao carregar SVG do Mermaid para conversão PNG.');
 
-      const width = img.naturalWidth || img.width || 1200;
-      const height = img.naturalHeight || img.height || 700;
+      const viewBoxMatch = svg.match(/viewBox="[\d.\-]+\s+[\d.\-]+\s+([\d.\-]+)\s+([\d.\-]+)"/i);
+      const vbWidth = viewBoxMatch?.[1] ? Number.parseFloat(viewBoxMatch[1]) : 0;
+      const vbHeight = viewBoxMatch?.[2] ? Number.parseFloat(viewBoxMatch[2]) : 0;
+
+      const width = img.naturalWidth || img.width || vbWidth || 1200;
+      const height = img.naturalHeight || img.height || vbHeight || 700;
       const scale = 2;
+      const maxCanvasWidth = 2800;
+      const maxCanvasHeight = 2200;
+      const scaledWidth = Math.min(Math.round(width * scale), maxCanvasWidth);
+      const scaledHeight = Math.min(Math.round(height * scale), maxCanvasHeight);
 
       const canvas = document.createElement('canvas');
-      canvas.width = Math.round(width * scale);
-      canvas.height = Math.round(height * scale);
+      canvas.width = scaledWidth;
+      canvas.height = scaledHeight;
 
       const ctx = canvas.getContext('2d');
       if (!ctx) throw new Error('Falha ao criar contexto canvas para Mermaid.');
@@ -356,14 +375,21 @@ export class PDFGenerator {
       }
 
       const mermaid = (await import('mermaid')).default;
-      mermaid.initialize({
-        startOnLoad: false,
-        theme: 'default',
-        securityLevel: 'loose',
-      });
+      if (!PDFGenerator.mermaidInitialized) {
+        mermaid.initialize({
+          startOnLoad: false,
+          theme: 'default',
+          securityLevel: 'loose',
+        });
+        PDFGenerator.mermaidInitialized = true;
+      }
 
       const id = `pdf-mermaid-${Math.random().toString(36).slice(2, 9)}`;
-      const { svg } = await mermaid.render(id, cleanCode);
+      const { svg } = await this.withTimeout(
+        mermaid.render(id, cleanCode),
+        15000,
+        'Timeout ao renderizar diagrama Mermaid.',
+      );
       const { dataUrl, width, height } = await this.svgToPngDataUrl(svg);
 
       this.ensureSpace(8);
@@ -386,7 +412,7 @@ export class PDFGenerator {
       this.y += renderHeight + 4;
     } catch {
       this.renderCodeBlock([
-        '[Diagrama mermaid não pôde ser renderizado automaticamente. Código incluído para revisão.]',
+        '[Diagrama mermaid não pôde ser convertido para PNG automaticamente. Código incluído para revisão.]',
         cleanCode,
       ]);
     }
@@ -409,7 +435,7 @@ export class PDFGenerator {
           blockLines.push(lines[i]);
           i += 1;
         }
-        if (lang === 'mermaid') {
+        if (lang === 'mermaid' || lang === 'mmd') {
           await this.renderMermaidBlock(blockLines.join('\n'));
         } else {
           this.renderCodeBlock(blockLines);
