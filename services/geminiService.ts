@@ -82,6 +82,8 @@ const RECOVERY_DEBUG_FLAG_KEY           = 'scout360_debug_recovery';
 
 // ─── Status granulares emitidos durante o dossiê ─────────────────────────────
 const DOSSIE_STATUS = {
+  complexity:   'Entendendo sua necessidade...',
+  context:      'Estruturando contexto da conta...',
   cadastral:    'Consultando dados cadastrais...',
   rag:          'Consultando base de conhecimento interna...',
   concorrentes: 'Cruzando concorrentes regionais...',
@@ -93,6 +95,10 @@ const DOSSIE_STATUS = {
   rh:           'Analisando RH e decisores...',
   logistica:    'Investigando logística e supply chain...',
   scoring:      'Calculando Score PORTA...',
+  model:        'Consultando modelo analítico...',
+  validation:   'Validando consistência dos achados...',
+  response:     'Montando resposta prática...',
+  hooks:        'Preparando próximos passos...',
   consolidando: 'Consolidando dossiê final...',
 } as const;
 
@@ -439,6 +445,7 @@ export async function sendMessageToGemini(
   } = options;
 
   if (signal?.aborted) throw new Error('AbortError');
+  emitDossieStatus(onStatus, 'complexity');
 
   // ── Detecção de empresa alvo ─────────────────────────────────────────────
   let empresaAlvo: string | null = hintedCompany || null;
@@ -446,6 +453,7 @@ export async function sendMessageToGemini(
   const cnpjDetected = cnpjMatch?.[1]?.replace(/\D/g, '') || null;
   let clienteData: LookupResponse | null = null;
   let benchmarkData: BenchmarkResponse | null = null;
+  emitDossieStatus(onStatus, 'context');
 
   // ── Contexto RAG ────────────────────────────────────────────────────────
   let ragContext      = '';
@@ -527,6 +535,7 @@ export async function sendMessageToGemini(
   const fullSystemPrompt = extraContext
     ? `${systemPrompt}\n\n${extraContext}`
     : systemPrompt;
+  emitDossieStatus(onStatus, 'context');
 
   // ── Histórico ────────────────────────────────────────────────────────────
   const history = conversationHistory
@@ -552,6 +561,8 @@ export async function sendMessageToGemini(
 
   // ── Envia para o modelo ──────────────────────────────────────────────────
   let finalText = '';
+  emitDossieStatus(onStatus, 'model');
+  emitDossieStatus(onStatus, 'response');
 
   const response = await withAutoRetry('Gemini:sendMessage', () =>
     proxyChatSendMessage({
@@ -565,6 +576,7 @@ export async function sendMessageToGemini(
   );
 
   finalText = sanitizeStreamText(response.text || '');
+  emitDossieStatus(onStatus, 'validation');
 
   // ── Sinaliza score PORTA ──────────────────────────────────────────────────
   if (isMegaPromptMessage || isDeepDive) {
@@ -614,6 +626,7 @@ export async function sendMessageToGemini(
   if (onText && finalText) {
     onText(finalText);
   }
+  emitDossieStatus(onStatus, 'hooks');
 
   // ── Recovery de perguntas abertas ────────────────────────────────────────
   const shouldRecoverByFallback = looksLikeMissedOpenQuestionAnswer(finalText);

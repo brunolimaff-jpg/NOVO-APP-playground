@@ -2,9 +2,12 @@ import { sanitizeLoadingContextText } from './textCleaners';
 
 const STATUS_PHASES = {
   complexity:    'Entendendo sua necessidade...',
+  context:       'Estruturando contexto da conta...',
   deepResearch:  'Sinais externos em análise...',
   benchmark:     'Cruzando referências de mercado...',
   knowledgeBase: 'Consultando inteligência interna...',
+  model:         'Consultando modelo analítico...',
+  validation:    'Validando consistência dos achados...',
   response:      'Montando resposta prática...',
   hooks:         'Preparando próximos passos...',
   cadastral:     'Consultando dados cadastrais...',
@@ -44,9 +47,12 @@ const LIVE_PHASE_LABELS: Record<number, { label: string; icon: string }> = {
 
 const STATUS_ICON_MAP: Record<StatusPhaseKey, string> = {
   complexity:   '🧠',
+  context:      '🧩',
   deepResearch: '🔭',
   benchmark:    '📊',
   knowledgeBase:'📚',
+  model:        '🤖',
+  validation:   '🧪',
   response:     '✍️',
   hooks:        '🎯',
   cadastral:    '🏢',
@@ -80,6 +86,7 @@ function parseLivePhaseStatus(status: string): RichLoadingStatus | null {
 function matchCategory(status: string): { key: StatusPhaseKey; extra?: string } | null {
   const s = status.trim();
   if (/^(Analisando complexidade|Entendendo sua necessidade)/i.test(s))   return { key: 'complexity' };
+  if (/^(Estruturando contexto|Preparando contexto|Consolidando contexto)/i.test(s)) return { key: 'context' };
   if (/^(Deep Research ativado|Sinais externos em análise)/i.test(s))      return { key: 'deepResearch' };
   if (/^Buscando histórico de/i.test(s)) {
     const rawCompany = s.replace(/^Buscando histórico de\s*/i, '').replace(/\.{0,3}\s*$/, '').trim();
@@ -87,6 +94,8 @@ function matchCategory(status: string): { key: StatusPhaseKey; extra?: string } 
   }
   if (/^(Mapeando benchmarks|Cruzando referências de mercado)/i.test(s))   return { key: 'benchmark' };
   if (/^(Consultando bases de conhecimento|Consultando inteligência interna|base RAG)/i.test(s)) return { key: 'rag' };
+  if (/^(Consultando modelo analítico|Consultando modelo de IA|Processando no modelo)/i.test(s)) return { key: 'model' };
+  if (/^(Validando consistência|Validando coerência|Validando achados)/i.test(s)) return { key: 'validation' };
   if (/^(Gerando resposta|Montando resposta prática)/i.test(s))            return { key: 'response' };
   if (/^(Gerando ganchos|Preparando próximos passos)/i.test(s))            return { key: 'hooks' };
   if (/^(Consultando dados cadastrais|Buscando CNPJ|dados da empresa)/i.test(s)) return { key: 'cadastral' };
