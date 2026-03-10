@@ -1,4 +1,9 @@
 {
+  "functions": {
+    "api/gemini.ts": {
+      "maxDuration": 300
+    }
+  },
   "rewrites": [
     {
       "source": "/api/(.*)",

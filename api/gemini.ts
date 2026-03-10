@@ -31,6 +31,10 @@ export const config = {
 };
 
 export const maxDuration = 300;
+// Timeout interno deve ficar abaixo do maxDuration da Vercel.
+// No plano Hobby (60s) o Vercel mata a função antes dos 90s originais,
+// causando 500 sem mensagem útil. Com 55s damos margem de segurança.
+const CHAT_TIMEOUT_MS = 55_000;
 const DEFAULT_GEMINI_MODEL = 'gemini-3.1-pro-preview';
 
 function getRequiredEnv(name: string): string {
@@ -144,7 +148,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         return withTimeout(
           chat.sendMessage({ message }),
-          90000,
+          CHAT_TIMEOUT_MS,
           withGrounding ? 'chat-with-grounding' : 'chat-no-grounding',
         );
       };
