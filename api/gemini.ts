@@ -52,6 +52,19 @@ function normalizeHistory(
     .filter((msg) => msg.parts[0].text.trim().length > 0);
 }
 
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
+  let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutHandle = setTimeout(() => reject(new Error(`${label} timeout after ${timeoutMs}ms`)), timeoutMs);
+  });
+
+  try {
+    return await Promise.race([promise, timeoutPromise]);
+  } finally {
+    if (timeoutHandle) clearTimeout(timeoutHandle);
+  }
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -115,20 +128,35 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const useGrounding = body.useGrounding ?? true;
       const thinkingMode = body.thinkingMode ?? false;
 
-      const chat = ai.chats.create({
-        model,
-        history,
-        config: {
-          systemInstruction,
-          // Thinking mode trades creativity for deterministic factual output.
-          temperature: thinkingMode ? 0.1 : 0.15,
-          // Limite mais conservador para reduzir latência e risco de timeout.
-          maxOutputTokens: 16384,
-          tools: useGrounding ? [{ googleSearch: {} }] : undefined
-        }
-      });
+      const runChat = async (withGrounding: boolean) => {
+        const chat = ai.chats.create({
+          model,
+          history,
+          config: {
+            systemInstruction,
+            // Thinking mode trades creativity for deterministic factual output.
+            temperature: thinkingMode ? 0.1 : 0.15,
+            // Limite conservador para reduzir latência e risco de timeout.
+            maxOutputTokens: 8192,
+            tools: withGrounding ? [{ googleSearch: {} }] : undefined
+          }
+        });
 
-      const response = await chat.sendMessage({ message });
+        return withTimeout(
+          chat.sendMessage({ message }),
+          90000,
+          withGrounding ? 'chat-with-grounding' : 'chat-no-grounding',
+        );
+      };
+
+      let response;
+      try {
+        response = await runChat(useGrounding);
+      } catch (primaryError) {
+        if (!useGrounding) throw primaryError;
+        // Contingência em produção: tenta sem grounding para evitar timeout total.
+        response = await runChat(false);
+      }
       const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
 
       return res.status(200).json({
