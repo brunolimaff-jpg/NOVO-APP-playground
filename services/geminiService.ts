@@ -411,7 +411,14 @@ export async function sendMessageToGemini(
   conversationHistory: Message[],
   systemPrompt: string,
   options: GeminiRequestOptions = {},
-): Promise<string> {
+  _canUseLookup?: boolean,
+): Promise<{
+  text: string;
+  sources?: unknown[];
+  suggestions?: string[];
+  scorePorta?: ScorePortaData | null;
+  ghostReason?: string | null;
+}> {
   const {
     useGrounding   = true,
     thinkingMode   = false,
@@ -427,10 +434,17 @@ export async function sendMessageToGemini(
 
   if (signal?.aborted) throw new Error('AbortError');
 
-  const { isSafe, reason: scanReason } = scanInput(userMessage);
-  if (!isSafe) throw Object.assign(new Error(scanReason || 'Entrada bloqueada por segurança.'), { code: 'PROMPT_INJECTION' });
+  // ✅ FIX: scanInput retorna { level, sanitized, reason, riskScore } — NÃO isSafe
+  const guardResult = scanInput(userMessage);
+  if (guardResult.level === 'blocked') {
+    throw Object.assign(
+      new Error(guardResult.reason || 'Entrada bloqueada por segurança.'),
+      { code: 'PROMPT_INJECTION' },
+    );
+  }
+  const safeUserMessage = guardResult.sanitized;
 
-  const wrappedMessage = wrapUserInput(userMessage);
+  const wrappedMessage = wrapUserInput(safeUserMessage);
 
   // ── Detecção de empresa alvo ─────────────────────────────────────────────
   let empresaAlvo: string | null = hintedCompany || null;
@@ -564,6 +578,7 @@ export async function sendMessageToGemini(
   }
 
   // ── Processa feeds PORTA ─────────────────────────────────────────────────
+  let scorePorta: ScorePortaData | null = null;
   if (isMegaPromptMessage || isDeepDive) {
     const source = isDeepDive ? deepDiveSource : 'MEGA';
     const feeds  = parsePortaFeeds(response.text || '', source);
@@ -572,15 +587,17 @@ export async function sendMessageToGemini(
     for (const seg of feeds.segments)    addSegmentFeed(seg);
 
     const portaState = getPortaState();
-    if (portaState && onScorePorta) {
-      onScorePorta({
+    if (portaState) {
+      scorePorta = {
         P: portaState.P, O: portaState.O, R: portaState.R, T: portaState.T, A: portaState.A,
         total:     portaState.total,
         label:     portaState.label,
         flags:     portaState.flags,
         segmento:  portaState.segmento,
         breakdown: portaState.breakdown,
-      });
+        score:     portaState.total,
+      };
+      onScorePorta?.(scorePorta);
     }
   }
 
@@ -619,5 +636,13 @@ export async function sendMessageToGemini(
   }
 
   const nomeVendedorFinal = nomeVendedor || NOME_VENDEDOR_PLACEHOLDER;
-  return enforceOpeningWithSeller(finalText, nomeVendedorFinal);
+  const text = enforceOpeningWithSeller(finalText, nomeVendedorFinal);
+
+  // Extrai grounding sources se disponíveis
+  const sources = (response as unknown as { sources?: unknown[] })?.sources ?? [];
+
+  // Extrai sugestões se o modelo as retornou embutidas (via marker futuro)
+  const suggestions: string[] = [];
+
+  return { text, sources, suggestions, scorePorta, ghostReason: null };
 }
