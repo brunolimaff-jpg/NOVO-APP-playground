@@ -6,6 +6,7 @@ import { toRichStatus, isPhaseTimelineStatus, type RichLoadingStatus } from '../
 import { sanitizeLoadingContextText, stripInternalMarkers } from '../utils/textCleaners';
 
 const FADE_DURATION = 400;
+const MAX_VISIBLE_COMPLETED_STEPS = 4;
 const SOURCE_LINKS: Record<string, string> = {
   ibge:    'https://www.ibge.gov.br/',
   conab:   'https://www.conab.gov.br/',
@@ -212,6 +213,8 @@ const LoadingSmart: React.FC<LoadingSmartProps> = ({
 
   const completedRich: RichLoadingStatus[] = rawCompletedStages.map(enrichStage);
   const currentRich: RichLoadingStatus     = enrichStage(rawCurrentStage);
+  const hiddenCompletedCount = Math.max(0, completedRich.length - MAX_VISIBLE_COMPLETED_STEPS);
+  const visibleCompletedRich = completedRich.slice(-MAX_VISIBLE_COMPLETED_STEPS);
 
   // Progresso real: usamos apenas eventos já concluídos, sem ETA artificial.
   const completedCount  = completedRich.length;
@@ -266,7 +269,18 @@ const LoadingSmart: React.FC<LoadingSmartProps> = ({
       <div className="flex flex-col gap-2 mb-4">
 
         {/* Etapas concluídas */}
-        {completedRich.map((step, index) => (
+        {hiddenCompletedCount > 0 && (
+          <div className="flex items-center gap-3">
+            <div className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center bg-slate-200/70 dark:bg-slate-800/70">
+              <span className="text-[10px] leading-none">…</span>
+            </div>
+            <span className={`text-xs ${isDarkMode ? 'text-slate-500' : 'text-slate-500'}`}>
+              +{hiddenCompletedCount} etapa(s) anterior(es)
+            </span>
+          </div>
+        )}
+
+        {visibleCompletedRich.map((step, index) => (
           <div key={index} className="flex items-center gap-3 animate-fade-in">
             <StepIcon icon={step.icon} done={true} pulse={false} />
             <div className="flex flex-col">
