@@ -22,106 +22,6 @@ import {
   PROMPT_TECH_STACK_GOD_MODE_ATAQUE,
 } from '../prompts/megaPrompts';
 
-function resolveQuickActionCompanyName(companyName?: string | null, title?: string | null): string | null {
-  const rawCandidates = [companyName, title];
-
-  for (const rawCandidate of rawCandidates) {
-    const raw = (rawCandidate || '').trim();
-    if (!raw) continue;
-
-    const bracketMatch = raw.match(/dossi[eê]\s+completo\s+de\s+\[([^\]]+)\]/i);
-    const companyLineMatch = raw.match(/(?:^|\n)\s*-\s*Empresa:\s*([^\n]+)/i);
-    const cadastroMatch = raw.match(/Empresa=([^;\n]+)/i);
-
-    const extracted =
-      bracketMatch?.[1]?.trim() ||
-      companyLineMatch?.[1]?.trim() ||
-      cadastroMatch?.[1]?.trim() ||
-      extractCompanyName(raw) ||
-      raw;
-
-    const candidate = cleanTitle(
-      extracted
-        .split(/\.?\s*Protocolo de investiga[cç][aã]o/i)[0]
-        .split(/INVESTIGACAO_COMPLETA_INTEGRADA/i)[0]
-        .split(/\n\s*---\s*\n/i)[0]
-        .trim(),
-    );
-
-    if (!candidate) continue;
-    if (/^nova investiga[cç][aã]o$/i.test(candidate)) continue;
-    if (/^dossi[eê] completo de$/i.test(candidate)) continue;
-    if (candidate.length > 120) continue;
-
-    return candidate;
-  }
-
-  return null;
-}
-
-function buildQuickActions(companyName?: string | null) {
-  const company = companyName?.trim();
-
-  if (!company) {
-    return [
-      { icon: '🎯', label: 'Comparar', prompt: 'Compare com o principal concorrente dessa empresa.' },
-      {
-        icon: '💰',
-        label: 'Budget',
-        prompt:
-          'Considerando o contexto já investigado desta conta, qual o budget estimado para uma implementação completa com ERP Senior, HCM, WMS e GATec, incluindo faixas de investimento por fase, implantação, licenças, serviços e complexidade operacional?',
-      },
-      { icon: '💡', label: 'Abordagem', prompt: 'Me sugira a melhor abordagem comercial para esse decisor.' },
-      { icon: '✨', label: 'Senior', prompt: 'Como os produtos Senior resolveriam as principais dores dessa empresa?' },
-    ];
-  }
-
-  return [
-    {
-      icon: '🎯',
-      label: 'Comparar',
-      prompt: `Compare ${company} com o principal concorrente, destacando diferenças operacionais, tecnológicas e comerciais mais relevantes para uma abordagem de venda consultiva.`,
-    },
-    {
-      icon: '💰',
-      label: 'Budget',
-      prompt: `Considerando o cenário atual de ${company}, com base no dossiê já aberto e no contexto operacional mapeado, qual o budget estimado para uma implementação completa com ERP Senior, HCM, GAtec e Senior Flow, incluindo implantação por fases, licenças, serviços, integração com sistemas legados, gestão da mudança e consolidação de novas verticais?`,
-    },
-    {
-      icon: '💡',
-      label: 'Abordagem',
-      prompt: `Com base no contexto já levantado sobre ${company}, me sugira a melhor abordagem comercial para esse decisor, incluindo narrativa, gatilhos de urgência, objeções prováveis e próximos passos.`,
-    },
-    {
-      icon: '✨',
-      label: 'Senior',
-      prompt: `Como os produtos Senior, especialmente ERP Senior, Senior Flow, HCM e GAtec, resolveriam as dores e oportunidades já identificadas em ${company}?`,
-    },
-  ];
-}
-
-function extractDisplayedSuggestions(content?: string): string[] {
-  if (!content) return [];
-  const suggestions: string[] = [];
-  const patterns = [
-    /\*\*(?:Sugestões|🔎\s*O que você quer descobrir agora\?)\*\*\n([\s\S]*?)(?=\n---|\n\*\*|$)/i,
-    /(?:Sugestões|Próximos passos)[:\s]*\n([\s\S]*?)(?=\n---|\n\*\*|$)/i,
-  ];
-  for (const pattern of patterns) {
-    const match = content.match(pattern);
-    if (match) {
-      const lines = match[1].split('\n');
-      lines.forEach(line => {
-        const bulletMatch = line.match(/^[\*\-]\s*["']?([^"'\n]+)["']?/);
-        if (bulletMatch && bulletMatch[1].trim().length > 5)
-          suggestions.push(bulletMatch[1].trim().replace(/["']$/, ''));
-      });
-      if (suggestions.length > 0) break;
-    }
-  }
-  return suggestions.slice(0, 4);
-}
-
 type ExtendedChatInterfaceProps = ChatInterfaceProps & {
   onDeleteMessage?: (id: string) => void;
   onSaveToCRM?: (sessionId: string) => void;
@@ -183,12 +83,10 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const virtuosoRef = useRef<VirtuosoHandle>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const actionsMenuRef = useRef<HTMLDivElement>(null);
 
   const [input, setInput] = useState('');
   const [showDashboard, setShowDashboard] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [showActionsMenu, setShowActionsMenu] = useState(false);
   const [showWarRoom, setShowWarRoom] = useState(false);
   const [showRetryToast, setShowRetryToast] = useState(false);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -196,13 +94,6 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const pendingDeleteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isInitialGateActive = messages.length === 0;
-
-  const quickActionCompany = useMemo(
-    () => resolveQuickActionCompanyName(currentSession?.empresaAlvo || null, currentSession?.title || null),
-    [currentSession?.empresaAlvo, currentSession?.title],
-  );
-
-  const quickActions = useMemo(() => buildQuickActions(quickActionCompany), [quickActionCompany]);
 
   const handleDeleteWithUndo = (msgId: string) => {
     if (pendingDeleteTimer.current) clearTimeout(pendingDeleteTimer.current);
@@ -236,14 +127,6 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
       textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
     }
   }, [input]);
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (actionsMenuRef.current && !actionsMenuRef.current.contains(event.target as Node)) setShowActionsMenu(false);
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
 
   useEffect(() => {
     if (showRetryToast) {
@@ -291,7 +174,6 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
     if (!input.trim() || isLoading) return;
     onSendMessage(input);
     setInput('');
-    setShowActionsMenu(false);
     if (textareaRef.current) textareaRef.current.style.height = 'auto';
   };
 
@@ -304,13 +186,6 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
       e.preventDefault();
       handleSend();
     }
-  };
-
-  const handleActionClick = (prompt: string) => {
-    if (isInitialGateActive) return;
-    setInput(prompt);
-    setShowActionsMenu(false);
-    textareaRef.current?.focus();
   };
 
   const handleStartInvestigation = async (payload: {
@@ -647,54 +522,11 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
             } z-20`}
           >
             <div className="w-full max-w-5xl xl:max-w-6xl mx-auto px-1 md:px-6 lg:px-8 relative">
-              {showActionsMenu && (
-                <div
-                  ref={actionsMenuRef}
-                  className={`absolute bottom-full left-2 md:left-8 mb-2 w-72 rounded-xl shadow-xl border overflow-hidden animate-fade-in z-50 ${
-                    isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'
-                  }`}
-                >
-                  <div
-                    className={`px-4 py-3 border-b text-xs font-bold uppercase tracking-wider flex items-center gap-2 ${
-                      isDarkMode ? 'border-slate-700 text-emerald-400' : 'border-slate-100 text-emerald-600'
-                    }`}
-                  >
-                    Ações Rápidas
-                  </div>
-                  <div className="flex flex-col py-1 max-h-[40vh] overflow-y-auto">
-                    {quickActions.map(qa => (
-                      <button
-                        key={qa.label}
-                        onClick={() => handleActionClick(qa.prompt)}
-                        className={`flex items-center gap-3 px-4 py-3 text-sm text-left transition-colors ${
-                          isDarkMode ? 'hover:bg-slate-700 text-slate-200' : 'hover:bg-emerald-50 text-slate-700'
-                        }`}
-                      >
-                        <span className="text-lg">{qa.icon}</span>
-                        <span className="font-medium">{qa.label}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
               <div
-                className={`relative flex items-end w-full rounded-2xl border pl-2 pr-12 py-2 shadow-sm ${
+                className={`relative flex items-end w-full rounded-2xl border pl-4 pr-12 py-2 shadow-sm ${
                   isDarkMode ? 'border-gray-700/50 bg-gray-800/80' : 'border-gray-300 bg-white'
                 }`}
               >
-                {!isLoading && messages.length > 0 && (
-                  <button
-                    onClick={() => setShowActionsMenu(!showActionsMenu)}
-                    className={`p-2 rounded-xl transition-colors flex-shrink-0 mr-1 mb-0.5 ${
-                      isDarkMode ? 'text-emerald-400 hover:bg-slate-700' : 'text-emerald-600 hover:bg-emerald-50'
-                    }`}
-                    title="Ações Rápidas"
-                  >
-                    🎯
-                  </button>
-                )}
-
                 {!isLoading && messages.length > 0 && messages[messages.length - 1].sender === Sender.User && (
                   <div className="absolute bottom-full left-0 mb-3 w-full flex justify-center animate-fade-in">
                     <div
@@ -755,7 +587,7 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
                     }`}
                   >
                     <span className="text-lg ml-0.5">➤</span>
-                  </button>
+          </button>
                 )}
               </div>
             </div>

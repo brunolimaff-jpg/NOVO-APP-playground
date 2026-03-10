@@ -19,7 +19,6 @@ import {
   sendMessageToGemini,
   generateNewSuggestions,
   generateConsolidatedDossier,
-  resetChatSession,
 } from './services/geminiService';
 import { listRemoteSessions, getRemoteSession, saveRemoteSession } from './services/sessionRemoteStore';
 import { sendFeedbackRemote } from './services/feedbackRemoteStore';
@@ -187,7 +186,6 @@ const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    resetChatSession();
     document.title = `${APP_NAME} ${MODE_LABELS[mode].icon}`;
   }, [mode]);
 
@@ -209,7 +207,6 @@ const App: React.FC = () => {
     setSessions(prev => [newSession, ...prev]);
     setCurrentSessionId(newSession.id);
     setVisibleCount(PAGE_SIZE);
-    resetChatSession();
     setRemoteSaveStatus('idle');
     setExportStatus('idle');
     setPdfReportContent(null);
@@ -223,7 +220,6 @@ const App: React.FC = () => {
     if (isLoading && abortControllerRef.current) abortControllerRef.current.abort();
     setCurrentSessionId(sessionId);
     setVisibleCount(PAGE_SIZE);
-    resetChatSession();
     setRemoteSaveStatus('idle');
     setExportStatus('idle');
     setPdfReportContent(null);
@@ -251,7 +247,6 @@ const App: React.FC = () => {
     const newSessions = sessions.filter(s => s.id !== sessionId);
     setSessions(newSessions);
     if (currentSessionId === sessionId) {
-      resetChatSession();
       if (newSessions.length > 0) {
         const nextSession = newSessions[0];
         setCurrentSessionId(nextSession.id);
@@ -287,7 +282,6 @@ const App: React.FC = () => {
   };
 
   const handleClearChat = () => {
-    resetChatSession();
     updateCurrentSession(session => ({
       ...session,
       messages: [],
@@ -323,8 +317,6 @@ const App: React.FC = () => {
     lastActionRef.current = { type: 'sendMessage', payload: { text, displayText: safeVisibleText } };
 
     let historyToPass: Message[] = [];
-    // hintedCompany: tenta pegar do contexto da sessão, cai para extração local do texto.
-    // Garante fallback quando analyzeUserIntent falha ou retorna NONE.
     const sessionForHint = sessionsRef.current.find(s => s.id === sessionId);
     const hintedCompany = sessionForHint?.empresaAlvo || cleanTitle(extractCompanyName(safeVisibleText)) || null;
     setLastQuery(sanitizeLoadingContextText(safeVisibleText, hintedCompany || ''));
