@@ -667,6 +667,7 @@ export async function sendMessageToGemini(
         useGrounding:      shouldUseGrounding,
         thinkingMode,
       }, signal),
+      { maxRetries: 1 },
     );
   } catch (error) {
     const appError = normalizeAppError(error);
