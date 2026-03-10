@@ -3,14 +3,13 @@
 // NÃO usa dados fixos de mercado. Tudo é pesquisado em tempo real.
 
 import { CONCORRENTES, getConcorrente, getRevendasPorEstado, Concorrente } from './competitors';
-import { sanitizeExternalContent } from '../utils/promptGuard';
 
 /**
  * Sanitiza e limita o nome da empresa para uso seguro em prompts Gemini.
  * Evita prompt injection via nomes de empresa maliciosos.
  */
 function safeCompanyName(name: string): string {
-  return sanitizeExternalContent(name).slice(0, 200).replace(/"/g, "'");
+  return name.trim().slice(0, 200).replace(/"/g, "'");
 }
 
 // ===================================================================
@@ -26,6 +25,8 @@ export interface CompetitorDetection {
   confianca?: 'alta' | 'media' | 'baixa';
   fontes?: string[];
   raw?: string;          // texto bruto retornado pelo Gemini
+  detected?: boolean;
+  names?: string[];
 }
 
 export interface CompetitorProfile {
@@ -180,7 +181,7 @@ USE ESTAS ESTRATÉGIAS DE BUSCA (pesquise todas):
    → Portal da Transparência estadual de MT, GO, MS
    → Dá referência de custo por módulo/usuário em contratos públicos
 
-6. 📰 GLASSDOOR / VAGAS:
+6. 📀 GLASSDOOR / VAGAS:
    → Salário médio de consultores ${nome} = proxy para custo de implementação
    → Buscar: "${nome} consultor salário OR remuneração"
 
@@ -209,7 +210,6 @@ Se não encontrar dados confiáveis, retorne os campos como null e confianca com
 /**
  * detectCompetitorFromContext
  * Tenta descobrir qual ERP a empresa usa via busca dinâmica.
- * Deve ser chamada em paralelo com lookupCliente() no geminiService.
  */
 export async function detectCompetitorFromContext(
   nomeEmpresa: string,
@@ -217,7 +217,6 @@ export async function detectCompetitorFromContext(
   callGeminiDeepSearch?: (prompt: string) => Promise<string>
 ): Promise<CompetitorDetection> {
   if (!callGeminiDeepSearch) {
-    // Sem função de busca injetada, retorna vazio
     return { encontrado: false };
   }
 
@@ -225,7 +224,6 @@ export async function detectCompetitorFromContext(
     const prompt = buildDetectPrompt(nomeEmpresa, estado);
     const raw = await callGeminiDeepSearch(prompt);
 
-    // Parser simples do formato de resposta
     const lines = raw.split('\n');
     const get = (key: string) => {
       const line = lines.find(l => l.startsWith(key + ':'));
@@ -242,7 +240,6 @@ export async function detectCompetitorFromContext(
       return { encontrado: false, raw };
     }
 
-    // Tenta mapear para um concorrente cadastrado
     const match = CONCORRENTES.find(c =>
       sistema.toLowerCase().includes(c.nome.toLowerCase()) ||
       c.nome.toLowerCase().includes(sistema.toLowerCase())
@@ -267,7 +264,6 @@ export async function detectCompetitorFromContext(
 /**
  * pullCompetitorProfile
  * Busca perfil completo e atualizado do concorrente em todas as fontes.
- * Usa deep research — mais lento, mas completo.
  */
 export async function pullCompetitorProfile(
   competitorId: string,
@@ -280,27 +276,15 @@ export async function pullCompetitorProfile(
     const prompt = buildProfilePrompt(concorrente);
     const raw = await callGeminiDeepSearch(prompt);
 
-    // Tenta parsear JSON da resposta
     const jsonMatch = raw.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       try {
         const data = JSON.parse(jsonMatch[0]);
-        return {
-          competitorId,
-          nomeERP: concorrente.nome,
-          ...data,
-          raw,
-        };
-      } catch {
-        // JSON malformado — retorna raw para uso manual
-      }
+        return { competitorId, nomeERP: concorrente.nome, ...data, raw };
+      } catch { /* JSON malformado */ }
     }
 
-    return {
-      competitorId,
-      nomeERP: concorrente.nome,
-      raw,
-    };
+    return { competitorId, nomeERP: concorrente.nome, raw };
   } catch (err) {
     console.error('[COMPETITOR] Erro no profile:', err);
     return null;
@@ -310,7 +294,6 @@ export async function pullCompetitorProfile(
 /**
  * generatePricingIntel
  * Minera estimativa de preço/custo do concorrente via deep research.
- * Usa Google Search grounding — sem tabela de preços fixa.
  */
 export async function generatePricingIntel(
   competitorId: string,
@@ -339,18 +322,10 @@ export async function generatePricingIntel(
           confianca: data.confianca || 'baixa',
           raw,
         };
-      } catch {
-        // fall through
-      }
+      } catch { /* fall through */ }
     }
 
-    return {
-      competitorId,
-      nomeERP: concorrente.nome,
-      fontes: [],
-      confianca: 'baixa',
-      raw,
-    };
+    return { competitorId, nomeERP: concorrente.nome, fontes: [], confianca: 'baixa', raw };
   } catch (err) {
     console.error('[COMPETITOR] Erro no pricing:', err);
     return null;
@@ -361,9 +336,6 @@ export async function generatePricingIntel(
 // FORMATADORES PARA INJEÇÃO NO PROMPT
 // ===================================================================
 
-/**
- * Formata a detecção de concorrente para injetar no system prompt do dossiê.
- */
 export function formatarDeteccaoParaPrompt(detection: CompetitorDetection): string {
   if (!detection.encontrado) return '';
 
@@ -386,9 +358,6 @@ export function formatarDeteccaoParaPrompt(detection: CompetitorDetection): stri
 `;
 }
 
-/**
- * Formata o perfil completo do concorrente para exibição na UI.
- */
 export function formatarProfileParaUI(profile: CompetitorProfile): string {
   if (!profile) return '';
 
@@ -397,7 +366,7 @@ export function formatarProfileParaUI(profile: CompetitorProfile): string {
   ];
 
   if (profile.playStoreRating) {
-    linhas.push(`📱 Play Store: ★ ${profile.playStoreRating} (${profile.playStoreReviews || '?'}  avaliações) — ${profile.playStoreUltimaAtualizacao || 'data não encontrada'}`);
+    linhas.push(`📱 Play Store: ★ ${profile.playStoreRating} (${profile.playStoreReviews || '?'} avaliações) — ${profile.playStoreUltimaAtualizacao || 'data não encontrada'}`);
   }
   if (profile.appStoreRating) {
     linhas.push(`🍎 App Store: ★ ${profile.appStoreRating}`);
@@ -415,9 +384,6 @@ export function formatarProfileParaUI(profile: CompetitorProfile): string {
   return linhas.join('\n');
 }
 
-/**
- * Retorna os concorrentes do estado do cliente para enriquecer o contexto.
- */
 export function getContextoConcorrentesRegionais(uf: string): string {
   const revendas = getRevendasPorEstado(uf);
   if (!revendas.length) return '';
