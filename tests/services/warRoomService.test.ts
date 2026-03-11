@@ -112,7 +112,21 @@ describe('warRoomService', () => {
   });
 
   it('treats fercus as a valid technical term', async () => {
-    buscarDocsMock.mockResolvedValue(emptyResponse.text);
+    buscarDocsMock
+      .mockResolvedValueOnce(
+        [
+          '### Integracao Gatec: Gestão de Custos Gerenciais',
+          'Detalhes do módulo Fercus.',
+          '(Fonte: https://documentacao.senior.com.br/gestaoempresarialerp/5.10.4/manuais_processos/agronegocio/integracao-gatec/gatec-modulo-fercus.htm)',
+        ].join('\n'),
+      )
+      .mockResolvedValueOnce(
+        [
+          '### Customizações: Pro_FerFgt',
+          'Variável HCM que não é do contexto solicitado.',
+          '(Fonte: https://documentacao.senior.com.br/gestao-de-pessoas-hcm/6.10.4/customizacoes/variaveis/pro_ferfgt.htm)',
+        ].join('\n'),
+      );
     generateContentMock.mockResolvedValue(emptyResponse);
     const { queryWarRoom } = await import('../../services/warRoomService');
 
@@ -123,6 +137,21 @@ describe('warRoomService', () => {
     const prompt = payload.contents[0].parts[0].text as string;
     expect(prompt).toContain('FOCO DE RESPOSTA (FERCUS)');
     expect(prompt).toContain('Não assuma erro de digitação');
+    expect(prompt).toContain('gatec-modulo-fercus');
+    expect(prompt).not.toContain('/customizacoes/variaveis/pro_ferfgt.htm');
+  });
+
+  it('injects fercus official reference when retrieval misses it', async () => {
+    buscarDocsMock.mockResolvedValue('### Customizações: Pro_FerFgt\n(Fonte: https://documentacao.senior.com.br/gestao-de-pessoas-hcm/6.10.4/customizacoes/variaveis/pro_ferfgt.htm)');
+    generateContentMock.mockResolvedValue(emptyResponse);
+    const { queryWarRoom } = await import('../../services/warRoomService');
+
+    await queryWarRoom('tech', 'explica o fercus', [], '', undefined);
+
+    const payload = generateContentMock.mock.calls[0][0];
+    const prompt = payload.contents[0].parts[0].text as string;
+    expect(prompt).toContain('gatec-modulo-fercus');
+    expect(prompt).not.toContain('/customizacoes/variaveis/pro_ferfgt.htm');
   });
 
   it('retries transient model errors and succeeds', async () => {

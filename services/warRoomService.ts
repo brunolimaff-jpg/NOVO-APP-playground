@@ -34,6 +34,17 @@ const MAX_HISTORY_CHARS = 4000;
 const MAX_USER_QUESTION_CHARS = 1600;
 const MAX_DOCS_CHARS = 6000;
 const DOCS_CACHE_TTL_MS = 120000;
+const FERCUS_REFERENCE_BLOCK = [
+    '### Integracao Gatec: Gestão de Custos Gerenciais (Fercus)',
+    'Módulo focado em custos gerenciais dentro do contexto GAtec/ERP.',
+    '(Fonte: https://documentacao.senior.com.br/gestaoempresarialerp/5.10.4/manuais_processos/agronegocio/integracao-gatec/gatec-modulo-fercus.htm)',
+].join('\n');
+const TALHAO_REFERENCE_BLOCK = [
+    '### Agrícola: Consulta Analítica de Talhão',
+    'Referências para apuração de custo por talhão e configuração da visão analítica.',
+    '(Fonte: https://documentacao.senior.com.br/simplefarm/manual-do-usuario/agricola/estrutura-de-locais/consulta-analitica-de-talhao)',
+    '(Fonte: https://documentacao.senior.com.br/simplefarm/manual-do-usuario/agricola/estrutura-de-locais/configuracoes-da-consulta-analitica-de-talhao)',
+].join('\n');
 
 type DocsCacheEntry = {
     value: string;
@@ -59,6 +70,7 @@ const INTEGRACAO_PATTERNS = [
 ];
 
 const FERCUS_PATTERNS = [/\bfercus\b/i, /custos?\s+gerenciais/i];
+const TALHAO_PATTERNS = [/\btalh[aã]o\b/i, /agr0193/i, /consulta\s+anal[ií]tica/i];
 
 // ─── DETECTOR DE ESCOPO ──────────────────────────────────
 const OUT_OF_SCOPE_PATTERNS = [
@@ -89,6 +101,10 @@ function isIntegracaoIntent(message: string): boolean {
 
 function hasFercusIntent(message: string): boolean {
     return FERCUS_PATTERNS.some((p) => p.test(message));
+}
+
+function hasTalhaoIntent(message: string): boolean {
+    return TALHAO_PATTERNS.some((p) => p.test(message));
 }
 
 function makeAbortError(): Error {
@@ -243,6 +259,46 @@ function filterDocsForProcessoAgricola(context: string): string {
     return trimText(kept.join('\n\n---\n\n'), MAX_DOCS_CHARS);
 }
 
+function filterNoisyDocsContext(
+    context: string,
+    options: { processoAgricola: boolean; fercus: boolean },
+): string {
+    if (!context.trim()) return context;
+    const blocks = context.split(/\n\n---\n\n/g);
+    const kept = blocks.filter((block) => {
+        const lower = block.toLowerCase();
+
+        // Drop explicit broken pages.
+        if (lower.includes('404 - página não encontrada') || lower.includes('404 - pagina nao encontrada')) {
+            return false;
+        }
+
+        // Remove known noisy HCM customizations for "fer..." collisions.
+        if (
+            options.fercus &&
+            (lower.includes('/gestao-de-pessoas-hcm/6.10.4/customizacoes/') ||
+                lower.includes('categoria: customizações') ||
+                lower.includes('categoria: customizacoes'))
+        ) {
+            return false;
+        }
+
+        // In agricultural process questions, avoid unrelated docs families.
+        if (
+            options.processoAgricola &&
+            !options.fercus &&
+            (lower.includes('/seniorxplatform/manual-do-usuario/') ||
+                lower.includes('categoria: customizações') ||
+                lower.includes('categoria: customizacoes'))
+        ) {
+            return false;
+        }
+
+        return true;
+    });
+    return trimText(kept.join('\n\n---\n\n'), MAX_DOCS_CHARS);
+}
+
 function extractGroundingSources(response: any): Array<{ title: string; url: string }> {
     const groundingChunks = response?.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
     const dedupe = new Set<string>();
@@ -363,6 +419,7 @@ export async function queryWarRoom(
     const wantsProcessoAgricola = mode === 'tech' && isProcessoAgricolaIntent(message);
     const wantsIntegracao = mode === 'tech' && isIntegracaoIntent(message);
     const wantsFercus = mode === 'tech' && hasFercusIntent(message);
+    const wantsTalhao = mode === 'tech' && hasTalhaoIntent(message);
 
     // 2. Busca RAG docs (só para modo tech)
     let docsContext = '';
@@ -379,10 +436,25 @@ export async function queryWarRoom(
             if (wantsFercus) {
                 queries.unshift(`${message} fercus gestão de custos gerenciais gatec módulo fercus`);
             }
+            if (wantsTalhao) {
+                queries.unshift(
+                    `${message} agr0193 consulta analítica de talhão agr0192 configuração da consulta analítica de talhão`,
+                );
+            }
             const contexts = await Promise.all(queries.map((q) => getDocsContextCached(q)));
             docsContext = mergeDocContexts(contexts);
             if (wantsProcessoAgricola && !wantsIntegracao) {
                 docsContext = filterDocsForProcessoAgricola(docsContext);
+            }
+            docsContext = filterNoisyDocsContext(docsContext, {
+                processoAgricola: wantsProcessoAgricola,
+                fercus: wantsFercus,
+            });
+            if (wantsFercus && !/gatec-modulo-fercus/i.test(docsContext)) {
+                docsContext = mergeDocContexts([FERCUS_REFERENCE_BLOCK, docsContext]);
+            }
+            if (wantsTalhao && !/consulta-analitica-de-talhao/i.test(docsContext)) {
+                docsContext = mergeDocContexts([TALHAO_REFERENCE_BLOCK, docsContext]);
             }
             if (!docsContext) {
                 docsUnavailable = true;
