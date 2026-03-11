@@ -198,10 +198,11 @@ export default function WarRoom({ isOpen, onClose, isDarkMode, defaultCompetitor
       const history = messages
         .filter(m => !m.isLoading && !m.isError)
         .map(m => ({ role: m.role, text: m.text }));
+      const requestTimeoutMs = resolvedMode === 'benchmark' ? 120000 : 90000;
 
       const result = await queryWarRoom(resolvedMode, text, history, target, setStatus, {
         signal: controller.signal,
-        timeoutMs: 30000,
+        timeoutMs: requestTimeoutMs,
       });
       setQueryCount(prev => prev + 1);
 
