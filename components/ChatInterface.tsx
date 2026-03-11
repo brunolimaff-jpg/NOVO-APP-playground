@@ -7,9 +7,10 @@ import { useAuth } from '../contexts/AuthContext';
 import SessionsSidebar from './SessionsSidebar';
 import EmptyStateHome from './EmptyStateHome';
 import SuspenseWithError from './SuspenseWithError';
-const InvestigationDashboard = React.lazy(() => import('./InvestigationDashboard'));
-const SettingsDrawer = React.lazy(() => import('./SettingsDrawer'));
-const WarRoom = React.lazy(() => import('./WarRoom'));
+import { loadWithChunkRetry } from '../utils/chunkRetry';
+const InvestigationDashboard = React.lazy(() => loadWithChunkRetry(() => import('./InvestigationDashboard')));
+const SettingsDrawer = React.lazy(() => loadWithChunkRetry(() => import('./SettingsDrawer')));
+const WarRoom = React.lazy(() => loadWithChunkRetry(() => import('./WarRoom')));
 import { cleanTitle } from '../utils/textCleaners';
 import { extractCompanyName } from '../utils/companyNameExtractor';
 import { parseSmartOptions } from './SmartOptions';
@@ -21,6 +22,11 @@ import {
   PROMPT_RISCOS_COMPLIANCE_GOD_MODE,
   PROMPT_TECH_STACK_GOD_MODE_ATAQUE,
 } from '../prompts/megaPrompts';
+
+const DEFAULT_SIDEBAR_WIDTH = 288;
+const MIN_SIDEBAR_WIDTH = 240;
+const MAX_SIDEBAR_WIDTH = 420;
+const SIDEBAR_WIDTH_STORAGE_KEY = 'scout-sidebar-width';
 
 type ExtendedChatInterfaceProps = ChatInterfaceProps & {
   onDeleteMessage?: (id: string) => void;
@@ -87,8 +93,19 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
   const [showDashboard, setShowDashboard] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showWarRoom, setShowWarRoom] = useState(false);
+  const [isDesktop, setIsDesktop] = useState(() => window.innerWidth >= 768);
+  const [sidebarWidth, setSidebarWidth] = useState(() => {
+    if (typeof window === 'undefined') return DEFAULT_SIDEBAR_WIDTH;
+    const raw = window.localStorage.getItem(SIDEBAR_WIDTH_STORAGE_KEY);
+    const parsed = raw ? Number(raw) : NaN;
+    if (!Number.isFinite(parsed)) return DEFAULT_SIDEBAR_WIDTH;
+    return Math.min(MAX_SIDEBAR_WIDTH, Math.max(MIN_SIDEBAR_WIDTH, parsed));
+  });
+  const [isResizingSidebar, setIsResizingSidebar] = useState(false);
   const [showRetryToast, setShowRetryToast] = useState(false);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const resizeStartXRef = useRef(0);
+  const resizeStartWidthRef = useRef(DEFAULT_SIDEBAR_WIDTH);
 
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const pendingDeleteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -119,6 +136,40 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
     window.addEventListener('scout:prefill', handlePrefill);
     return () => window.removeEventListener('scout:prefill', handlePrefill);
   }, []);
+
+  useEffect(() => {
+    const handleResize = () => setIsDesktop(window.innerWidth >= 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  useEffect(() => {
+    window.localStorage.setItem(SIDEBAR_WIDTH_STORAGE_KEY, String(sidebarWidth));
+  }, [sidebarWidth]);
+
+  useEffect(() => {
+    if (!isResizingSidebar) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const delta = e.clientX - resizeStartXRef.current;
+      const nextWidth = Math.min(MAX_SIDEBAR_WIDTH, Math.max(MIN_SIDEBAR_WIDTH, resizeStartWidthRef.current + delta));
+      setSidebarWidth(nextWidth);
+    };
+
+    const stopResizing = () => setIsResizingSidebar(false);
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', stopResizing);
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', stopResizing);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+  }, [isResizingSidebar]);
 
   useLayoutEffect(() => {
     if (textareaRef.current) {
@@ -188,6 +239,13 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
       e.preventDefault();
       handleSend();
     }
+  };
+
+  const startSidebarResize = (e: React.MouseEvent<HTMLButtonElement>) => {
+    if (!isDesktop || !isSidebarOpen) return;
+    resizeStartXRef.current = e.clientX;
+    resizeStartWidthRef.current = sidebarWidth;
+    setIsResizingSidebar(true);
   };
 
   const handleStartInvestigation = async (payload: {
@@ -312,7 +370,20 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
         onCloseMobile={onToggleSidebar}
         isDarkMode={isDarkMode}
         canAccessMiniCRM={canAccessMiniCRM}
+        desktopWidth={isDesktop ? sidebarWidth : DEFAULT_SIDEBAR_WIDTH}
       />
+
+      {isDesktop && isSidebarOpen && (
+        <button
+          type="button"
+          onMouseDown={startSidebarResize}
+          aria-label="Redimensionar barra lateral"
+          className={`relative z-20 hidden md:block w-1.5 transition-colors ${
+            isDarkMode ? 'bg-slate-800 hover:bg-emerald-500/60' : 'bg-slate-200 hover:bg-emerald-400/70'
+          } ${isResizingSidebar ? (isDarkMode ? 'bg-emerald-500/70' : 'bg-emerald-400/80') : ''}`}
+          title="Arraste para redimensionar"
+        />
+      )}
 
       <main className="flex-1 flex flex-col h-full min-h-0 relative w-full transition-all duration-300">
         <header

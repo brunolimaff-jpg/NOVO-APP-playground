@@ -54,6 +54,9 @@ export default defineConfig(() => {
           ],
         },
         workbox: {
+          cleanupOutdatedCaches: true,
+          clientsClaim: true,
+          skipWaiting: true,
           // Estratégias por tipo de recurso
           runtimeCaching: [
             // CDN externos (Tailwind, fonts, html2pdf) → NetworkFirst, cache 7 dias

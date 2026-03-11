@@ -12,8 +12,13 @@ import { FollowUpModal } from './components/FollowUpModal';
 import { useAuth } from './contexts/AuthContext';
 import { useMode } from './contexts/ModeContext';
 import { useCRM } from './contexts/CRMContext';
-const CRMPipeline = React.lazy(() => import('./components/CRMPipeline').then(m => ({ default: m.CRMPipeline })));
-const CRMDetail = React.lazy(() => import('./components/CRMDetail').then(m => ({ default: m.CRMDetail })));
+import { loadWithChunkRetry } from './utils/chunkRetry';
+const CRMPipeline = React.lazy(() =>
+  loadWithChunkRetry(() => import('./components/CRMPipeline')).then(m => ({ default: m.CRMPipeline })),
+);
+const CRMDetail = React.lazy(() =>
+  loadWithChunkRetry(() => import('./components/CRMDetail')).then(m => ({ default: m.CRMDetail })),
+);
 import { Message, Sender, Feedback, ChatSession, ExportFormat, ReportType, AppError, CRMStage } from './types';
 import {
   sendMessageToGemini,

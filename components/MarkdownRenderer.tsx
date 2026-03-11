@@ -3,6 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
 import { buildAuditableSources, normalizeSourceUrl, type AuditableSource } from '../utils/textCleaners';
+import { loadWithChunkRetry } from '../utils/chunkRetry';
 
 export interface GroundingSource {
   title: string;
@@ -54,7 +55,7 @@ const MermaidChart: React.FC<MermaidProps> = ({ chart, isDarkMode }) => {
         const clean = sanitizeMermaidCode(chart);
         if (!clean) return;
 
-        const mermaid = (await import('mermaid')).default;
+        const mermaid = (await loadWithChunkRetry(() => import('mermaid'))).default;
         mermaid.initialize({
           startOnLoad: false,
           theme: isDarkMode ? 'dark' : 'default',
