@@ -62,6 +62,16 @@ const ERP_BANKING_REFERENCE_BLOCK = [
     '(Fonte: https://documentacao.senior.com.br/gestaoempresarialerp/5.10.4/processos-automaticos/166-integracao-erp-banking.htm)',
     '(Fonte: https://documentacao.senior.com.br/seniorxplatform/manual-do-usuario/erp/?utm_source=portal-documentacao&utm_medium=referral&utm_campaign=link-home-portal#Banking/banking.htm)',
 ].join('\n');
+const ERP_BANKING_CANONICAL_BLOCK = [
+    '### Mapeamento canônico: ERP Banking vs TOTVS',
+    '- ERP Banking da Senior: pagamento eletrônico abrangente (ACH, cartões e transferências), conciliação e ecossistema financeiro embarcado.',
+    '- TOTVS (Protheus): excelente registro online de títulos e boletos via API, reduzindo dependência de CNAB em cenários específicos.',
+    '- Leitura correta no comparativo: quando houver menção a Banking, contraste explícito entre API de boletos/títulos e governança de pagamentos/conciliação do ERP Banking.',
+    '',
+    '### Referência explícita: ERP Banking',
+    '- Integração ERP x ERP Banking: https://documentacao.senior.com.br/gestaoempresarialerp/5.10.4/processos-automaticos/166-integracao-erp-banking.htm',
+    '- Módulo ERP Banking (Senior X Platform): https://documentacao.senior.com.br/seniorxplatform/manual-do-usuario/erp/?utm_source=portal-documentacao&utm_medium=referral&utm_campaign=link-home-portal#Banking/banking.htm',
+].join('\n');
 
 type DocsCacheEntry = {
     value: string;
@@ -405,23 +415,21 @@ function extractGroundingSources(response: any): Array<{ title: string; url: str
 function enforceBankingAnchors(text: string): string {
     let out = text || '';
     if (!out) return out;
-    out = out.replace(/senior compensa/gi, 'Senior (ERP Banking) comprova');
+    out = out
+        .replace(/senior compensa/gi, 'ERP Banking da Senior comprova')
+        .replace(/senior\s*\(erp banking\)\s*comprova/gi, 'ERP Banking da Senior comprova')
+        .replace(/senior\s*bank\s*\/\s*fintech/gi, 'ERP Banking da Senior')
+        .replace(/senior\s*\(erp banking\)\s*:/gi, 'ERP Banking da Senior:');
 
     const hasBankingMention = /\berp banking\b/i.test(out);
     const hasBankingLinks =
         /integracao-erp-banking|#banking\/banking\.htm/i.test(out);
     const hasCanonicalMapping =
-        /pagamento eletr[oô]nico abrangente|registro online de t[ií]tulos e boletos via api/i.test(out);
+        /erp banking da senior|pagamento eletr[oô]nico abrangente|registro online de t[ií]tulos e boletos via api/i.test(out);
+    const hasCanonicalSection = /###\s*mapeamento can[oô]nico:\s*erp banking vs totvs/i.test(out);
 
-    if (!hasBankingMention || !hasBankingLinks || !hasCanonicalMapping) {
-        out +=
-            '\n\n### Mapeamento canônico: ERP Banking vs TOTVS\n' +
-            '- Senior (ERP Banking): pagamento eletrônico abrangente (ACH, cartões e transferências), conciliação e ecossistema financeiro embarcado (Senior Bank/Fintech).\n' +
-            '- TOTVS (Protheus): excelente registro online de títulos e boletos via API, reduzindo dependência de CNAB em cenários específicos.\n' +
-            '- Leitura correta no comparativo: quando houver menção a Banking, contraste explícito entre API de boletos/títulos e governança de pagamentos/conciliação do ERP Banking.\n' +
-            '\n### Referência explícita: ERP Banking\n' +
-            '- Integração ERP x ERP Banking: https://documentacao.senior.com.br/gestaoempresarialerp/5.10.4/processos-automaticos/166-integracao-erp-banking.htm\n' +
-            '- Módulo ERP Banking (Senior X Platform): https://documentacao.senior.com.br/seniorxplatform/manual-do-usuario/erp/?utm_source=portal-documentacao&utm_medium=referral&utm_campaign=link-home-portal#Banking/banking.htm';
+    if (!hasCanonicalSection || !hasBankingMention || !hasBankingLinks || !hasCanonicalMapping) {
+        out += `\n\n${ERP_BANKING_CANONICAL_BLOCK}`;
     }
     return out.trim();
 }
@@ -474,7 +482,7 @@ FORMATO OBRIGATÓRIO:
 ### 💡 Resumo Executivo
 (3-4 frases de conclusão destacando por que Senior é superior)
 
-REGRAS: Dados reais. Honesto quando ${target} tiver vantagem, MAS sempre mostre como Senior compensa. Português BR.`,
+REGRAS: Dados reais. Honesto quando ${target} tiver vantagem, MAS sempre mostre o contraponto técnico da Senior com linguagem objetiva. Português BR.`,
 
     objections: (target) => `Você é Consultor de Vendas da Senior Sistemas especialista em rebater objeções.
 

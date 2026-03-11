@@ -239,9 +239,37 @@ describe('warRoomService', () => {
     );
 
     expect(result.text).toContain('ERP Banking');
+    expect(result.text).toContain('ERP Banking da Senior');
     expect(result.text).toContain('integracao-erp-banking.htm');
     expect(result.text).not.toContain('Senior compensa');
+    expect(result.text).not.toContain('Senior Bank');
     expect(result.text).toContain('pagamento eletrônico abrangente');
     expect(result.text).toContain('registro online de títulos e boletos via API');
+  });
+
+  it('normalizes legacy banking wording to ERP Banking da Senior', async () => {
+    buscarDocsMock.mockResolvedValue('');
+    buscarBaseMock.mockResolvedValue('');
+    generateContentMock.mockResolvedValue({
+      text: [
+        '### Mapeamento canônico: ERP Banking vs TOTVS',
+        '- Senior (ERP Banking): pagamento eletrônico abrangente (ACH, cartões e transferências), conciliação e ecossistema financeiro embarcado (Senior Bank/Fintech).',
+        '- TOTVS (Protheus): excelente registro online de títulos e boletos via API.',
+      ].join('\n'),
+      candidates: [{ groundingMetadata: { groundingChunks: [] } }],
+    });
+    const { queryWarRoom } = await import('../../services/warRoomService');
+
+    const result = await queryWarRoom(
+      'benchmark',
+      'compare senior vs totvs na integração bancária',
+      [],
+      'TOTVS',
+      undefined,
+    );
+
+    expect(result.text).toContain('ERP Banking da Senior');
+    expect(result.text).not.toContain('Senior (ERP Banking):');
+    expect(result.text).not.toContain('Senior Bank/Fintech');
   });
 });
