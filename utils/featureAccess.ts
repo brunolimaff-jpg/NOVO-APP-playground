@@ -51,7 +51,10 @@ function extractIdentifiers(user: Pick<AuthUser, 'displayName' | 'email'> | null
 }
 
 export function isAdminUser(user: Pick<AuthUser, 'displayName' | 'email'> | null): boolean {
-  return extractIdentifiers(user).has(ADMIN_IDENTIFIER);
+  if (!user) return false;
+  const identifiers = extractIdentifiers(user);
+  // Mantém a regra de MVP explícita: somente identificador "admin" libera recursos restritos.
+  return identifiers.has(ADMIN_IDENTIFIER);
 }
 
 export function getFeatureAccessForUser(user: Pick<AuthUser, 'displayName' | 'email'> | null): UserFeatureAccess {

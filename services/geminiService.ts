@@ -510,7 +510,7 @@ export async function sendMessageToGemini(
   conversationHistory: Message[],
   systemPrompt: string,
   options: GeminiRequestOptions = {},
-  _canUseLookup?: boolean,
+  canUseLookup?: boolean,
 ): Promise<{
   text: string;
   sources?: unknown[];
@@ -555,7 +555,7 @@ export async function sendMessageToGemini(
   const hasActiveContextHint    = !!empresaAlvo || !!cnpjDetected || isMegaPromptMessage;
 
   // ── Lookup cliente ───────────────────────────────────────────────────────
-  if (cnpjDetected || empresaAlvo) {
+  if (canUseLookup === true && (cnpjDetected || empresaAlvo)) {
     emitDossieStatus(onStatus, 'cadastral');
     try {
       clienteData = await lookupCliente(cnpjDetected || empresaAlvo || '');
@@ -586,7 +586,7 @@ export async function sendMessageToGemini(
   }
 
   // ── Benchmark ────────────────────────────────────────────────────────────
-  if (isMegaPromptMessage && empresaAlvo) {
+  if (canUseLookup === true && isMegaPromptMessage && empresaAlvo) {
     emitDossieStatus(onStatus, 'benchmark');
     try {
       benchmarkData = await benchmarkClientes(empresaAlvo);
