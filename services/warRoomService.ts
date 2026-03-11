@@ -18,6 +18,9 @@ export interface WarRoomResult {
     text: string;
     sources: Array<{ title: string; url: string }>;
     outOfScope?: boolean; // true se a pergunta é fora do escopo do War Room
+    isError?: boolean;
+    retryable?: boolean;
+    technicalDetails?: string;
 }
 
 export interface WarRoomQueryOptions {
@@ -459,7 +462,13 @@ export async function queryWarRoom(
     const { signal, timeoutMs = MODEL_TIMEOUT_MS } = options;
 
     if (signal?.aborted) {
-        return { text: '⚠️ **Erro**\n\nSolicitação cancelada pelo usuário.', sources: [] };
+        return {
+            text: '⚠️ **Erro**\n\nSolicitação cancelada pelo usuário.',
+            sources: [],
+            isError: true,
+            retryable: false,
+            technicalDetails: 'ABORTED: solicitação cancelada antes da execução.',
+        };
     }
 
     // 1. Detecta escopo
@@ -621,6 +630,9 @@ export async function queryWarRoom(
         return {
             text: `⚠️ **Erro**\n\n${errorMsg}`,
             sources: [],
+            isError: true,
+            retryable: appError.retryable,
+            technicalDetails: `source=${appError.source}; code=${appError.code}; status=${appError.httpStatus ?? 'n/a'}; message=${appError.message}`,
         };
     }
 }

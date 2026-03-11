@@ -19,6 +19,8 @@ interface WRMessage {
   sources?: Array<{ title: string; url: string }>;
   isLoading?: boolean;
   isError?: boolean;
+  retryable?: boolean;
+  technicalDetails?: string;
 }
 
 type UnifiedRoute = 'tech' | 'benchmark';
@@ -89,6 +91,7 @@ export default function WarRoom({ isOpen, onClose, isDarkMode, defaultCompetitor
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
   const [linkStatuses, setLinkStatuses] = useState<Record<string, LinkValidationResult>>({});
+  const [expandedErrorId, setExpandedErrorId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -156,10 +159,8 @@ export default function WarRoom({ isOpen, onClose, isDarkMode, defaultCompetitor
     };
   }, [messageSourcesMap]);
 
-  const handleSend = useCallback(async () => {
-    const text = input.trim();
-    if (!text || isLoading) return;
-
+  const submitMessage = useCallback(async (text: string) => {
+    if (!text.trim() || isLoading) return;
     if (isBlockedIntent(text)) {
       const userMsg: WRMessage = { id: Date.now().toString(), role: 'user', mode: 'tech', text };
       const blockedReply: WRMessage = {
@@ -205,18 +206,52 @@ export default function WarRoom({ isOpen, onClose, isDarkMode, defaultCompetitor
       setQueryCount(prev => prev + 1);
 
       setMessages((prev) => prev.map((m) =>
-        m.id === botId ? { ...m, text: result.text, sources: result.sources, isLoading: false } : m
+        m.id === botId
+          ? {
+            ...m,
+            text: result.text,
+            sources: result.sources,
+            isLoading: false,
+            isError: Boolean(result.isError),
+            retryable: result.retryable,
+            technicalDetails: result.technicalDetails,
+          }
+          : m
       ));
     } catch (err: any) {
       setMessages((prev) => prev.map((m) =>
-        m.id === botId ? { ...m, text: `⚠️ ${err.message || 'Erro de conexão'}`, isError: true, isLoading: false } : m
+        m.id === botId
+          ? {
+            ...m,
+            text: `⚠️ ${err.message || 'Erro de conexão'}`,
+            isError: true,
+            isLoading: false,
+            retryable: true,
+            technicalDetails: err?.stack || err?.message || 'Falha sem stack disponível.',
+          }
+          : m
       ));
     } finally {
       setIsLoading(false);
       setStatus('');
       abortRef.current = null;
     }
-  }, [defaultCompetitorTarget, input, isLoading, messages]);
+  }, [defaultCompetitorTarget, isLoading, messages]);
+
+  const handleSend = useCallback(async () => {
+    const text = input.trim();
+    if (!text || isLoading) return;
+    await submitMessage(text);
+  }, [input, isLoading, submitMessage]);
+
+  const resendFromFailedMessage = useCallback((failedMessageId: string) => {
+    if (isLoading) return;
+    const failedIndex = messages.findIndex((m) => m.id === failedMessageId);
+    if (failedIndex <= 0) return;
+    const userMsg = [...messages.slice(0, failedIndex)].reverse().find((m) => m.role === 'user');
+    if (!userMsg) return;
+    void submitMessage(userMsg.text);
+  }, [isLoading, messages, submitMessage]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
@@ -434,6 +469,41 @@ export default function WarRoom({ isOpen, onClose, isDarkMode, defaultCompetitor
                       {copiedId === msg.id ? '✓' : '📋'}
                     </button>
                     <MarkdownRenderer content={msg.text} isDarkMode={dk} allowRawHtml={false} auditableSources={mergedSources} />
+                    {msg.isError && (
+                      <div className={`mt-3 pt-3 border-t ${t.srcBdr} flex flex-wrap items-center gap-2`}>
+                        {(msg.retryable ?? true) && (
+                          <button
+                            type="button"
+                            onClick={() => resendFromFailedMessage(msg.id)}
+                            className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider border transition-all ${
+                              dk
+                                ? 'border-amber-700/50 text-amber-300 hover:bg-amber-500/10'
+                                : 'border-amber-300 text-amber-700 hover:bg-amber-50'
+                            }`}
+                          >
+                            Tentar novamente
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => setExpandedErrorId((current) => current === msg.id ? null : msg.id)}
+                          className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider border transition-all ${
+                            dk
+                              ? 'border-slate-700 text-slate-300 hover:bg-slate-800/50'
+                              : 'border-slate-300 text-slate-700 hover:bg-slate-100'
+                          }`}
+                        >
+                          {expandedErrorId === msg.id ? 'Ocultar detalhes' : 'Ver detalhes'}
+                        </button>
+                        {expandedErrorId === msg.id && (
+                          <pre className={`w-full mt-1 text-[10px] whitespace-pre-wrap break-words p-2 rounded-md ${
+                            dk ? 'bg-slate-950/60 text-slate-300' : 'bg-slate-100 text-slate-700'
+                          }`}>
+                            {msg.technicalDetails || 'Sem detalhes técnicos disponíveis para esta falha.'}
+                          </pre>
+                        )}
+                      </div>
+                    )}
                     {mergedSources.length > 0 && (
                       <div className={`mt-3 pt-3 border-t ${t.srcBdr}`}>
                         <p className={`text-[9px] uppercase tracking-wider font-bold mb-1.5 ${t.srcLabel}`}>Fontes</p>
