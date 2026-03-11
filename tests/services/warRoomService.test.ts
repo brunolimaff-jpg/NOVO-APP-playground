@@ -197,6 +197,7 @@ describe('warRoomService', () => {
     const prompt = payload.contents[0].parts[0].text as string;
     expect(prompt).toContain('FOCO DE RESPOSTA (ERP BANKING)');
     expect(prompt).toContain('integracao-erp-banking');
+    expect(prompt).toContain('Não use a expressão "Senior compensa"');
   });
 
   it('retries transient model errors and succeeds', async () => {
