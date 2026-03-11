@@ -43,6 +43,21 @@ type DocsCacheEntry = {
 const _docsCache = new Map<string, DocsCacheEntry>();
 const _docsInflight = new Map<string, Promise<string>>();
 
+const PROCESSO_AGRICOLA_PATTERNS = [
+    /gest[aã]o\s+agr[ií]cola/i,
+    /processo\s+agr[ií]cola/i,
+    /\b(ordem\s+de\s+servi[cç]o|o\.s\.)\b/i,
+    /\b(safra|talh[aã]o|cultura|monitoramento|irrig[aã]c[aã]o)\b/i,
+    /\bsimplefarm\b/i,
+];
+
+const INTEGRACAO_PATTERNS = [
+    /integra[cç][aã]o/i,
+    /integrado\s+ao?\s+erp/i,
+    /arquitetura/i,
+    /\bbackoffice\b/i,
+];
+
 // ─── DETECTOR DE ESCOPO ──────────────────────────────────
 const OUT_OF_SCOPE_PATTERNS = [
     /investigar?\s+(a\s+)?empresa/i,
@@ -60,6 +75,14 @@ const OUT_OF_SCOPE_PATTERNS = [
 
 function isOutOfScope(message: string): boolean {
     return OUT_OF_SCOPE_PATTERNS.some(p => p.test(message));
+}
+
+function isProcessoAgricolaIntent(message: string): boolean {
+    return PROCESSO_AGRICOLA_PATTERNS.some((p) => p.test(message));
+}
+
+function isIntegracaoIntent(message: string): boolean {
+    return INTEGRACAO_PATTERNS.some((p) => p.test(message));
 }
 
 function makeAbortError(): Error {
@@ -170,6 +193,48 @@ async function getDocsContextCached(query: string): Promise<string> {
 
     _docsInflight.set(key, fetchPromise);
     return fetchPromise;
+}
+
+function mergeDocContexts(contexts: string[]): string {
+    const blocks = contexts
+        .flatMap((ctx) => ctx.split(/\n\n---\n\n/g))
+        .map((b) => b.trim())
+        .filter(Boolean);
+    const seen = new Set<string>();
+    const unique: string[] = [];
+    for (const block of blocks) {
+        if (seen.has(block)) continue;
+        seen.add(block);
+        unique.push(block);
+    }
+    return trimText(unique.join('\n\n---\n\n'), MAX_DOCS_CHARS);
+}
+
+function filterDocsForProcessoAgricola(context: string): string {
+    if (!context.trim()) return context;
+    const blocks = context.split(/\n\n---\n\n/g);
+    const kept = blocks.filter((b) => {
+        const lower = b.toLowerCase();
+        const isIntegracaoBlock =
+            lower.includes('integracao gatec') ||
+            lower.includes('integração gatec') ||
+            lower.includes('processos-integracao-gatec') ||
+            lower.includes('hcm-integracao-gatec');
+        const isAgricolaBlock =
+            lower.includes('simplefarm') ||
+            lower.includes('agricola') ||
+            lower.includes('agrícola') ||
+            lower.includes('ordem de serviço') ||
+            lower.includes('safra') ||
+            lower.includes('cultura') ||
+            lower.includes('talhão') ||
+            lower.includes('irrigação') ||
+            lower.includes('monitoramento');
+
+        if (isAgricolaBlock) return true;
+        return !isIntegracaoBlock;
+    });
+    return trimText(kept.join('\n\n---\n\n'), MAX_DOCS_CHARS);
 }
 
 function extractGroundingSources(response: any): Array<{ title: string; url: string }> {
@@ -288,6 +353,8 @@ export async function queryWarRoom(
 
     const resolvedTarget = mode === 'tech' ? '' : normalizeTarget(target, message);
     const systemPrompt = SYSTEM_PROMPTS[mode](resolvedTarget);
+    const wantsProcessoAgricola = mode === 'tech' && isProcessoAgricolaIntent(message);
+    const wantsIntegracao = mode === 'tech' && isIntegracaoIntent(message);
 
     // 2. Busca RAG docs (só para modo tech)
     let docsContext = '';
@@ -295,7 +362,17 @@ export async function queryWarRoom(
     if (mode === 'tech') {
         onStatus?.('📚 Consultando documentação...');
         try {
-            docsContext = await getDocsContextCached(message);
+            const queries: string[] = [message];
+            if (wantsProcessoAgricola && !wantsIntegracao) {
+                queries.unshift(
+                    `${message} simplefarm manual do usuário agrícola ordem de serviço safra culturas monitoramento irrigação`,
+                );
+            }
+            const contexts = await Promise.all(queries.map((q) => getDocsContextCached(q)));
+            docsContext = mergeDocContexts(contexts);
+            if (wantsProcessoAgricola && !wantsIntegracao) {
+                docsContext = filterDocsForProcessoAgricola(docsContext);
+            }
             if (!docsContext) {
                 docsUnavailable = true;
                 onStatus?.('⚠️ Documentação indisponível — usando conhecimento complementar.');
@@ -320,6 +397,10 @@ export async function queryWarRoom(
 
     // Pergunta atual
     fullPrompt += `## PERGUNTA DO USUÁRIO\n"${trimText(message, MAX_USER_QUESTION_CHARS)}"\n\nResponda agora.`;
+    if (wantsProcessoAgricola && !wantsIntegracao) {
+        fullPrompt +=
+            '\n\n## FOCO DE RESPOSTA\nExplique fluxo operacional agrícola (planejamento, ordens de serviço, execução em campo, apontamentos, monitoramento, safra e fechamento). Evite desviar para arquitetura de integração com ERP, exceto se o usuário pedir explicitamente.';
+    }
 
     // 4. Chama o Gemini via generateContent (stateless, confiável)
     onStatus?.(mode === 'tech' ? '🧠 Gerando resposta técnica...' : `⚔️ Forjando argumentos contra ${resolvedTarget}...`);

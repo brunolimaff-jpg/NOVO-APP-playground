@@ -82,6 +82,35 @@ describe('warRoomService', () => {
     expect(result.text).toContain('Aviso: a documentação oficial');
   });
 
+  it('prioritizes agricultural process context over integration context', async () => {
+    buscarDocsMock
+      .mockResolvedValueOnce(
+        [
+          '### Agricola: Ordem de Serviço',
+          'Fluxo de abertura, execução e apontamentos.',
+          '(Fonte: https://documentacao.senior.com.br/simplefarm/manual-do-usuario/agricola/ordem-de-servico)',
+        ].join('\n'),
+      )
+      .mockResolvedValueOnce(
+        [
+          '### Integracao Gatec: Integração com GAtec',
+          'Arquitetura de integração com ERP.',
+          '(Fonte: https://documentacao.senior.com.br/gestaoempresarialerp/5.10.4/manuais_processos/agronegocio/integracao-gatec/inicio-integracao-gatec.htm)',
+        ].join('\n'),
+      );
+    generateContentMock.mockResolvedValue(emptyResponse);
+    const { queryWarRoom } = await import('../../services/warRoomService');
+
+    await queryWarRoom('tech', 'Como funciona a gestão agrícola da gatec?', [], '', undefined);
+
+    const payload = generateContentMock.mock.calls[0][0];
+    const prompt = payload.contents[0].parts[0].text as string;
+    expect(prompt).toContain('FOCO DE RESPOSTA');
+    expect(prompt).toContain('ordens de serviço');
+    expect(prompt).toContain('Ordem de Serviço');
+    expect(prompt).not.toContain('Integração com GAtec');
+  });
+
   it('retries transient model errors and succeeds', async () => {
     generateContentMock
       .mockRejectedValueOnce(new Error('503 overloaded'))
