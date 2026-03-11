@@ -13,7 +13,7 @@ const GeminiRequestSchema = z.discriminatedUnion('action', [
     action: z.literal('generateContent'),
     model: z.string().min(1).max(200).optional(),
     contents: z.unknown(),
-    config: z.record(z.unknown()).optional(),
+    config: z.record(z.string(), z.unknown()).optional(),
   }),
   z.object({
     action: z.literal('chatSendMessage'),
