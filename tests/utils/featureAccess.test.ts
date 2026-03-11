@@ -1,16 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { getFeatureAccessForUser, isBrunoUser } from '../../utils/featureAccess';
+import { getFeatureAccessForUser, isAdminUser } from '../../utils/featureAccess';
 
 describe('featureAccess', () => {
-  it('recognizes bruno by first name', () => {
-    expect(isBrunoUser({ displayName: 'Bruno Lima', email: 'outro@empresa.com', id: '', isGuest: false })).toBe(true);
+  it('recognizes admin by first name', () => {
+    expect(isAdminUser({ displayName: 'Admin Lima', email: 'outro@empresa.com', id: '', isGuest: false })).toBe(true);
   });
 
-  it('recognizes bruno by email prefix', () => {
-    expect(isBrunoUser({ displayName: 'Usuário', email: 'bruno@empresa.com', id: '', isGuest: false })).toBe(true);
+  it('recognizes admin by email prefix', () => {
+    expect(isAdminUser({ displayName: 'Usuário', email: 'admin@empresa.com', id: '', isGuest: false })).toBe(true);
   });
 
-  it('locks restricted features for non-bruno users', () => {
+  it('locks restricted features for non-admin users', () => {
     const access = getFeatureAccessForUser({ displayName: 'Maria', email: 'maria@empresa.com', id: '', isGuest: false });
     expect(access).toEqual({
       miniCRM: false,
@@ -22,8 +22,8 @@ describe('featureAccess', () => {
     });
   });
 
-  it('unlocks restricted features for bruno users', () => {
-    const access = getFeatureAccessForUser({ displayName: 'Bruno', email: 'bruno@empresa.com', id: '', isGuest: false });
+  it('unlocks restricted features for admin users', () => {
+    const access = getFeatureAccessForUser({ displayName: 'Admin', email: 'admin@empresa.com', id: '', isGuest: false });
     expect(access).toEqual({
       miniCRM: true,
       dashboard: true,
@@ -37,8 +37,8 @@ describe('featureAccess', () => {
   it('matches MVP lookup access cases from requirements', () => {
     expect(
       getFeatureAccessForUser({
-        displayName: 'Bruno Lima',
-        email: 'brunolff@hotmail.com',
+        displayName: 'Admin Lima',
+        email: 'adminlff@hotmail.com',
         id: '',
         isGuest: false,
       }).clientLookup,

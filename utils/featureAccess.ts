@@ -10,7 +10,7 @@ export interface UserFeatureAccess {
 }
 
 const MVP_LOCK_RESTRICTED_FEATURES = true;
-const BRUNO_IDENTIFIER = 'bruno';
+const ADMIN_IDENTIFIER = 'admin';
 
 const FULL_ACCESS: UserFeatureAccess = {
   miniCRM: true,
@@ -50,13 +50,13 @@ function extractIdentifiers(user: Pick<AuthUser, 'displayName' | 'email'> | null
   return identifiers;
 }
 
-export function isBrunoUser(user: Pick<AuthUser, 'displayName' | 'email'> | null): boolean {
-  return extractIdentifiers(user).has(BRUNO_IDENTIFIER);
+export function isAdminUser(user: Pick<AuthUser, 'displayName' | 'email'> | null): boolean {
+  return extractIdentifiers(user).has(ADMIN_IDENTIFIER);
 }
 
 export function getFeatureAccessForUser(user: Pick<AuthUser, 'displayName' | 'email'> | null): UserFeatureAccess {
   if (!MVP_LOCK_RESTRICTED_FEATURES) return FULL_ACCESS;
-  const hasRestrictedAccess = isBrunoUser(user);
+  const hasRestrictedAccess = isAdminUser(user);
   return {
     miniCRM: hasRestrictedAccess,
     dashboard: hasRestrictedAccess,
