@@ -313,8 +313,8 @@ export default function WarRoom({ isOpen, onClose, isDarkMode, defaultCompetitor
             <div className="flex items-center gap-2.5">
               <span className="text-2xl filter drop-shadow-lg">⚔️</span>
               <div>
-                <h2 className={`font-black uppercase tracking-[0.14em] text-xs ${t.headerTitle}`}>Inteligência Técnica e Competitiva</h2>
-                <p className={`text-[10px] sm:text-[9px] uppercase tracking-widest font-semibold ${t.headerSub}`}>Roteamento automático de intenção</p>
+                <h2 className={`font-black uppercase tracking-[0.2em] text-xs ${t.headerTitle}`}>The War Room</h2>
+                <p className={`text-[10px] sm:text-[9px] uppercase tracking-widest font-semibold ${t.headerSub}`}>Centro de Comando Tático</p>
               </div>
             </div>
             <button onClick={onClose} className={`p-1.5 rounded-lg transition-all text-xs ${t.closeTxt}`}>✕</button>
@@ -328,7 +328,7 @@ export default function WarRoom({ isOpen, onClose, isDarkMode, defaultCompetitor
               <span className="text-xl sm:text-lg flex-shrink-0">⚔️</span>
               <div className="min-w-0 flex-1">
                 <p className={`text-xs sm:text-[11px] font-bold leading-tight mb-0.5 ${accentText[cfg.accent]}`}>
-                  Inteligência Técnica e Competitiva
+                  The War Room
                 </p>
                 <p className={`text-[10px] sm:text-[9px] leading-snug ${t.cardSub}`}>
                   Roteamento automático para técnico e comparativo
@@ -354,7 +354,7 @@ export default function WarRoom({ isOpen, onClose, isDarkMode, defaultCompetitor
             <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className={`sm:hidden p-2 rounded-lg ${t.btnClear} border`}>☰</button>
             <span className="text-xl">{cfg.icon}</span>
             <div className="min-w-0">
-              <h3 className={`text-sm font-black uppercase tracking-wide ${accentText[cfg.accent]} truncate`}>Inteligência Técnica e Competitiva</h3>
+              <h3 className={`text-sm font-black uppercase tracking-wide ${accentText[cfg.accent]} truncate`}>The War Room</h3>
               <p className={`text-[10px] ${t.emptySub} truncate`}>
                 Rota atual: {cfg.label}
               </p>
@@ -391,7 +391,7 @@ export default function WarRoom({ isOpen, onClose, isDarkMode, defaultCompetitor
             <div className="flex-1 flex items-center justify-center h-full px-4">
               <div className="text-center max-w-md">
                 <span className={`text-5xl block mb-4 ${t.emptyIcon}`}>{cfg.icon}</span>
-                <h4 className={`font-semibold text-sm mb-2 ${t.emptyTxt}`}>Inteligência Técnica e Competitiva</h4>
+                <h4 className={`font-semibold text-sm mb-2 ${t.emptyTxt}`}>The War Room</h4>
                 <p className={`text-xs mb-6 ${t.emptySub}`}>Faça perguntas técnicas ou comparativas. A rota é escolhida automaticamente.</p>
                 <div className="grid grid-cols-1 gap-2">
                   {UNIFIED_SUGGESTIONS.map((hint, i) => (
