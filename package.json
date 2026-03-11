@@ -11,7 +11,8 @@
     "test:watch": "vitest",
     "lint": "eslint .",
     "format": "prettier --write '**/*.{ts,tsx,json,css}' --ignore-path .gitignore",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "ingest:pdfdocs": "node --experimental-strip-types scripts/ingestPdfDocs.ts"
   },
   "dependencies": {
     "@clerk/clerk-react": "^5.0.0",
@@ -24,6 +25,7 @@
     "idb-keyval": "^6.2.1",
     "jspdf": "^4.2.0",
     "mermaid": "^10.9.1",
+    "pdf-parse": "^2.4.5",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-markdown": "9",

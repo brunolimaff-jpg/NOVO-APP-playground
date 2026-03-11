@@ -37,6 +37,8 @@ const MAX_HISTORY_CHARS = 4000;
 const MAX_USER_QUESTION_CHARS = 1600;
 const MAX_DOCS_CHARS = 6000;
 const DOCS_CACHE_TTL_MS = 120000;
+const DEFAULT_DOCS_NAMESPACE = 'senior-erp-docs';
+const COMPETITOR_DOCS_NAMESPACE = 'competitor-pdfs';
 const FERCUS_REFERENCE_BLOCK = [
     '### Integracao Gatec: Gestão de Custos Gerenciais (Fercus)',
     'Módulo focado em custos gerenciais dentro do contexto GAtec/ERP.',
@@ -209,9 +211,10 @@ function buildHistorySnippet(history: WarRoomMessage[]): string {
     return `## CONVERSA ANTERIOR\n${chunks.join('')}---\n\n`;
 }
 
-async function getDocsContextCached(query: string): Promise<string> {
-    const key = query.trim().toLowerCase();
-    if (!key) return '';
+async function getDocsContextCached(query: string, namespace: string = DEFAULT_DOCS_NAMESPACE): Promise<string> {
+    const normalizedQuery = query.trim().toLowerCase();
+    if (!normalizedQuery) return '';
+    const key = `${namespace}::${normalizedQuery}`;
 
     const now = Date.now();
     const cached = _docsCache.get(key);
@@ -224,7 +227,7 @@ async function getDocsContextCached(query: string): Promise<string> {
 
     const fetchPromise = (async () => {
         try {
-            const docs = await buscarContextoDocsPinecone(query);
+            const docs = await buscarContextoDocsPinecone(query, namespace);
             const clean = trimText(docs || '', MAX_DOCS_CHARS);
             _docsCache.set(key, { value: clean, expiresAt: Date.now() + DOCS_CACHE_TTL_MS });
             return clean;
@@ -513,8 +516,14 @@ export async function queryWarRoom(
                     `${message} simplefarm manual do usuário agrícola ordem de serviço culturas safra monitoramento irrigação`,
                 );
             }
+            const docsNamespaces =
+                mode === 'benchmark'
+                    ? [DEFAULT_DOCS_NAMESPACE, COMPETITOR_DOCS_NAMESPACE]
+                    : [DEFAULT_DOCS_NAMESPACE];
             const [docsContexts, globalContexts] = await Promise.all([
-                Promise.all(queries.map((q) => getDocsContextCached(q))),
+                Promise.all(
+                    queries.flatMap((q) => docsNamespaces.map((ns) => getDocsContextCached(q, ns))),
+                ),
                 Promise.all(queries.map((q) => getGlobalContextCached(q))),
             ]);
             docsContext = mergeDocContexts([...docsContexts, ...globalContexts]);

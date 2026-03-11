@@ -5,6 +5,7 @@ import { z } from 'zod';
 
 const DocsRagRequestSchema = z.object({
   query: z.string().min(1).max(10000),
+  namespace: z.string().min(1).max(120).optional(),
 });
 
 export const config = {
@@ -14,8 +15,13 @@ export const maxDuration = 60;
 
 const DEFAULT_PINECONE_INDEX = 'scout-arsenal';
 const DEFAULT_PINECONE_DOCS_NAMESPACE = 'senior-erp-docs';
+const COMPETITOR_DOCS_NAMESPACE = 'competitor-pdfs';
 const PINECONE_INDEX_SECRET_PREFIX_RE = /^pcsk_/i;
 const PINECONE_INDEX_NAME_RE = /^[a-z0-9][a-z0-9-]{0,62}$/i;
+const ALLOWED_DOCS_NAMESPACES = new Set<string>([
+    DEFAULT_PINECONE_DOCS_NAMESPACE,
+    COMPETITOR_DOCS_NAMESPACE,
+]);
 
 function getRequiredEnv(name: string): string {
     const value = process.env[name];
@@ -53,7 +59,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             return res.status(400).json({ error: 'Invalid request', details: parsed.error.flatten() });
         }
 
-        const { query } = parsed.data;
+        const { query, namespace } = parsed.data;
 
         const ai = new GoogleGenAI({ apiKey: getRequiredEnv('GEMINI_API_KEY') });
 
@@ -81,10 +87,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             return res.status(200).json({ context: '' });
         }
 
-        const docsNamespace = resolveOptionalNamespace(
+        const configuredNamespace = resolveOptionalNamespace(
             process.env.PINECONE_DOCS_NAMESPACE,
             resolveOptionalNamespace(process.env.PINECONE_NAMESPACE, DEFAULT_PINECONE_DOCS_NAMESPACE),
         ) || DEFAULT_PINECONE_DOCS_NAMESPACE;
+        const requestedNamespace = resolveOptionalNamespace(namespace);
+        const docsNamespace = requestedNamespace || configuredNamespace;
+        if (!ALLOWED_DOCS_NAMESPACES.has(docsNamespace)) {
+            return res.status(400).json({
+                error: 'Invalid namespace',
+                allowed: Array.from(ALLOWED_DOCS_NAMESPACES),
+            });
+        }
         const results = await index.namespace(docsNamespace).query({
             vector: queryVector,
             topK: 5,

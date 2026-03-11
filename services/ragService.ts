@@ -1,15 +1,21 @@
 const RAG_FETCH_TIMEOUT_MS = 15000;
 const shouldLogRagDebug = import.meta.env?.VITE_VERBOSE_LOGS === 'true';
 
-async function fetchRagContext(endpoint: string, label: string, query: string): Promise<string> {
+async function fetchRagContext(
+  endpoint: string,
+  label: string,
+  query: string,
+  namespace?: string,
+): Promise<string> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), RAG_FETCH_TIMEOUT_MS);
 
   try {
+    const payload = namespace ? { query, namespace } : { query };
     const response = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query }),
+      body: JSON.stringify(payload),
       signal: controller.signal,
     });
 
@@ -44,6 +50,7 @@ export function buscarContextoPinecone(query: string): Promise<string> {
   return fetchRagContext('/api/rag', 'RAG', query);
 }
 
-export function buscarContextoDocsPinecone(query: string): Promise<string> {
-  return fetchRagContext('/api/docs-rag', 'RAG DOCS', query);
+export function buscarContextoDocsPinecone(query: string, namespace?: string): Promise<string> {
+  const label = namespace ? `RAG DOCS:${namespace}` : 'RAG DOCS';
+  return fetchRagContext('/api/docs-rag', label, query, namespace);
 }
