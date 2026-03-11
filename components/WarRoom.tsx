@@ -47,8 +47,6 @@ const UNIFIED_SUGGESTIONS = [
   'Qual o fluxo completo da ordem de serviço até a valorização?',
   'Compare Senior x TOTVS para folha + agronegócio.',
   'Quais integrações da Senior reduzem retrabalho com ERP?',
-  'Mostre diferenças práticas entre SimpleFarm e concorrentes.',
-  'Como responder quando o cliente fala só de preço?',
 ];
 
 const BENCHMARK_INTENT_PATTERNS = [
@@ -324,36 +322,20 @@ export default function WarRoom({ isOpen, onClose, isDarkMode, defaultCompetitor
         </div>
 
         <div className="flex-1 p-3 space-y-2 overflow-y-auto custom-scrollbar">
-          <p className={`text-[10px] sm:text-[9px] font-bold uppercase tracking-[0.15em] ${t.labelTxt} mb-2`}>Capacidades</p>
-          {([
-            { id: 'tech', mode: 'tech', blocked: false },
-            { id: 'benchmark', mode: 'benchmark', blocked: false },
-            { id: 'killscript', mode: 'killscript', blocked: true },
-            { id: 'objections', mode: 'objections', blocked: true },
-          ] as const).map((item) => {
-            const c = MODE_CONFIG[item.mode];
-            const isActive = !item.blocked && lastRoute === item.mode;
-            return (
-              <button key={item.id} type="button" disabled={item.blocked}
-                className={`w-full text-left p-3 sm:p-3 rounded-xl border transition-all duration-200 group ${isActive
-                  ? `${accentBg[c.accent]} ${accentBorder[c.accent]} shadow-sm`
-                  : `${t.cardInactive} ${item.blocked ? 'opacity-75 cursor-not-allowed' : ''}`}`}>
-                <div className="flex items-center gap-3">
-                  <span className={`text-xl sm:text-lg transition-opacity flex-shrink-0 ${isActive ? '' : 'opacity-60 group-hover:opacity-100'}`}>
-                    {c.icon}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className={`text-xs sm:text-[11px] font-bold leading-tight mb-0.5 ${isActive ? accentText[c.accent] : t.cardTxt}`}>
-                      {c.label}
-                    </p>
-                    <p className={`text-[10px] sm:text-[9px] leading-snug ${t.cardSub}`}>
-                      {item.blocked ? 'Em breve' : c.subtitle}
-                    </p>
-                  </div>
-                </div>
-              </button>
-            );
-          })}
+          <p className={`text-[10px] sm:text-[9px] font-bold uppercase tracking-[0.15em] ${t.labelTxt} mb-2`}>Modo ativo</p>
+          <div className={`w-full text-left p-3 sm:p-3 rounded-xl border ${accentBg[cfg.accent]} ${accentBorder[cfg.accent]} shadow-sm`}>
+            <div className="flex items-center gap-3">
+              <span className="text-xl sm:text-lg flex-shrink-0">⚔️</span>
+              <div className="min-w-0 flex-1">
+                <p className={`text-xs sm:text-[11px] font-bold leading-tight mb-0.5 ${accentText[cfg.accent]}`}>
+                  Inteligência Técnica e Competitiva
+                </p>
+                <p className={`text-[10px] sm:text-[9px] leading-snug ${t.cardSub}`}>
+                  Roteamento automático para técnico e comparativo
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div className={`p-3 border-t ${t.sidebarBdr} ${t.statusBg}`}>
