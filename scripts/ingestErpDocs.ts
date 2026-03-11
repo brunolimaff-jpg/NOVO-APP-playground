@@ -65,7 +65,9 @@ async function ingest() {
     const parser = fs.createReadStream(csvPath).pipe(
         parse({
             columns: true,
-            skip_empty_lines: true
+            skip_empty_lines: true,
+            relax_quotes: true,
+            relax_column_count: true,
         })
     );
 
