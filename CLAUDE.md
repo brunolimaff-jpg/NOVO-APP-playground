@@ -194,6 +194,9 @@ ChatInterface.onSendMessage
 - `fix*.cjs`, `restore*.cjs`, `unescape*.cjs`, `clean_refactor.cjs` — scripts de manutenção pontuais
 - `head_appcore.txt`, `build_err.txt`, `build_err_2.txt`, `ts_errors.txt`, `tsc_output.txt` — logs temporários
 - `extract.cjs`, `extract_useChat.py`, `refactor_script.*`, `view_ts.cjs` — utilitários de análise
+- `Links documentação/*.csv` — arquivos de carga de links para ingestão RAG; não incluir em commits de feature sem solicitação explícita
+- `Levantamento -*.mp4`, `imaculada_transcript.txt`, `imaculada_behavior_analysis.md` — artefatos de reunião/transcrição, fora do escopo de produto
+- `scripts/analyze_*video.py`, `scripts/ingestSimpleFarmSeed.ts` — scripts ad hoc de ingestão/análise; tratar como não relacionados por padrão
 
 ---
 
