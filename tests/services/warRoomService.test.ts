@@ -182,6 +182,23 @@ describe('warRoomService', () => {
     expect(prompt).toContain('manual-do-usuario/agricola');
   });
 
+  it('prioritizes ERP Banking references on benchmark banking questions', async () => {
+    buscarDocsMock.mockResolvedValue('');
+    buscarBaseMock.mockResolvedValue('');
+    generateContentMock.mockResolvedValue(emptyResponse);
+    const { queryWarRoom } = await import('../../services/warRoomService');
+
+    await queryWarRoom('benchmark', 'compare senior vs totvs na integração bancária (cnab)', [], 'TOTVS', undefined);
+
+    expect(
+      buscarDocsMock.mock.calls.some((call) => String(call[0]).toLowerCase().includes('erp banking integração bancária')),
+    ).toBe(true);
+    const payload = generateContentMock.mock.calls[0][0];
+    const prompt = payload.contents[0].parts[0].text as string;
+    expect(prompt).toContain('FOCO DE RESPOSTA (ERP BANKING)');
+    expect(prompt).toContain('integracao-erp-banking');
+  });
+
   it('retries transient model errors and succeeds', async () => {
     generateContentMock
       .mockRejectedValueOnce(new Error('503 overloaded'))

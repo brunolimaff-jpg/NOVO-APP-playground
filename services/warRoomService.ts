@@ -56,6 +56,12 @@ const GATEC_AGRICOLA_REFERENCE_BLOCK = [
     '(Fonte: https://documentacao.senior.com.br/simplefarm/manual-do-usuario/)',
     '(Fonte: https://documentacao.senior.com.br/simplefarm/manual-do-usuario/agricola/)',
 ].join('\n');
+const ERP_BANKING_REFERENCE_BLOCK = [
+    '### ERP Banking: Integração Bancária',
+    'Referências oficiais para integração de pagamentos eletrônicos, conciliação e fluxo ERP Banking.',
+    '(Fonte: https://documentacao.senior.com.br/gestaoempresarialerp/5.10.4/processos-automaticos/166-integracao-erp-banking.htm)',
+    '(Fonte: https://documentacao.senior.com.br/seniorxplatform/manual-do-usuario/erp/?utm_source=portal-documentacao&utm_medium=referral&utm_campaign=link-home-portal#Banking/banking.htm)',
+].join('\n');
 
 type DocsCacheEntry = {
     value: string;
@@ -88,6 +94,14 @@ const GATEC_AGRICOLA_PATTERNS = [
     /gest[aã]o\s+agr[ií]cola.*gatec/i,
     /gatec.*gest[aã]o\s+agr[ií]cola/i,
     /processo.*agr[ií]cola.*gatec/i,
+];
+const BANKING_PATTERNS = [
+    /\bbanking\b/i,
+    /integra[cç][aã]o\s+banc[aá]ria/i,
+    /\bcnab\b/i,
+    /\bted\b/i,
+    /\bach\b/i,
+    /pagamento\s+eletr[oô]nico/i,
 ];
 
 // ─── DETECTOR DE ESCOPO ──────────────────────────────────
@@ -127,6 +141,10 @@ function hasTalhaoIntent(message: string): boolean {
 
 function hasGatecAgricolaIntent(message: string): boolean {
     return GATEC_AGRICOLA_PATTERNS.some((p) => p.test(message));
+}
+
+function hasBankingIntent(message: string): boolean {
+    return BANKING_PATTERNS.some((p) => p.test(message));
 }
 
 function makeAbortError(): Error {
@@ -490,6 +508,7 @@ export async function queryWarRoom(
     const wantsFercus = mode === 'tech' && hasFercusIntent(message);
     const wantsTalhao = mode === 'tech' && hasTalhaoIntent(message);
     const wantsGatecAgricola = mode === 'tech' && hasGatecAgricolaIntent(message);
+    const wantsBanking = mode === 'benchmark' && hasBankingIntent(message);
 
     // 2. Busca RAG docs para o modo unificado (tech + benchmark)
     let docsContext = '';
@@ -514,6 +533,11 @@ export async function queryWarRoom(
             if (wantsGatecAgricola && !wantsIntegracao) {
                 queries.unshift(
                     `${message} simplefarm manual do usuário agrícola ordem de serviço culturas safra monitoramento irrigação`,
+                );
+            }
+            if (wantsBanking) {
+                queries.unshift(
+                    `${message} ERP Banking integração bancária pagamentos eletrônicos CNAB TED ACH contas a pagar`,
                 );
             }
             const docsNamespaces =
@@ -543,6 +567,9 @@ export async function queryWarRoom(
             if (wantsGatecAgricola && !/simplefarm\/manual-do-usuario\/agricola/i.test(docsContext)) {
                 docsContext = mergeDocContexts([GATEC_AGRICOLA_REFERENCE_BLOCK, docsContext]);
             }
+            if (wantsBanking && !/integracao-erp-banking|#banking\/banking\.htm/i.test(docsContext)) {
+                docsContext = mergeDocContexts([ERP_BANKING_REFERENCE_BLOCK, docsContext]);
+            }
             if (wantsFercus) {
                 docsContext = prioritizeBlocksByKeywords(docsContext, ['gatec-modulo-fercus', 'custos gerenciais']);
             }
@@ -553,6 +580,15 @@ export async function queryWarRoom(
                     'safra',
                     'culturas',
                     'consulta analítica de talhão',
+                ]);
+            }
+            if (wantsBanking) {
+                docsContext = prioritizeBlocksByKeywords(docsContext, [
+                    'integracao-erp-banking',
+                    '#banking/banking.htm',
+                    'integração bancária',
+                    'cnab',
+                    'pagamento eletrônico',
                 ]);
             }
             if (!docsContext) {
@@ -586,6 +622,10 @@ export async function queryWarRoom(
     if (wantsFercus) {
         fullPrompt +=
             '\n\n## FOCO DE RESPOSTA (FERCUS)\nTrate "Fercus" como termo técnico válido (módulo de custos gerenciais). Não assuma erro de digitação, não autocorrija para outro termo e explique objetivamente quando usar Fercus versus custo por talhão.';
+    }
+    if (wantsBanking) {
+        fullPrompt +=
+            '\n\n## FOCO DE RESPOSTA (ERP BANKING)\nQuando houver contexto de integração bancária, priorize explicitamente o fluxo de ERP Banking (pagamentos eletrônicos, CNAB e conciliação). Evite responder de forma genérica sem citar ERP Banking.';
     }
 
     // 4. Chama o Gemini via generateContent (stateless, confiável)
