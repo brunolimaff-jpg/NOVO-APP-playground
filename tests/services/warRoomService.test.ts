@@ -241,5 +241,7 @@ describe('warRoomService', () => {
     expect(result.text).toContain('ERP Banking');
     expect(result.text).toContain('integracao-erp-banking.htm');
     expect(result.text).not.toContain('Senior compensa');
+    expect(result.text).toContain('pagamento eletrônico abrangente');
+    expect(result.text).toContain('registro online de títulos e boletos via API');
   });
 });

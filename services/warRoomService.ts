@@ -410,10 +410,16 @@ function enforceBankingAnchors(text: string): string {
     const hasBankingMention = /\berp banking\b/i.test(out);
     const hasBankingLinks =
         /integracao-erp-banking|#banking\/banking\.htm/i.test(out);
+    const hasCanonicalMapping =
+        /pagamento eletr[oô]nico abrangente|registro online de t[ií]tulos e boletos via api/i.test(out);
 
-    if (!hasBankingMention || !hasBankingLinks) {
+    if (!hasBankingMention || !hasBankingLinks || !hasCanonicalMapping) {
         out +=
-            '\n\n### Referência explícita: ERP Banking\n' +
+            '\n\n### Mapeamento canônico: ERP Banking vs TOTVS\n' +
+            '- Senior (ERP Banking): pagamento eletrônico abrangente (ACH, cartões e transferências), conciliação e ecossistema financeiro embarcado (Senior Bank/Fintech).\n' +
+            '- TOTVS (Protheus): excelente registro online de títulos e boletos via API, reduzindo dependência de CNAB em cenários específicos.\n' +
+            '- Leitura correta no comparativo: quando houver menção a Banking, contraste explícito entre API de boletos/títulos e governança de pagamentos/conciliação do ERP Banking.\n' +
+            '\n### Referência explícita: ERP Banking\n' +
             '- Integração ERP x ERP Banking: https://documentacao.senior.com.br/gestaoempresarialerp/5.10.4/processos-automaticos/166-integracao-erp-banking.htm\n' +
             '- Módulo ERP Banking (Senior X Platform): https://documentacao.senior.com.br/seniorxplatform/manual-do-usuario/erp/?utm_source=portal-documentacao&utm_medium=referral&utm_campaign=link-home-portal#Banking/banking.htm';
     }
