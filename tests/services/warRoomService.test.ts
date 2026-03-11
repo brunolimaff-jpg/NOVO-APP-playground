@@ -111,6 +111,20 @@ describe('warRoomService', () => {
     expect(prompt).not.toContain('Integração com GAtec');
   });
 
+  it('treats fercus as a valid technical term', async () => {
+    buscarDocsMock.mockResolvedValue(emptyResponse.text);
+    generateContentMock.mockResolvedValue(emptyResponse);
+    const { queryWarRoom } = await import('../../services/warRoomService');
+
+    await queryWarRoom('tech', 'não é melhor usar o fercus para custo?', [], '', undefined);
+
+    expect(buscarDocsMock.mock.calls.some((call) => String(call[0]).includes('fercus gestão de custos gerenciais'))).toBe(true);
+    const payload = generateContentMock.mock.calls[0][0];
+    const prompt = payload.contents[0].parts[0].text as string;
+    expect(prompt).toContain('FOCO DE RESPOSTA (FERCUS)');
+    expect(prompt).toContain('Não assuma erro de digitação');
+  });
+
   it('retries transient model errors and succeeds', async () => {
     generateContentMock
       .mockRejectedValueOnce(new Error('503 overloaded'))

@@ -58,6 +58,8 @@ const INTEGRACAO_PATTERNS = [
     /\bbackoffice\b/i,
 ];
 
+const FERCUS_PATTERNS = [/\bfercus\b/i, /custos?\s+gerenciais/i];
+
 // ─── DETECTOR DE ESCOPO ──────────────────────────────────
 const OUT_OF_SCOPE_PATTERNS = [
     /investigar?\s+(a\s+)?empresa/i,
@@ -83,6 +85,10 @@ function isProcessoAgricolaIntent(message: string): boolean {
 
 function isIntegracaoIntent(message: string): boolean {
     return INTEGRACAO_PATTERNS.some((p) => p.test(message));
+}
+
+function hasFercusIntent(message: string): boolean {
+    return FERCUS_PATTERNS.some((p) => p.test(message));
 }
 
 function makeAbortError(): Error {
@@ -268,6 +274,7 @@ MISSÃO ÚNICA: Responder dúvidas técnicas sobre ERP Senior, módulos, process
 REGRAS ABSOLUTAS:
 1. RESPONDA DIRETAMENTE à pergunta técnica do usuário.
 2. Use a documentação RAG fornecida abaixo para embasar — inclua hiperlinks Markdown: [Texto](URL).
+2.1. OBRIGATÓRIO: cite de 2 a 4 links de documentação no corpo da resposta quando houver contexto documental.
 3. NUNCA peça CNPJ, nome de empresa ou alvo de prospecção.
 4. NUNCA inicie investigação corporativa, dossiê ou Score PORTA.
 5. NUNCA diga que a mensagem está vazia ou que não foi informado um tópico.
@@ -355,6 +362,7 @@ export async function queryWarRoom(
     const systemPrompt = SYSTEM_PROMPTS[mode](resolvedTarget);
     const wantsProcessoAgricola = mode === 'tech' && isProcessoAgricolaIntent(message);
     const wantsIntegracao = mode === 'tech' && isIntegracaoIntent(message);
+    const wantsFercus = mode === 'tech' && hasFercusIntent(message);
 
     // 2. Busca RAG docs (só para modo tech)
     let docsContext = '';
@@ -367,6 +375,9 @@ export async function queryWarRoom(
                 queries.unshift(
                     `${message} simplefarm manual do usuário agrícola ordem de serviço safra culturas monitoramento irrigação`,
                 );
+            }
+            if (wantsFercus) {
+                queries.unshift(`${message} fercus gestão de custos gerenciais gatec módulo fercus`);
             }
             const contexts = await Promise.all(queries.map((q) => getDocsContextCached(q)));
             docsContext = mergeDocContexts(contexts);
@@ -400,6 +411,10 @@ export async function queryWarRoom(
     if (wantsProcessoAgricola && !wantsIntegracao) {
         fullPrompt +=
             '\n\n## FOCO DE RESPOSTA\nExplique fluxo operacional agrícola (planejamento, ordens de serviço, execução em campo, apontamentos, monitoramento, safra e fechamento). Evite desviar para arquitetura de integração com ERP, exceto se o usuário pedir explicitamente.';
+    }
+    if (wantsFercus) {
+        fullPrompt +=
+            '\n\n## FOCO DE RESPOSTA (FERCUS)\nTrate "Fercus" como termo técnico válido (módulo de custos gerenciais). Não assuma erro de digitação, não autocorrija para outro termo e explique objetivamente quando usar Fercus versus custo por talhão.';
     }
 
     // 4. Chama o Gemini via generateContent (stateless, confiável)
