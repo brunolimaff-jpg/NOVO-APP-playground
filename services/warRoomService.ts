@@ -45,6 +45,12 @@ const TALHAO_REFERENCE_BLOCK = [
     '(Fonte: https://documentacao.senior.com.br/simplefarm/manual-do-usuario/agricola/estrutura-de-locais/consulta-analitica-de-talhao)',
     '(Fonte: https://documentacao.senior.com.br/simplefarm/manual-do-usuario/agricola/estrutura-de-locais/configuracoes-da-consulta-analitica-de-talhao)',
 ].join('\n');
+const GATEC_AGRICOLA_REFERENCE_BLOCK = [
+    '### SimpleFarm: Manual do Usuário (Agrícola)',
+    'Referência primária para processos agrícolas operacionais no ecossistema GAtec/SimpleFarm.',
+    '(Fonte: https://documentacao.senior.com.br/simplefarm/manual-do-usuario/)',
+    '(Fonte: https://documentacao.senior.com.br/simplefarm/manual-do-usuario/agricola/)',
+].join('\n');
 
 type DocsCacheEntry = {
     value: string;
@@ -71,6 +77,11 @@ const INTEGRACAO_PATTERNS = [
 
 const FERCUS_PATTERNS = [/\bfercus\b/i, /custos?\s+gerenciais/i];
 const TALHAO_PATTERNS = [/\btalh[aã]o\b/i, /agr0193/i, /consulta\s+anal[ií]tica/i];
+const GATEC_AGRICOLA_PATTERNS = [
+    /gest[aã]o\s+agr[ií]cola.*gatec/i,
+    /gatec.*gest[aã]o\s+agr[ií]cola/i,
+    /processo.*agr[ií]cola.*gatec/i,
+];
 
 // ─── DETECTOR DE ESCOPO ──────────────────────────────────
 const OUT_OF_SCOPE_PATTERNS = [
@@ -105,6 +116,10 @@ function hasFercusIntent(message: string): boolean {
 
 function hasTalhaoIntent(message: string): boolean {
     return TALHAO_PATTERNS.some((p) => p.test(message));
+}
+
+function hasGatecAgricolaIntent(message: string): boolean {
+    return GATEC_AGRICOLA_PATTERNS.some((p) => p.test(message));
 }
 
 function makeAbortError(): Error {
@@ -299,6 +314,18 @@ function filterNoisyDocsContext(
     return trimText(kept.join('\n\n---\n\n'), MAX_DOCS_CHARS);
 }
 
+function prioritizeBlocksByKeywords(context: string, keywords: string[]): string {
+    if (!context.trim() || keywords.length === 0) return context;
+    const blocks = context.split(/\n\n---\n\n/g).filter(Boolean);
+    const scored = blocks.map((block) => {
+        const lower = block.toLowerCase();
+        const score = keywords.reduce((acc, keyword) => (lower.includes(keyword.toLowerCase()) ? acc + 1 : acc), 0);
+        return { block, score };
+    });
+    scored.sort((a, b) => b.score - a.score);
+    return trimText(scored.map((s) => s.block).join('\n\n---\n\n'), MAX_DOCS_CHARS);
+}
+
 function extractGroundingSources(response: any): Array<{ title: string; url: string }> {
     const groundingChunks = response?.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
     const dedupe = new Set<string>();
@@ -420,6 +447,7 @@ export async function queryWarRoom(
     const wantsIntegracao = mode === 'tech' && isIntegracaoIntent(message);
     const wantsFercus = mode === 'tech' && hasFercusIntent(message);
     const wantsTalhao = mode === 'tech' && hasTalhaoIntent(message);
+    const wantsGatecAgricola = mode === 'tech' && hasGatecAgricolaIntent(message);
 
     // 2. Busca RAG docs (só para modo tech)
     let docsContext = '';
@@ -441,6 +469,11 @@ export async function queryWarRoom(
                     `${message} agr0193 consulta analítica de talhão agr0192 configuração da consulta analítica de talhão`,
                 );
             }
+            if (wantsGatecAgricola && !wantsIntegracao) {
+                queries.unshift(
+                    `${message} simplefarm manual do usuário agrícola ordem de serviço culturas safra monitoramento irrigação`,
+                );
+            }
             const contexts = await Promise.all(queries.map((q) => getDocsContextCached(q)));
             docsContext = mergeDocContexts(contexts);
             if (wantsProcessoAgricola && !wantsIntegracao) {
@@ -455,6 +488,21 @@ export async function queryWarRoom(
             }
             if (wantsTalhao && !/consulta-analitica-de-talhao/i.test(docsContext)) {
                 docsContext = mergeDocContexts([TALHAO_REFERENCE_BLOCK, docsContext]);
+            }
+            if (wantsGatecAgricola && !/simplefarm\/manual-do-usuario\/agricola/i.test(docsContext)) {
+                docsContext = mergeDocContexts([GATEC_AGRICOLA_REFERENCE_BLOCK, docsContext]);
+            }
+            if (wantsFercus) {
+                docsContext = prioritizeBlocksByKeywords(docsContext, ['gatec-modulo-fercus', 'custos gerenciais']);
+            }
+            if (wantsGatecAgricola && !wantsIntegracao) {
+                docsContext = prioritizeBlocksByKeywords(docsContext, [
+                    '/simplefarm/manual-do-usuario/agricola/',
+                    'ordem de serviço',
+                    'safra',
+                    'culturas',
+                    'consulta analítica de talhão',
+                ]);
             }
             if (!docsContext) {
                 docsUnavailable = true;
