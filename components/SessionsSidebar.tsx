@@ -16,7 +16,6 @@ interface SessionsSidebarProps {
   onCloseMobile: () => void;
   isDarkMode: boolean;
   canAccessMiniCRM?: boolean;
-  desktopWidth?: number;
 }
 
 const SessionsSidebar: React.FC<SessionsSidebarProps> = ({
@@ -31,7 +30,6 @@ const SessionsSidebar: React.FC<SessionsSidebarProps> = ({
   onCloseMobile,
   isDarkMode,
   canAccessMiniCRM = true,
-  desktopWidth = 288,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -102,11 +100,10 @@ const SessionsSidebar: React.FC<SessionsSidebarProps> = ({
         w-72
         ${isOpen ? 'translate-x-0' : '-translate-x-full'}
         md:static md:translate-x-0
-        ${isOpen ? '' : 'md:w-0 md:border-none md:overflow-hidden'}
-      `}
-      style={{ width: isOpen ? desktopWidth : undefined }}>
+        ${isOpen ? 'md:w-72' : 'md:w-0 md:border-none md:overflow-hidden'}
+      `}>
         
-        <div className="flex flex-col h-full min-w-[18rem]" style={{ width: isOpen ? desktopWidth : undefined }}>
+        <div className="w-72 flex flex-col h-full min-w-[18rem]">
             <div className="p-4 flex-none space-y-3">
                 <div className="flex gap-2">
                     <button
