@@ -402,6 +402,24 @@ function extractGroundingSources(response: any): Array<{ title: string; url: str
     return sources;
 }
 
+function enforceBankingAnchors(text: string): string {
+    let out = text || '';
+    if (!out) return out;
+    out = out.replace(/senior compensa/gi, 'Senior (ERP Banking) comprova');
+
+    const hasBankingMention = /\berp banking\b/i.test(out);
+    const hasBankingLinks =
+        /integracao-erp-banking|#banking\/banking\.htm/i.test(out);
+
+    if (!hasBankingMention || !hasBankingLinks) {
+        out +=
+            '\n\n### Referência explícita: ERP Banking\n' +
+            '- Integração ERP x ERP Banking: https://documentacao.senior.com.br/gestaoempresarialerp/5.10.4/processos-automaticos/166-integracao-erp-banking.htm\n' +
+            '- Módulo ERP Banking (Senior X Platform): https://documentacao.senior.com.br/seniorxplatform/manual-do-usuario/erp/?utm_source=portal-documentacao&utm_medium=referral&utm_campaign=link-home-portal#Banking/banking.htm';
+    }
+    return out.trim();
+}
+
 // ─── PROMPTS POR MODO ───────────────────────────────────
 const SYSTEM_PROMPTS: Record<WarRoomMode, (target: string) => string> = {
     tech: (_target) => `Você é o Especialista Técnico Sênior da Senior Sistemas.
@@ -658,13 +676,16 @@ export async function queryWarRoom(
             { maxRetries: 2, baseDelayMs: 700, maxDelayMs: 3000 }
         );
 
-        const text = response.text || '';
+        let text = response.text || '';
 
         // 5. Coleta grounding sources
         const sources = extractGroundingSources(response);
 
         if (!text.trim()) {
             throw new Error('Resposta vazia do modelo');
+        }
+        if (wantsBanking) {
+            text = enforceBankingAnchors(text);
         }
 
         const disclaimer = docsUnavailable && (mode === 'tech' || mode === 'benchmark')

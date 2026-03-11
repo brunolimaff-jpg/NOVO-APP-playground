@@ -220,4 +220,26 @@ describe('warRoomService', () => {
     const result = await queryWarRoom('tech', 'teste', [], '', undefined, { signal: controller.signal });
     expect(result.text).toContain('cancelada');
   });
+
+  it('enforces explicit ERP Banking anchors on banking benchmark output', async () => {
+    buscarDocsMock.mockResolvedValue('');
+    buscarBaseMock.mockResolvedValue('');
+    generateContentMock.mockResolvedValue({
+      text: 'Vantagem totvs: API sem CNAB. Senior compensa com ecossistema.',
+      candidates: [{ groundingMetadata: { groundingChunks: [] } }],
+    });
+    const { queryWarRoom } = await import('../../services/warRoomService');
+
+    const result = await queryWarRoom(
+      'benchmark',
+      'compare senior vs totvs na integração bancária',
+      [],
+      'TOTVS',
+      undefined,
+    );
+
+    expect(result.text).toContain('ERP Banking');
+    expect(result.text).toContain('integracao-erp-banking.htm');
+    expect(result.text).not.toContain('Senior compensa');
+  });
 });
