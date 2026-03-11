@@ -419,6 +419,7 @@ function enforceBankingAnchors(text: string): string {
         .replace(/senior compensa/gi, 'ERP Banking da Senior comprova')
         .replace(/senior\s*\(erp banking\)\s*comprova/gi, 'ERP Banking da Senior comprova')
         .replace(/senior\s*bank\s*\/\s*fintech/gi, 'ERP Banking da Senior')
+        .replace(/\bsenior\s*bank\b/gi, 'ERP Banking da Senior')
         .replace(/senior\s*\(erp banking\)\s*:/gi, 'ERP Banking da Senior:');
 
     const hasBankingMention = /\berp banking\b/i.test(out);

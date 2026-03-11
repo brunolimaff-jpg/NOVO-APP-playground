@@ -272,4 +272,25 @@ describe('warRoomService', () => {
     expect(result.text).not.toContain('Senior (ERP Banking):');
     expect(result.text).not.toContain('Senior Bank/Fintech');
   });
+
+  it('replaces plain Senior Bank mentions in banking benchmark output', async () => {
+    buscarDocsMock.mockResolvedValue('');
+    buscarBaseMock.mockResolvedValue('');
+    generateContentMock.mockResolvedValue({
+      text: 'Integração bancária: Senior Bank possui capacidades de pagamentos eletrônicos.',
+      candidates: [{ groundingMetadata: { groundingChunks: [] } }],
+    });
+    const { queryWarRoom } = await import('../../services/warRoomService');
+
+    const result = await queryWarRoom(
+      'benchmark',
+      'compare senior vs totvs na integração bancária',
+      [],
+      'TOTVS',
+      undefined,
+    );
+
+    expect(result.text).toContain('ERP Banking da Senior');
+    expect(result.text).not.toContain('Senior Bank');
+  });
 });
