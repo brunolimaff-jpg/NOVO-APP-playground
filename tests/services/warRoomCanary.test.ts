@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const generateContentMock = vi.hoisted(() => vi.fn());
 const buscarDocsMock = vi.hoisted(() => vi.fn());
+const buscarBaseMock = vi.hoisted(() => vi.fn());
 
 vi.mock('../../services/geminiProxy', () => ({
   proxyGenerateContent: generateContentMock,
@@ -9,6 +10,7 @@ vi.mock('../../services/geminiProxy', () => ({
 
 vi.mock('../../services/ragService', () => ({
   buscarContextoDocsPinecone: buscarDocsMock,
+  buscarContextoPinecone: buscarBaseMock,
 }));
 
 const modelResponse = {
@@ -73,6 +75,7 @@ describe('warRoom canary flow', () => {
     vi.resetModules();
     vi.clearAllMocks();
     buscarDocsMock.mockImplementation(async (query: string) => noisyContextFor(query));
+    buscarBaseMock.mockImplementation(async (query: string) => noisyContextFor(query));
     generateContentMock.mockResolvedValue(modelResponse);
   });
 

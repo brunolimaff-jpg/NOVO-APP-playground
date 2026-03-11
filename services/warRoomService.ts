@@ -3,7 +3,7 @@
 
 import { normalizeAppError } from '../utils/errorHelpers';
 import { withAutoRetry } from '../utils/retry';
-import { buscarContextoDocsPinecone } from './ragService';
+import { buscarContextoDocsPinecone, buscarContextoPinecone } from './ragService';
 import { proxyGenerateContent } from './geminiProxy';
 
 // ─── TIPOS ───────────────────────────────────────────
@@ -59,6 +59,8 @@ type DocsCacheEntry = {
 
 const _docsCache = new Map<string, DocsCacheEntry>();
 const _docsInflight = new Map<string, Promise<string>>();
+const _globalCache = new Map<string, DocsCacheEntry>();
+const _globalInflight = new Map<string, Promise<string>>();
 
 const PROCESSO_AGRICOLA_PATTERNS = [
     /gest[aã]o\s+agr[ií]cola/i,
@@ -229,6 +231,34 @@ async function getDocsContextCached(query: string): Promise<string> {
     })();
 
     _docsInflight.set(key, fetchPromise);
+    return fetchPromise;
+}
+
+async function getGlobalContextCached(query: string): Promise<string> {
+    const key = query.trim().toLowerCase();
+    if (!key) return '';
+
+    const now = Date.now();
+    const cached = _globalCache.get(key);
+    if (cached && cached.expiresAt > now) {
+        return cached.value;
+    }
+
+    const inflight = _globalInflight.get(key);
+    if (inflight) return inflight;
+
+    const fetchPromise = (async () => {
+        try {
+            const docs = await buscarContextoPinecone(query);
+            const clean = trimText(docs || '', MAX_DOCS_CHARS);
+            _globalCache.set(key, { value: clean, expiresAt: Date.now() + DOCS_CACHE_TTL_MS });
+            return clean;
+        } finally {
+            _globalInflight.delete(key);
+        }
+    })();
+
+    _globalInflight.set(key, fetchPromise);
     return fetchPromise;
 }
 
@@ -449,11 +479,11 @@ export async function queryWarRoom(
     const wantsTalhao = mode === 'tech' && hasTalhaoIntent(message);
     const wantsGatecAgricola = mode === 'tech' && hasGatecAgricolaIntent(message);
 
-    // 2. Busca RAG docs (só para modo tech)
+    // 2. Busca RAG docs para o modo unificado (tech + benchmark)
     let docsContext = '';
     let docsUnavailable = false;
-    if (mode === 'tech') {
-        onStatus?.('📚 Consultando documentação...');
+    if (mode === 'tech' || mode === 'benchmark') {
+        onStatus?.('📚 Consultando Pinecone (docs + base interna)...');
         try {
             const queries: string[] = [message];
             if (wantsProcessoAgricola && !wantsIntegracao) {
@@ -474,8 +504,11 @@ export async function queryWarRoom(
                     `${message} simplefarm manual do usuário agrícola ordem de serviço culturas safra monitoramento irrigação`,
                 );
             }
-            const contexts = await Promise.all(queries.map((q) => getDocsContextCached(q)));
-            docsContext = mergeDocContexts(contexts);
+            const [docsContexts, globalContexts] = await Promise.all([
+                Promise.all(queries.map((q) => getDocsContextCached(q))),
+                Promise.all(queries.map((q) => getGlobalContextCached(q))),
+            ]);
+            docsContext = mergeDocContexts([...docsContexts, ...globalContexts]);
             if (wantsProcessoAgricola && !wantsIntegracao) {
                 docsContext = filterDocsForProcessoAgricola(docsContext);
             }
@@ -506,11 +539,11 @@ export async function queryWarRoom(
             }
             if (!docsContext) {
                 docsUnavailable = true;
-                onStatus?.('⚠️ Documentação indisponível — usando conhecimento complementar.');
+                onStatus?.('⚠️ Pinecone indisponível — usando conhecimento complementar.');
             }
         } catch {
             docsUnavailable = true;
-            onStatus?.('⚠️ Falha ao consultar docs — continuando sem RAG.');
+            onStatus?.('⚠️ Falha ao consultar Pinecone — continuando sem RAG.');
         }
     }
 
@@ -520,8 +553,8 @@ export async function queryWarRoom(
     // Inclui histórico como contexto inline
     fullPrompt += buildHistorySnippet(history);
 
-    // Para modo tech, injeta docs RAG
-    if (mode === 'tech' && docsContext) {
+    // No modo unificado, injeta docs RAG para rotas técnicas e benchmark
+    if ((mode === 'tech' || mode === 'benchmark') && docsContext) {
         onStatus?.('🔍 Analisando documentação...');
         fullPrompt += `## DOCUMENTAÇÃO OFICIAL (USE PARA EMBASAR)\n\n${docsContext}\n\n---\n\n`;
     }
@@ -575,8 +608,8 @@ export async function queryWarRoom(
             throw new Error('Resposta vazia do modelo');
         }
 
-        const disclaimer = docsUnavailable && mode === 'tech'
-            ? '\n\n_[Aviso: a documentação oficial não respondeu nesta tentativa; resposta baseada em conhecimento complementar.]_'
+        const disclaimer = docsUnavailable && (mode === 'tech' || mode === 'benchmark')
+            ? '\n\n_[Aviso: o contexto do Pinecone não respondeu nesta tentativa; resposta baseada em conhecimento complementar.]_'
             : '';
 
         return { text: (text.trim() + disclaimer).trim(), sources };

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const generateContentMock = vi.hoisted(() => vi.fn());
 const buscarDocsMock = vi.hoisted(() => vi.fn());
+const buscarBaseMock = vi.hoisted(() => vi.fn());
 
 vi.mock('../../services/geminiProxy', () => ({
   proxyGenerateContent: generateContentMock,
@@ -9,6 +10,7 @@ vi.mock('../../services/geminiProxy', () => ({
 
 vi.mock('../../services/ragService', () => ({
   buscarContextoDocsPinecone: buscarDocsMock,
+  buscarContextoPinecone: buscarBaseMock,
 }));
 
 const emptyResponse = {
@@ -21,6 +23,7 @@ describe('warRoomService', () => {
     vi.resetModules();
     vi.clearAllMocks();
     buscarDocsMock.mockResolvedValue('');
+    buscarBaseMock.mockResolvedValue('');
   });
 
   it('propagates inferred target for competitive modes', async () => {
@@ -78,8 +81,8 @@ describe('warRoomService', () => {
 
     const result = await queryWarRoom('tech', 'Explique integração NFe', [], '', (s) => statuses.push(s));
 
-    expect(statuses.some((s) => s.includes('Documentação indisponível'))).toBe(true);
-    expect(result.text).toContain('Aviso: a documentação oficial');
+    expect(statuses.some((s) => s.includes('Pinecone indisponível'))).toBe(true);
+    expect(result.text).toContain('Aviso: o contexto do Pinecone');
   });
 
   it('prioritizes agricultural process context over integration context', async () => {

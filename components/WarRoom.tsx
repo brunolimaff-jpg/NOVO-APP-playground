@@ -21,6 +21,8 @@ interface WRMessage {
   isError?: boolean;
 }
 
+type UnifiedRoute = 'tech' | 'benchmark';
+
 const MODE_CONFIG: Record<WarRoomMode, { icon: string; label: string; subtitle: string; accent: string; placeholder: string }> = {
   tech: {
     icon: '🧠', label: 'Tira-Dúvidas Técnico', subtitle: 'ERP, Módulos, Processos e Integrações',
@@ -40,12 +42,36 @@ const MODE_CONFIG: Record<WarRoomMode, { icon: string; label: string; subtitle: 
   },
 };
 
-const EMPTY_MODE_MESSAGES: Record<WarRoomMode, WRMessage[]> = {
-  tech: [],
-  killscript: [],
-  benchmark: [],
-  objections: [],
-};
+const UNIFIED_SUGGESTIONS = [
+  'Como funciona o custo por talhão no SimpleFarm?',
+  'Qual o fluxo completo da ordem de serviço até a valorização?',
+  'Compare Senior x TOTVS para folha + agronegócio.',
+  'Quais integrações da Senior reduzem retrabalho com ERP?',
+  'Mostre diferenças práticas entre SimpleFarm e concorrentes.',
+  'Como responder quando o cliente fala só de preço?',
+];
+
+const BENCHMARK_INTENT_PATTERNS = [
+  /\bbenchmark\b/i,
+  /\bcompar(a|ar|e|ativo)\b/i,
+  /\bversus\b/i,
+  /\bvs\b/i,
+  /\bcontra\b/i,
+  /\bconcorr[eê]n/i,
+  /\bdiferen[cç]a\b/i,
+];
+
+const BLOCKED_INTENT_PATTERNS = [
+  /\bkill[-\s]?script\b/i,
+  /\ban[aá]lise de obje[cç][oõ]es\b/i,
+  /\bquebrar obje[cç][aã]o\b/i,
+];
+
+const isBlockedIntent = (text: string): boolean =>
+  BLOCKED_INTENT_PATTERNS.some((pattern) => pattern.test(text));
+
+const resolveWarRoomIntent = (text: string): UnifiedRoute =>
+  BENCHMARK_INTENT_PATTERNS.some((pattern) => pattern.test(text)) ? 'benchmark' : 'tech';
 
 const extractCompetitorFromMessage = (message: string): string => {
   const candidate = message.match(/(?:vs|contra)\s+([A-Za-zÀ-ÿ0-9][A-Za-zÀ-ÿ0-9 ._/-]{1,60})/i)?.[1] || '';
@@ -55,8 +81,8 @@ const extractCompetitorFromMessage = (message: string): string => {
 export default function WarRoom({ isOpen, onClose, isDarkMode, defaultCompetitorTarget }: WarRoomProps) {
   const dk = isDarkMode;
 
-  const [mode, setMode] = useState<WarRoomMode>('tech');
-  const [messagesByMode, setMessagesByMode] = useState<Record<WarRoomMode, WRMessage[]>>(EMPTY_MODE_MESSAGES);
+  const [lastRoute, setLastRoute] = useState<UnifiedRoute>('tech');
+  const [messages, setMessages] = useState<WRMessage[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [status, setStatus] = useState('');
@@ -69,7 +95,6 @@ export default function WarRoom({ isOpen, onClose, isDarkMode, defaultCompetitor
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const abortRef = useRef<AbortController | null>(null);
 
-  const messages = messagesByMode[mode];
   const messageSourcesMap = useMemo<Record<string, AuditableSource[]>>(() => {
     const map: Record<string, AuditableSource[]> = {};
     for (const msg of messages) {
@@ -85,7 +110,7 @@ export default function WarRoom({ isOpen, onClose, isDarkMode, defaultCompetitor
 
   useEffect(() => {
     if (isOpen) inputRef.current?.focus();
-  }, [isOpen, mode]);
+  }, [isOpen]);
 
   const copyToClipboard = useCallback(async (text: string, id: string) => {
     try {
@@ -137,75 +162,71 @@ export default function WarRoom({ isOpen, onClose, isDarkMode, defaultCompetitor
     const text = input.trim();
     if (!text || isLoading) return;
 
-    const activeMessages = messagesByMode[mode];
-    const inferredTarget = extractCompetitorFromMessage(text);
-    let target = '';
-
-    if (mode !== 'tech') {
-      target = inferredTarget || (defaultCompetitorTarget || '').trim();
+    if (isBlockedIntent(text)) {
+      const userMsg: WRMessage = { id: Date.now().toString(), role: 'user', mode: 'tech', text };
+      const blockedReply: WRMessage = {
+        id: (Date.now() + 1).toString(),
+        role: 'model',
+        mode: 'tech',
+        text: 'Essa frente está temporariamente bloqueada. **Em breve** liberaremos esse recurso no War Room.',
+      };
+      setInput('');
+      setIsSidebarOpen(false);
+      setMessages((prev) => [...prev, userMsg, blockedReply]);
+      return;
     }
+
+    const resolvedMode = resolveWarRoomIntent(text);
+    setLastRoute(resolvedMode);
+    const inferredTarget = extractCompetitorFromMessage(text);
+    const target = resolvedMode === 'benchmark'
+      ? inferredTarget || (defaultCompetitorTarget || '').trim()
+      : '';
 
     setInput('');
     setIsSidebarOpen(false);
-    const userMsg: WRMessage = { id: Date.now().toString(), role: 'user', mode, text };
+    const userMsg: WRMessage = { id: Date.now().toString(), role: 'user', mode: resolvedMode, text };
     const botId = (Date.now() + 1).toString();
-    const loadingMsg: WRMessage = { id: botId, role: 'model', mode, text: '', isLoading: true };
+    const loadingMsg: WRMessage = { id: botId, role: 'model', mode: resolvedMode, text: '', isLoading: true };
 
-    setMessagesByMode(prev => ({ ...prev, [mode]: [...prev[mode], userMsg, loadingMsg] }));
+    setMessages((prev) => [...prev, userMsg, loadingMsg]);
     setIsLoading(true);
     setStatus('Preparando...');
     const controller = new AbortController();
     abortRef.current = controller;
 
     try {
-      const history = activeMessages
+      const history = messages
         .filter(m => !m.isLoading && !m.isError)
         .map(m => ({ role: m.role, text: m.text }));
 
-      const result = await queryWarRoom(mode, text, history, target, setStatus, {
+      const result = await queryWarRoom(resolvedMode, text, history, target, setStatus, {
         signal: controller.signal,
         timeoutMs: 30000,
       });
       setQueryCount(prev => prev + 1);
 
-      setMessagesByMode(prev => ({
-        ...prev,
-        [mode]: prev[mode].map(m =>
-          m.id === botId ? { ...m, text: result.text, sources: result.sources, isLoading: false } : m
-        )
-      }));
+      setMessages((prev) => prev.map((m) =>
+        m.id === botId ? { ...m, text: result.text, sources: result.sources, isLoading: false } : m
+      ));
     } catch (err: any) {
-      setMessagesByMode(prev => ({
-        ...prev,
-        [mode]: prev[mode].map(m =>
-          m.id === botId ? { ...m, text: `⚠️ ${err.message || 'Erro de conexão'}`, isError: true, isLoading: false } : m
-        )
-      }));
+      setMessages((prev) => prev.map((m) =>
+        m.id === botId ? { ...m, text: `⚠️ ${err.message || 'Erro de conexão'}`, isError: true, isLoading: false } : m
+      ));
     } finally {
       setIsLoading(false);
       setStatus('');
       abortRef.current = null;
     }
-  }, [defaultCompetitorTarget, input, isLoading, messagesByMode, mode]);
+  }, [defaultCompetitorTarget, input, isLoading, messages]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
   };
 
-  const handleModeSwitch = (newMode: WarRoomMode) => {
-    if (abortRef.current) {
-      abortRef.current.abort();
-      abortRef.current = null;
-      setIsLoading(false);
-      setStatus('');
-    }
-    setMode(newMode);
-    setIsSidebarOpen(false);
-  };
-
   if (!isOpen) return null;
 
-  const cfg = MODE_CONFIG[mode];
+  const cfg = MODE_CONFIG[lastRoute];
 
   const t = {
     pageBg: dk ? 'bg-slate-950' : 'bg-slate-50',
@@ -294,8 +315,8 @@ export default function WarRoom({ isOpen, onClose, isDarkMode, defaultCompetitor
             <div className="flex items-center gap-2.5">
               <span className="text-2xl filter drop-shadow-lg">⚔️</span>
               <div>
-                <h2 className={`font-black uppercase tracking-[0.2em] text-xs ${t.headerTitle}`}>The War Room</h2>
-                <p className={`text-[10px] sm:text-[9px] uppercase tracking-widest font-semibold ${t.headerSub}`}>Centro de Comando Tático</p>
+                <h2 className={`font-black uppercase tracking-[0.14em] text-xs ${t.headerTitle}`}>Inteligência Técnica e Competitiva</h2>
+                <p className={`text-[10px] sm:text-[9px] uppercase tracking-widest font-semibold ${t.headerSub}`}>Roteamento automático de intenção</p>
               </div>
             </div>
             <button onClick={onClose} className={`p-1.5 rounded-lg transition-all text-xs ${t.closeTxt}`}>✕</button>
@@ -303,14 +324,20 @@ export default function WarRoom({ isOpen, onClose, isDarkMode, defaultCompetitor
         </div>
 
         <div className="flex-1 p-3 space-y-2 overflow-y-auto custom-scrollbar">
-          <p className={`text-[10px] sm:text-[9px] font-bold uppercase tracking-[0.15em] ${t.labelTxt} mb-2`}>Arsenal de Inteligência</p>
-          {(Object.keys(MODE_CONFIG) as WarRoomMode[]).map(m => {
-            const c = MODE_CONFIG[m];
-            const isActive = mode === m;
+          <p className={`text-[10px] sm:text-[9px] font-bold uppercase tracking-[0.15em] ${t.labelTxt} mb-2`}>Capacidades</p>
+          {([
+            { id: 'tech', mode: 'tech', blocked: false },
+            { id: 'benchmark', mode: 'benchmark', blocked: false },
+            { id: 'killscript', mode: 'killscript', blocked: true },
+            { id: 'objections', mode: 'objections', blocked: true },
+          ] as const).map((item) => {
+            const c = MODE_CONFIG[item.mode];
+            const isActive = !item.blocked && lastRoute === item.mode;
             return (
-              <button key={m} onClick={() => handleModeSwitch(m)}
+              <button key={item.id} type="button" disabled={item.blocked}
                 className={`w-full text-left p-3 sm:p-3 rounded-xl border transition-all duration-200 group ${isActive
-                  ? `${accentBg[c.accent]} ${accentBorder[c.accent]} shadow-sm` : t.cardInactive}`}>
+                  ? `${accentBg[c.accent]} ${accentBorder[c.accent]} shadow-sm`
+                  : `${t.cardInactive} ${item.blocked ? 'opacity-75 cursor-not-allowed' : ''}`}`}>
                 <div className="flex items-center gap-3">
                   <span className={`text-xl sm:text-lg transition-opacity flex-shrink-0 ${isActive ? '' : 'opacity-60 group-hover:opacity-100'}`}>
                     {c.icon}
@@ -319,7 +346,9 @@ export default function WarRoom({ isOpen, onClose, isDarkMode, defaultCompetitor
                     <p className={`text-xs sm:text-[11px] font-bold leading-tight mb-0.5 ${isActive ? accentText[c.accent] : t.cardTxt}`}>
                       {c.label}
                     </p>
-                    <p className={`text-[10px] sm:text-[9px] leading-snug ${t.cardSub}`}>{c.subtitle}</p>
+                    <p className={`text-[10px] sm:text-[9px] leading-snug ${t.cardSub}`}>
+                      {item.blocked ? 'Em breve' : c.subtitle}
+                    </p>
                   </div>
                 </div>
               </button>
@@ -343,13 +372,15 @@ export default function WarRoom({ isOpen, onClose, isDarkMode, defaultCompetitor
             <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className={`sm:hidden p-2 rounded-lg ${t.btnClear} border`}>☰</button>
             <span className="text-xl">{cfg.icon}</span>
             <div className="min-w-0">
-              <h3 className={`text-sm font-black uppercase tracking-wide ${accentText[cfg.accent]} truncate`}>{cfg.label}</h3>
-              <p className={`text-[10px] ${t.emptySub} truncate`}>{cfg.subtitle}</p>
+              <h3 className={`text-sm font-black uppercase tracking-wide ${accentText[cfg.accent]} truncate`}>Inteligência Técnica e Competitiva</h3>
+              <p className={`text-[10px] ${t.emptySub} truncate`}>
+                Rota atual: {cfg.label}
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-2">
             {messages.length > 0 && (
-              <button onClick={() => setMessagesByMode(prev => ({ ...prev, [mode]: [] }))}
+              <button onClick={() => setMessages([])}
                 className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider border transition-all ${t.btnClear}`}>
                 🗑️ <span className="hidden sm:inline">Limpar</span>
               </button>
@@ -378,10 +409,10 @@ export default function WarRoom({ isOpen, onClose, isDarkMode, defaultCompetitor
             <div className="flex-1 flex items-center justify-center h-full px-4">
               <div className="text-center max-w-md">
                 <span className={`text-5xl block mb-4 ${t.emptyIcon}`}>{cfg.icon}</span>
-                <h4 className={`font-semibold text-sm mb-2 ${t.emptyTxt}`}>{cfg.label}</h4>
-                <p className={`text-xs mb-6 ${t.emptySub}`}>{cfg.subtitle}</p>
+                <h4 className={`font-semibold text-sm mb-2 ${t.emptyTxt}`}>Inteligência Técnica e Competitiva</h4>
+                <p className={`text-xs mb-6 ${t.emptySub}`}>Faça perguntas técnicas ou comparativas. A rota é escolhida automaticamente.</p>
                 <div className="grid grid-cols-1 gap-2">
-                  {[cfg.placeholder].map((hint, i) => (
+                  {UNIFIED_SUGGESTIONS.map((hint, i) => (
                     <button key={i} onClick={() => { setInput(hint); inputRef.current?.focus(); }}
                       className={`text-left p-3 rounded-xl border ${t.hintBdr} ${accentBg[cfg.accent]} transition-all text-xs ${t.hintTxt} hover:shadow-sm`}>
                       💡 {hint}
@@ -477,7 +508,7 @@ export default function WarRoom({ isOpen, onClose, isDarkMode, defaultCompetitor
         <div className={`p-3 sm:p-4 border-t ${t.terminalBdr} ${t.inputWrap}`}>
           <div className={`flex items-end gap-2 sm:gap-3 rounded-xl border ${accentBorder[cfg.accent]} ${t.inputBg} p-2 transition-colors focus-within:shadow-sm`}>
             <textarea ref={inputRef} value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={handleKeyDown}
-              placeholder={cfg.placeholder} rows={1}
+              placeholder="Pergunte sobre produto, processo, integração ou comparação com concorrentes..." rows={1}
               className={`flex-1 bg-transparent text-sm outline-none resize-none max-h-[120px] p-2 ${t.inputTxt}`}
               style={{ minHeight: '36px' }} />
             <button onClick={handleSend} disabled={!input.trim() || isLoading}
