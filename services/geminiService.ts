@@ -346,6 +346,18 @@ function isDeepDiveMessage(message: string, isMegaPromptMessage: boolean): boole
   return deepDiveHints.some(hint => message.includes(hint));
 }
 
+function isMegaPromptRequest(userMessage: string, systemPrompt: string): boolean {
+  const combined = `${systemPrompt}\n${userMessage}`.toUpperCase();
+  return (
+    combined.includes('INVESTIGACAO_COMPLETA_INTEGRADA') ||
+    combined.includes('DOSSIE_COMPLETO') ||
+    combined.includes('DOSSIE COMPLETO DE [') ||
+    combined.includes('DOSSIÊ COMPLETO DE [') ||
+    combined.includes('PROTOCOLO DE INVESTIGACAO FORENSE ESPECIALIZADA') ||
+    combined.includes('PROTOCOLO DE INVESTIGAÇÃO FORENSE ESPECIALIZADA')
+  );
+}
+
 function getDeepDiveSource(message: string): DeepDiveSource {
   if (message.includes('INTELIGÊNCIA OPERACIONAL') || message.includes('Raio-X'))   return DEEP_DIVE_SOURCES.RAIO_X;
   if (message.includes('ARQUITETURA DE TI') || message.includes('Tech Stack'))       return DEEP_DIVE_SOURCES.TECH;
@@ -548,7 +560,8 @@ export async function sendMessageToGemini(
   let ragContext      = '';
   let ragDocsContext  = '';
 
-  const isMegaPromptMessage    = systemPrompt.includes('INVESTIGACAO_COMPLETA_INTEGRADA') || systemPrompt.includes('DOSSIE_COMPLETO');
+  const portaSessionId          = sessionId || 'session-unknown';
+  const isMegaPromptMessage     = isMegaPromptRequest(userMessage, systemPrompt);
   const isDeepDive             = isDeepDiveMessage(userMessage, isMegaPromptMessage);
   const deepDiveSource         = isDeepDive ? getDeepDiveSource(userMessage) : 'UNKNOWN';
   const shouldForceDirectAnswer = isMegaPromptMessage && !isDeepDive;
@@ -638,7 +651,13 @@ export async function sendMessageToGemini(
 
   // ── Score PORTA inicial ──────────────────────────────────────────────────
   if (isMegaPromptMessage) {
-    initPortaState(empresaAlvo || userMessage.slice(0, 60));
+    resetPortaState();
+    initPortaState(empresaAlvo || userMessage.slice(0, 60), portaSessionId);
+  } else if (isDeepDive) {
+    const current = getPortaState();
+    if (!current || current.sessionId !== portaSessionId) {
+      initPortaState(empresaAlvo || userMessage.slice(0, 60), portaSessionId);
+    }
   }
 
   // ── Seleciona modelo ─────────────────────────────────────────────────────
@@ -652,7 +671,7 @@ export async function sendMessageToGemini(
   const shouldUseGrounding = useGrounding && !isMegaPromptMessage && !isDeepDive;
 
   // ── Envia para o modelo ──────────────────────────────────────────────────
-  let finalText = '';
+  let finalText: string;
   emitDossieStatus(onStatus, 'model');
   emitDossieStatus(onStatus, 'response');
 
@@ -704,22 +723,22 @@ export async function sendMessageToGemini(
   let scorePorta: ScorePortaData | null = null;
   if (isMegaPromptMessage || isDeepDive) {
     const source = isDeepDive ? deepDiveSource : 'MEGA';
+    const baseScore = parsePortaMarkerV2(response.text || '');
+    if (baseScore) {
+      setBaseScore(baseScore);
+    }
+
     const feeds  = parsePortaFeeds(response.text || '', source);
     for (const adj of feeds.adjustments) addFeedAdjustment(adj);
     for (const flag of feeds.flags)      addFlagFeed(flag);
     for (const seg of feeds.segments)    addSegmentFeed(seg);
 
     const portaState = getPortaState();
-    if (portaState) {
-      scorePorta = {
-        P: portaState.P, O: portaState.O, R: portaState.R, T: portaState.T, A: portaState.A,
-        total:     portaState.total,
-        label:     portaState.label,
-        flags:     portaState.flags,
-        segmento:  portaState.segmento,
-        breakdown: portaState.breakdown,
-        score:     portaState.total,
-      };
+    if (portaState?.consolidatedScore) {
+      scorePorta = portaState.consolidatedScore;
+      onScorePorta?.(scorePorta);
+    } else if (baseScore) {
+      scorePorta = baseScore;
       onScorePorta?.(scorePorta);
     }
   }
