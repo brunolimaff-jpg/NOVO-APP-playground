@@ -11,6 +11,7 @@ import {
   ReportType,
   ScorePortaData,
   Sender,
+  ClienteSeniorData,
 } from '../types';
 import { ChatMode, NOME_VENDEDOR_PLACEHOLDER } from '../constants';
 import { normalizeAppError } from '../utils/errorHelpers';
@@ -553,6 +554,7 @@ export async function sendMessageToGemini(
   const cnpjDetected = cnpjMatch?.[1]?.replace(/\D/g, '') || null;
   let clienteData: LookupResponse | null = null;
   let benchmarkData: BenchmarkResponse | null = null;
+  let clienteSeniorData: ClienteSeniorData | undefined;
   emitDossieStatus(onStatus, 'context');
   emitDossieStatus(onStatus, 'enrichment');
 
@@ -572,7 +574,19 @@ export async function sendMessageToGemini(
     emitDossieStatus(onStatus, 'cadastral');
     try {
       clienteData = await lookupCliente(cnpjDetected || empresaAlvo || '');
+      // @ts-ignore
       if (clienteData?.nome && !empresaAlvo) empresaAlvo = clienteData.nome;
+      
+      if (clienteData?.encontrado && clienteData.results?.length > 0) {
+        const r = clienteData.results[0];
+        clienteSeniorData = {
+          encontrado: true,
+          grupo: r.grupo,
+          totalModulos: r.total_modulos,
+          familias: r.familias_presentes,
+          modulosPorFamilia: r.modulos_por_familia
+        };
+      }
     } catch { /* silencioso */ }
   }
 
@@ -779,11 +793,8 @@ export async function sendMessageToGemini(
     window?.localStorage?.setItem(OPEN_QUESTION_RECOVERY_METRIC_KEY, String(metric + 1));
   }
 
-  const nomeVendedorFinal = nomeVendedor || NOME_VENDEDOR_PLACEHOLDER;
-  const text = enforceOpeningWithSeller(finalText, nomeVendedorFinal);
-
   const sources = normalizeGroundingSources(response);
   const suggestions: string[] = [];
 
-  return { text, sources, suggestions, scorePorta, ghostReason: null };
+  return { text: finalText, sources, suggestions, scorePorta, clienteSeniorData, ghostReason: null };
 }

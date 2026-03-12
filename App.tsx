@@ -395,6 +395,7 @@ const App: React.FC = () => {
         sources,
         suggestions,
         scorePorta,
+        clienteSeniorData,
         ghostReason,
       } = await sendMessageToGemini(
         text,
@@ -451,6 +452,7 @@ const App: React.FC = () => {
                 groundingSources: sources,
                 suggestions,
                 scorePorta: scorePorta || undefined,
+                clienteSeniorData: clienteSeniorData || undefined,
                 isThinking: false,
                 ...(ghostReason && { ghostDetails: ghostReason }),
               }

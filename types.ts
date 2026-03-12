@@ -143,6 +143,16 @@ export interface Message {
   statuses?: string[];
   // NOVO: Detalhes técnicos do ghost message (stream timeout)
   ghostDetails?: string;
+  // NOVO: Dados de Cliente Senior (Lookup)
+  clienteSeniorData?: ClienteSeniorData;
+}
+
+export interface ClienteSeniorData {
+  encontrado: boolean;
+  grupo?: string;
+  totalModulos?: number;
+  familias?: string[];
+  modulosPorFamilia?: Record<string, string[]>;
 }
 
 export interface ChatSession {
