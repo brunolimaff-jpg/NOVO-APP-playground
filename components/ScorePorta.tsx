@@ -1,10 +1,11 @@
 import React, { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { ScorePortaData } from '../types';
+import { ScorePortaData, ClienteSeniorData } from '../types';
 import { getPortaCompatibility, PORTA_FLAG_META } from '../utils/porta';
 
 interface ScorePortaProps extends ScorePortaData {
   isDarkMode?: boolean;
+  clienteSeniorData?: ClienteSeniorData;
 }
 
 const pillars = [
@@ -38,7 +39,7 @@ const PILLAR_EXPLANATIONS: Record<string, { title: string; text: string }> = {
   },
 };
 
-const ScorePorta: React.FC<ScorePortaProps> = ({
+  const ScorePorta: React.FC<ScorePortaProps> = ({
   score,
   p,
   o,
@@ -48,6 +49,7 @@ const ScorePorta: React.FC<ScorePortaProps> = ({
   segmento,
   flags,
   isDarkMode = true,
+  clienteSeniorData,
 }) => {
   const [activePillar, setActivePillar] = useState<string | null>(null);
   const compatibility = getPortaCompatibility(score);
@@ -62,6 +64,10 @@ const ScorePorta: React.FC<ScorePortaProps> = ({
   const badgeBg = isDarkMode ? '#111827' : '#e2e8f0';
   const subtleBg = isDarkMode ? '#0b1220' : '#f8fafc';
   const subtleBorder = isDarkMode ? 'rgba(148,163,184,0.12)' : '#e2e8f0';
+
+  const seniorBadgeBg = isDarkMode ? 'rgba(16, 185, 129, 0.15)' : '#ecfdf5';
+  const seniorBadgeText = isDarkMode ? '#34d399' : '#059669';
+  const seniorBadgeBorder = isDarkMode ? 'rgba(16, 185, 129, 0.3)' : '#a7f3d0';
 
   const values: Record<string, number> = { p, o, r, t, a };
   const activeExplanation = useMemo(
@@ -121,6 +127,32 @@ const ScorePorta: React.FC<ScorePortaProps> = ({
             >
               {segmento}
             </span>
+            {clienteSeniorData?.encontrado && (
+              <span
+                title={
+                  clienteSeniorData.grupo
+                    ? `Grupo: ${clienteSeniorData.grupo}\nSoluções: ${clienteSeniorData.familias?.join(', ') || 'N/A'}`
+                    : `Soluções: ${clienteSeniorData.familias?.join(', ') || 'N/A'}`
+                }
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  padding: '3px 8px',
+                  borderRadius: '999px',
+                  background: seniorBadgeBg,
+                  color: seniorBadgeText,
+                  border: `1px solid ${seniorBadgeBorder}`,
+                  fontSize: '10px',
+                  fontWeight: 700,
+                  letterSpacing: '0.2px',
+                  cursor: 'help',
+                }}
+              >
+                <span>✅</span>
+                <span>CLIENTE SENIOR {clienteSeniorData.totalModulos ? `· ${clienteSeniorData.totalModulos} MÓD.` : ''}</span>
+              </span>
+            )}
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>

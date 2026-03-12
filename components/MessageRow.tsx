@@ -177,28 +177,25 @@ const MessageRow = memo(({ index, data }: MessageRowProps) => {
           </div>
           {isBot ? (
             <>
-              {displayScore && <ScorePorta {...displayScore} isDarkMode={isDarkMode} />}
-              {msg.clienteSeniorData?.encontrado && (
-                <div className={`mt-3 mb-4 p-3 rounded-lg border ${isDarkMode ? 'bg-emerald-950/30 border-emerald-900/50 text-emerald-100' : 'bg-emerald-50 border-emerald-200 text-emerald-900'}`}>
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-emerald-500">✅</span>
-                    <h4 className="font-semibold text-sm">Cliente Senior Confirmado</h4>
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ml-auto ${isDarkMode ? 'bg-emerald-900/50 text-emerald-300' : 'bg-emerald-100 text-emerald-700'}`}>
-                      {msg.clienteSeniorData.totalModulos} Módulo{msg.clienteSeniorData.totalModulos !== 1 ? 's' : ''}
-                    </span>
-                  </div>
-                  {msg.clienteSeniorData.grupo && (
-                    <p className={`text-xs mb-2 ${isDarkMode ? 'text-emerald-300/80' : 'text-emerald-700/80'}`}>Grupo: {msg.clienteSeniorData.grupo}</p>
-                  )}
-                  {msg.clienteSeniorData.familias && msg.clienteSeniorData.familias.length > 0 && (
-                    <div className="flex flex-wrap gap-1 mt-2">
-                      {msg.clienteSeniorData.familias.map((f, i) => (
-                        <span key={i} className={`text-[10px] px-2 py-1 rounded-md border ${isDarkMode ? 'bg-emerald-900/30 border-emerald-800/50 text-emerald-200' : 'bg-white border-emerald-200 text-emerald-800 shadow-sm'}`}>
-                          {f}
-                        </span>
-                      ))}
-                    </div>
-                  )}
+              {displayScore && <ScorePorta {...displayScore} isDarkMode={isDarkMode} clienteSeniorData={msg.clienteSeniorData} />}
+              {/* Fallback caso seja cliente Senior mas não haja ScorePorta renderizado */}
+              {!displayScore && msg.clienteSeniorData?.encontrado && (
+                <div style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '4px 10px',
+                  marginBottom: '12px',
+                  borderRadius: '999px',
+                  background: isDarkMode ? 'rgba(16, 185, 129, 0.15)' : '#ecfdf5',
+                  color: isDarkMode ? '#34d399' : '#059669',
+                  border: `1px solid ${isDarkMode ? 'rgba(16, 185, 129, 0.3)' : '#a7f3d0'}`,
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  cursor: 'help'
+                }} title={msg.clienteSeniorData.grupo ? `Grupo: ${msg.clienteSeniorData.grupo}\nSoluções: ${msg.clienteSeniorData.familias?.join(', ')}` : `Soluções: ${msg.clienteSeniorData.familias?.join(', ')}`}>
+                  <span className="text-emerald-500">✅</span>
+                  <span>CLIENTE SENIOR CONFIRMADO {msg.clienteSeniorData.totalModulos ? `· ${msg.clienteSeniorData.totalModulos} MÓD.` : ''}</span>
                 </div>
               )}
               <SectionalBotMessage
