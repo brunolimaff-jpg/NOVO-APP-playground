@@ -590,12 +590,16 @@ export async function sendMessageToGemini(
       // Só chama a API do Comex se for um CNPJ válido (apenas números, 14 dígitos)
       const cleanCnpj = targetCompanyForLookup.replace(/\D/g, '');
       if (cleanCnpj.length === 14) {
-        // Tenta chamar a API do Comex que criamos
+        // TODO: A API /api/comex atual usa um mock determinístico para simular exportadores.
+        // Quando a base oficial do MDIC estiver hospedada (ex: em um DB Postgres ou Edge Config),
+        // descomente as linhas abaixo para reativar o lookup real de exportação.
+        /*
         const origin = typeof window !== 'undefined' ? window.location.origin : '';
         const comexPromise = fetch(`${origin}/api/comex?cnpj=${cleanCnpj}`)
           .then(res => res.json())
           .catch(() => null);
         lookupPromises.push(comexPromise);
+        */
       }
 
       const results = await Promise.allSettled(lookupPromises);
