@@ -599,7 +599,7 @@ Atue como **Engenheiro de Logística Agrícola**. Busque:
 
 1. **Armazenagem (CONAB)**: Capacidade em toneladas, número de unidades, necessidade de WMS.
 2. **Frota (ANTT / RNTRC)**: Registro ativo, quantidade de veículos, tipo de operação.
-3. **Exportação (Comexstat / MDIC)**: Volume exportado, portos utilizados, destinos.
+3. **Exportação (Comexstat / MDIC)**: Verifique se há confirmação de exportação no topo do dossiê. Se sim, considere a logística aduaneira na complexidade. Se não houver dados, busque por portos utilizados e destinos nas notícias.
 4. **Infraestrutura**: Terminais próprios, ferrovias, hidrovias.
 5. **Frota Própria vs Terceirizada**:
 - Número de caminhões próprios (dado frequentemente público em notícias e releases)
@@ -847,6 +847,7 @@ Se nenhum flag estiver ativo: use NONE.
 
 **O — OPERAÇÃO**
 - Mede quantos elos da cadeia de valor a empresa controla.
+- OBRIGATÓRIO: Se houver evidência confirmada de **exportação via MDIC** (bloco COMEX STAT no início do dossiê), aumente a nota O em +2 pontos, pois a logística aduaneira adiciona um elo complexo na cadeia.
 
 **R — RETORNO**
 - Mede pressões externas: regulatória, fiscal, certificações, trabalhista, compliance e mercado.

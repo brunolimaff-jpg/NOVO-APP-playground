@@ -25,6 +25,7 @@ import {
   isConcorrenteOuPropria,
   BenchmarkResponse,
   LookupResponse,
+  formatarComexParaPrompt,
 } from './clientLookupService';
 import { addInvestigation } from '../components/InvestigationDashboard';
 import { CompetitorDetection, getContextoConcorrentesRegionais } from './competitorService';
@@ -555,6 +556,7 @@ export async function sendMessageToGemini(
   let clienteData: LookupResponse | null = null;
   let benchmarkData: BenchmarkResponse | null = null;
   let clienteSeniorData: ClienteSeniorData | undefined;
+  let comexData: any = null; // Guardará o retorno da API de Comex
   emitDossieStatus(onStatus, 'context');
   emitDossieStatus(onStatus, 'enrichment');
 
@@ -569,7 +571,6 @@ export async function sendMessageToGemini(
   const shouldForceDirectAnswer = isMegaPromptMessage && !isDeepDive;
   const hasActiveContextHint    = !!empresaAlvo || !!cnpjDetected || isMegaPromptMessage;
 
-  // ── Lookup cliente ───────────────────────────────────────────────────────
   // Se for Deep Dive e a empresaAlvo estiver ausente, tenta extrair das mensagens anteriores
   let targetCompanyForLookup = cnpjDetected || empresaAlvo;
   if (!targetCompanyForLookup && isDeepDive && conversationHistory.length > 0) {
@@ -578,26 +579,48 @@ export async function sendMessageToGemini(
       const match = previousTargetMsg.text.match(/\b(\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}|\d{14})\b/);
       if (match) targetCompanyForLookup = match[1].replace(/\D/g, '');
     }
-    // Se ainda não achou, pode tentar o hint via opções, o que já foi passado em empresaAlvo (via hintedCompany).
   }
 
-  // Tenta recuperar do cache se já fizemos
+  // ── Consultas Paralelas (Lookup Cliente Senior + Comex Stat) ─────────────
   if (canUseLookup === true && targetCompanyForLookup) {
     emitDossieStatus(onStatus, 'cadastral');
     try {
-      clienteData = await lookupCliente(targetCompanyForLookup);
-      // @ts-ignore
-      if (clienteData?.nome && !empresaAlvo) empresaAlvo = clienteData.nome;
+      const lookupPromises: Promise<any>[] = [lookupCliente(targetCompanyForLookup)];
       
-      if (clienteData?.encontrado && clienteData.results?.length > 0) {
-        const r = clienteData.results[0];
-        clienteSeniorData = {
-          encontrado: true,
-          grupo: r.grupo,
-          totalModulos: r.total_modulos,
-          familias: r.familias_presentes,
-          modulosPorFamilia: r.modulos_por_familia
-        };
+      // Só chama a API do Comex se for um CNPJ válido (apenas números, 14 dígitos)
+      const cleanCnpj = targetCompanyForLookup.replace(/\D/g, '');
+      if (cleanCnpj.length === 14) {
+        // Tenta chamar a API do Comex que criamos
+        const origin = typeof window !== 'undefined' ? window.location.origin : '';
+        const comexPromise = fetch(`${origin}/api/comex?cnpj=${cleanCnpj}`)
+          .then(res => res.json())
+          .catch(() => null);
+        lookupPromises.push(comexPromise);
+      }
+
+      const results = await Promise.allSettled(lookupPromises);
+
+      // Processa Lookup Senior (sempre o primeiro)
+      if (results[0].status === 'fulfilled' && results[0].value) {
+        clienteData = results[0].value;
+        // @ts-ignore
+        if (clienteData?.nome && !empresaAlvo) empresaAlvo = clienteData.nome;
+        
+        if (clienteData?.encontrado && clienteData.results?.length > 0) {
+          const r = clienteData.results[0];
+          clienteSeniorData = {
+            encontrado: true,
+            grupo: r.grupo,
+            totalModulos: r.total_modulos,
+            familias: r.familias_presentes,
+            modulosPorFamilia: r.modulos_por_familia
+          };
+        }
+      }
+
+      // Processa Comex Stat (se existir, será o segundo)
+      if (results.length > 1 && results[1].status === 'fulfilled' && results[1].value) {
+        comexData = results[1].value;
       }
     } catch { /* silencioso */ }
   }
@@ -660,11 +683,13 @@ export async function sendMessageToGemini(
   // ── Monta contexto adicional ─────────────────────────────────────────────
   const clienteFormatado    = clienteData    ? formatarParaPrompt(clienteData)              : '';
   const benchmarkFormatado  = benchmarkData  ? formatarBenchmarkParaPrompt(benchmarkData)   : '';
+  const comexFormatado      = comexData?.isExportador ? formatarComexParaPrompt(comexData) : '';
   const portaContext        = isMegaPromptMessage ? generatePortaContextForDeepDive()       : '';
 
   const extraContext = [
     clienteFormatado,
     benchmarkFormatado,
+    comexFormatado,
     ragContext     ? `\n[CONTEXTO RAG]\n${ragContext}`          : '',
     ragDocsContext ? `\n[DOCS RAG]\n${ragDocsContext}`         : '',
     concorrentesContext ? `\n[CONCORRENTES]\n${concorrentesContext}` : '',

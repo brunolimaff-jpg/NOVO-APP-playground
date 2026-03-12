@@ -299,3 +299,24 @@ export function formatarBenchmarkParaPrompt(bench: BenchmarkResponse, empresaAlv
   md += `\n---\n`;
   return md;
 }
+
+// Comex Stat
+export function formatarComexParaPrompt(comexData: any): string {
+  if (!comexData || !comexData.isExportador) return '';
+
+  let md = `\n\n---\n## 🚢 COMEX STAT MDIC [🟢 CONFIRMADO]\n`;
+  md += `**Status:** Exportador Ativo\n`;
+  if (comexData.faixaValorEstimado) {
+    md += `**Faixa de Exportação:** ${comexData.faixaValorEstimado}\n`;
+  }
+  if (comexData.principaisNCMs && comexData.principaisNCMs.length > 0) {
+    md += `**Principais Produtos (NCM):** ${comexData.principaisNCMs.join(', ')}\n`;
+  }
+  
+  md += `\n**⚠️ INSTRUÇÃO (SCORE PORTA):** 
+- A presença deste dado de exportação CONFIRMADA oficial do MDIC **AUMENTA A NOTA DA DIMENSÃO O (Operação)**. Considere a complexidade logística e aduaneira na análise.
+- É OBRIGATÓRIO recomendar o módulo **Commerce Log** na Fase 8 como fit perfeito para essa operação de exportação. Se os produtos envolverem grãos/commodities, recomendar também o **OneClick**.
+---\n`;
+
+  return md;
+}
