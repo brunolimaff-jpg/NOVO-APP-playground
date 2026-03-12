@@ -38,17 +38,19 @@ const PILLAR_EXPLANATIONS: Record<string, { title: string; text: string }> = {
   },
 };
 
-  const ScorePorta: React.FC<ScorePortaProps> = ({
-  score,
-  p,
-  o,
-  r,
-  t,
-  a,
-  segmento,
-  flags,
-  isDarkMode = true,
-}) => {
+  const ScorePorta: React.FC<ScorePortaProps> = (scoreData) => {
+  const {
+    score,
+    p,
+    o,
+    r,
+    t,
+    a,
+    segmento,
+    flags,
+    isDarkMode = true,
+  } = scoreData;
+
   const [activePillar, setActivePillar] = useState<string | null>(null);
   const compatibility = getPortaCompatibility(score);
   const barColor = compatibility.color;
@@ -64,10 +66,26 @@ const PILLAR_EXPLANATIONS: Record<string, { title: string; text: string }> = {
   const subtleBorder = isDarkMode ? 'rgba(148,163,184,0.12)' : '#e2e8f0';
 
   const values: Record<string, number> = { p, o, r, t, a };
-  const activeExplanation = useMemo(
-    () => (activePillar ? PILLAR_EXPLANATIONS[activePillar] : null),
-    [activePillar],
-  );
+  const justificativasObj: Record<string, string> = { 
+    p: scoreData.justificativas?.P || '',
+    o: scoreData.justificativas?.O || '',
+    r: scoreData.justificativas?.R || '',
+    t: scoreData.justificativas?.T || '',
+    a: scoreData.justificativas?.A || ''
+  };
+
+  const activeExplanation = useMemo(() => {
+    if (!activePillar) return null;
+    
+    const defaultExp = PILLAR_EXPLANATIONS[activePillar];
+    const justification = justificativasObj[activePillar];
+    
+    return {
+      title: defaultExp.title,
+      text: justification || defaultExp.text,
+      isCustom: !!justification
+    };
+  }, [activePillar, justificativasObj]);
 
   return (
     <motion.div
@@ -234,14 +252,16 @@ const PILLAR_EXPLANATIONS: Record<string, { title: string; text: string }> = {
             marginTop: '10px',
             padding: '10px',
             borderRadius: '10px',
-            background: subtleBg,
-            border: `1px solid ${subtleBorder}`,
+            background: activeExplanation.isCustom ? `${barColor}14` : subtleBg,
+            border: activeExplanation.isCustom ? `1px solid ${barColor}40` : `1px solid ${subtleBorder}`,
           }}
         >
-          <div style={{ fontSize: '12px', fontWeight: 700, color: valueColor, marginBottom: '4px' }}>
+          <div style={{ fontSize: '12px', fontWeight: 700, color: activeExplanation.isCustom ? barColor : valueColor, marginBottom: '4px' }}>
             {activeExplanation.title}
           </div>
-          <div style={{ fontSize: '11px', color: labelColor }}>{activeExplanation.text}</div>
+          <div style={{ fontSize: '11px', color: activeExplanation.isCustom ? valueColor : labelColor }}>
+            {activeExplanation.text}
+          </div>
         </motion.div>
       )}
     </motion.div>

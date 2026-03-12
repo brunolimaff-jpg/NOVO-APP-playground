@@ -79,7 +79,13 @@ export function getPortaCompatibility(score: number): {
 }
 
 export function stripPortaMarkers(content: string): string {
-  return normalizePortaContent(content).replace(PORTA_MARKER_ANY_REGEX, '');
+  let cleaned = normalizePortaContent(content).replace(PORTA_MARKER_ANY_REGEX, '');
+  
+  // Limpa o bloco de texto onde o Gemini explica as notas para n poluir o layout, já q vao no hover agora.
+  // Pode vir como "**SCORE PORTA**" ou "### SCORE PORTA" etc.
+  cleaned = cleaned.replace(/(?:\*\*|###\s*)SCORE PORTA(?:\*\*|:)?[\s\S]*?(?=\n\n|\n*$)/ig, '');
+  
+  return cleaned;
 }
 
 function normalizePortaContent(content: string): string {
@@ -226,6 +232,40 @@ export function parsePortaMarkerV2(content: string): ScorePortaData | null {
     const segmento = v2Match[7] as PortaSegmento;
     const flags = v2Match[8] === 'NONE' ? [] : (v2Match[8].split(',') as PortaFlag[]);
 
+    // Extrai as justificativas das notas usando regex para capturar as linhas de texto "Letra:" ou "**Letra:**"
+    const justificativas: Record<PortaDimension, string> = {
+      P: '',
+      O: '',
+      R: '',
+      T: '',
+      A: ''
+    };
+
+    const lines = content.split('\n');
+    
+    // Procura por formato ex: "- **P (Porte) [8]:** texto..." ou "**P:** texto..." ou "P: texto" ou "- P: texto"
+    for (const line of lines) {
+      // Formato: - **P (Porte) [8]:** texto...
+      // Vamos usar uma Regex mais leniente para capturar a letra do pilar
+      // Deve iniciar a linha com opcional de -, asteriscos, depois UM caractere entre PORTA, 
+      // depois opcionalmente pode ter parênteses ou colchetes ou asteriscos, terminando em dois-pontos e o texto.
+      const m1 = line.match(/^\s*(?:-\s*)?(?:\*\*)?([PORTA])(?:(?:[^:]*?)):\s*(.+)$/i);
+      
+      if (m1) {
+         const letter = m1[1].toUpperCase() as PortaDimension;
+         const justif = m1[2].trim();
+         
+         // Impede de pegar linhas aleatórias que por acaso começam com P:
+         // Exigimos que o tamanho não seja gigante (ex: max 200 chars pra uma justificativa breve)
+         if (!justificativas[letter] && justif.length > 5 && justif.length < 250) { 
+            // limpa aspas e asteriscos ao redor do conteúdo capturado
+            let cleanJustif = justif.replace(/\s*\*+$/, '');
+            cleanJustif = cleanJustif.replace(/^"(.*)"$/, '$1');
+            justificativas[letter] = cleanJustif;
+         }
+      }
+    }
+
     return {
       score: Number.parseInt(v2Match[1], 10),
       p,
@@ -236,6 +276,7 @@ export function parsePortaMarkerV2(content: string): ScorePortaData | null {
       segmento,
       flags,
       scoreBruto: calculatePortaScoreBruto(p, o, r, t, a, segmento),
+      justificativas
     };
   }
 

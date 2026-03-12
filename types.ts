@@ -52,6 +52,7 @@ export interface ScorePortaData {
   segmento: PortaSegmento;
   flags: PortaFlag[];
   scoreBruto?: number; // 0-100, antes das penalizacoes
+  justificativas?: Record<PortaDimension, string>; // Mapeia a dimensão (P, O, R, T, A) para sua justificativa
 }
 
 export const PORTA_WEIGHTS: Record<PortaSegmento, { p: number; o: number; r: number; t: number; a: number }> = {

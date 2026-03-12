@@ -839,7 +839,9 @@ Score_bruto = (P × peso_P + O × peso_O + R × peso_R + T × peso_T + A × peso
 Se múltiplos flags: multiplique todas as penalizações.
 Se nenhum flag estiver ativo: use NONE.
 
-### CRITÉRIOS DOS PILARES
+### CRITÉRIOS DOS PILARES E JUSTIFICATIVAS
+   
+Para cada pilar, o modelo deve inferir uma nota de 0 a 10 e fornecer uma **justificativa executiva breve** (até 12 palavras) que explique a nota.
 
 **P — PORTE**
 - Mede escala bruta: hectares reais, CNPJs, armazenagem, faturamento inferido cruzado.
@@ -865,14 +867,36 @@ Se nenhum flag estiver ativo: use NONE.
 
 ### FORMATO FINAL DE SAÍDA (OBRIGATÓRIO)
 
+Substitua \`Justificativa...\` por uma explicação executiva de ATÉ 12 PALAVRAS para a nota de cada pilar.
+
+\`\`\`
 [[PORTA:SCORE_FINAL:P_NOTA:O_NOTA:R_NOTA:T_NOTA:A_NOTA:SEGMENTO:FLAGS]]
+**P:** Justificativa da nota P (máx 12 palavras)
+**O:** Justificativa da nota O (máx 12 palavras)
+**R:** Justificativa da nota R (máx 12 palavras)
+**T:** Justificativa da nota T (máx 12 palavras)
+**A:** Justificativa da nota A (máx 12 palavras)
+\`\`\`
 
 Exemplos:
-- [[PORTA:84:P8:O10:R7:T8:A8:AGI:NONE]]
-- [[PORTA:68:P5:O4:R3:T9:A9:PRD:NONE]]
-- [[PORTA:51:P7:O8:R6:T7:A7:PRD:TRAD]]
-- [[PORTA:45:P9:O9:R8:T6:A5:AGI:LOCK]]
-- [[PORTA:21:P6:O7:R5:T5:A6:PRD:TRAD,LOCK]]
+
+\`\`\`
+[[PORTA:84:P8:O10:R7:T8:A8:AGI:NONE]]
+**P:** Escala massiva com 150 mil hectares e 6 unidades.
+**O:** Cadeia complexa com beneficiamento próprio e exportação ativa.
+**R:** Pressões ambientais e fiscais moderadas crescendo.
+**T:** Stack legado fragmentado, limitando o crescimento.
+**A:** Gestão profissionalizada com forte apetite por inovação.
+\`\`\`
+
+\`\`\`
+[[PORTA:51:P7:O8:R6:T7:A7:PRD:TRAD]]
+**P:** Médio porte, foco em grãos e algodão.
+**O:** Atua também como trading, comprando de terceiros.
+**R:** Exigências de rastreabilidade para tradings.
+**T:** Uso de ERP local, buscando integração.
+**A:** Empresa familiar em transição para 2ª geração.
+\`\`\`
 
 REGRAS:
 1. SCORE deve refletir corretamente pesos do segmento + penalizações dos flags.
