@@ -570,10 +570,22 @@ export async function sendMessageToGemini(
   const hasActiveContextHint    = !!empresaAlvo || !!cnpjDetected || isMegaPromptMessage;
 
   // ── Lookup cliente ───────────────────────────────────────────────────────
-  if (canUseLookup === true && (cnpjDetected || empresaAlvo)) {
+  // Se for Deep Dive e a empresaAlvo estiver ausente, tenta extrair das mensagens anteriores
+  let targetCompanyForLookup = cnpjDetected || empresaAlvo;
+  if (!targetCompanyForLookup && isDeepDive && conversationHistory.length > 0) {
+    const previousTargetMsg = [...conversationHistory].reverse().find(m => m.sender === Sender.User && m.text?.includes('DOSSIÊ'));
+    if (previousTargetMsg) {
+      const match = previousTargetMsg.text.match(/\b(\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}|\d{14})\b/);
+      if (match) targetCompanyForLookup = match[1].replace(/\D/g, '');
+    }
+    // Se ainda não achou, pode tentar o hint via opções, o que já foi passado em empresaAlvo (via hintedCompany).
+  }
+
+  // Tenta recuperar do cache se já fizemos
+  if (canUseLookup === true && targetCompanyForLookup) {
     emitDossieStatus(onStatus, 'cadastral');
     try {
-      clienteData = await lookupCliente(cnpjDetected || empresaAlvo || '');
+      clienteData = await lookupCliente(targetCompanyForLookup);
       // @ts-ignore
       if (clienteData?.nome && !empresaAlvo) empresaAlvo = clienteData.nome;
       
@@ -588,6 +600,17 @@ export async function sendMessageToGemini(
         };
       }
     } catch { /* silencioso */ }
+  }
+
+  // Se for Deep Dive e falhou no lookup local, tenta puxar do histórico da sessão (mensagens anteriores do bot)
+  if (isDeepDive && (!clienteSeniorData || !clienteSeniorData.encontrado)) {
+    const previousBotMessageWithClientData = [...conversationHistory]
+      .reverse()
+      .find(m => m.sender === Sender.Bot && m.clienteSeniorData?.encontrado);
+      
+    if (previousBotMessageWithClientData && previousBotMessageWithClientData.clienteSeniorData) {
+      clienteSeniorData = previousBotMessageWithClientData.clienteSeniorData;
+    }
   }
 
   // ── RAG ─────────────────────────────────────────────────────────────────

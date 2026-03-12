@@ -6,6 +6,7 @@ import ErrorMessageCard from './ErrorMessageCard';
 import SectionalBotMessage from './SectionalBotMessage';
 import LoadingSmart from './LoadingSmart';
 import ScorePorta from './ScorePorta';
+import ClienteSeniorScore from './ClienteSeniorScore';
 import MessageActionsBar from './MessageActionsBar';
 import { DeepDiveTopics } from './DeepDiveTopics';
 import { buildAuditableSources, normalizeSourceUrl, type AuditableSource } from '../utils/textCleaners';
@@ -177,26 +178,9 @@ const MessageRow = memo(({ index, data }: MessageRowProps) => {
           </div>
           {isBot ? (
             <>
-              {displayScore && <ScorePorta {...displayScore} isDarkMode={isDarkMode} clienteSeniorData={msg.clienteSeniorData} />}
-              {/* Fallback caso seja cliente Senior mas não haja ScorePorta renderizado */}
-              {!displayScore && msg.clienteSeniorData?.encontrado && (
-                <div style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  padding: '4px 10px',
-                  marginBottom: '12px',
-                  borderRadius: '999px',
-                  background: isDarkMode ? 'rgba(16, 185, 129, 0.15)' : '#ecfdf5',
-                  color: isDarkMode ? '#34d399' : '#059669',
-                  border: `1px solid ${isDarkMode ? 'rgba(16, 185, 129, 0.3)' : '#a7f3d0'}`,
-                  fontSize: '11px',
-                  fontWeight: 600,
-                  cursor: 'help'
-                }} title={msg.clienteSeniorData.grupo ? `Grupo: ${msg.clienteSeniorData.grupo}\nSoluções: ${msg.clienteSeniorData.familias?.join(', ')}` : `Soluções: ${msg.clienteSeniorData.familias?.join(', ')}`}>
-                  <span className="text-emerald-500">✅</span>
-                  <span>CLIENTE SENIOR CONFIRMADO {msg.clienteSeniorData.totalModulos ? `· ${msg.clienteSeniorData.totalModulos} MÓD.` : ''}</span>
-                </div>
+              {displayScore && <ScorePorta {...displayScore} isDarkMode={isDarkMode} />}
+              {msg.clienteSeniorData?.encontrado && (
+                <ClienteSeniorScore data={msg.clienteSeniorData} isDarkMode={isDarkMode} />
               )}
               <SectionalBotMessage
                 message={{ ...msg, groundingSources: msg.groundingSources || [] }}
