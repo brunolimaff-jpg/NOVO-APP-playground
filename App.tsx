@@ -397,6 +397,8 @@ const App: React.FC = () => {
         scorePorta,
         clienteSeniorData,
         ghostReason,
+        cnpjDetected,
+        empresaAlvo: geminiEmpresaAlvo,
       } = await sendMessageToGemini(
         text,
         historyToPass,
@@ -439,10 +441,28 @@ const App: React.FC = () => {
 
         const finalCompany = normalizedCompany || s.empresaAlvo || pickCompanyLabel(s.title);
 
+        // Build companyContext from hidden prompt context or existing data
+        let updatedCompanyContext = s.companyContext || null;
+        const contextMatch = text.match(/Contexto cadastral obrigatório:\s*(.+?)(?:\.|$)/);
+        if (contextMatch) {
+          updatedCompanyContext = contextMatch[1].trim();
+        } else if (cnpjDetected && !updatedCompanyContext) {
+          // Build minimal context from detected data
+          const parts: string[] = [];
+          if (finalCompany) parts.push(`Empresa=${finalCompany}`);
+          if (cnpjDetected) parts.push(`CNPJ=${cnpjDetected}`);
+          updatedCompanyContext = parts.join('; ');
+        }
+
+        // Update cnpj on session if detected and not already set
+        const updatedCnpj = cnpjDetected || s.cnpj;
+
         return {
           ...s,
           title: shouldRewriteTitle ? finalCompany || s.title : s.title,
           empresaAlvo: finalCompany || s.empresaAlvo,
+          cnpj: updatedCnpj,
+          companyContext: updatedCompanyContext,
         scoreOportunidade: scorePorta?.score ?? s.scoreOportunidade,
         messages: s.messages.map(msg =>
           msg.id === botMessageId
