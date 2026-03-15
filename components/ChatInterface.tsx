@@ -272,6 +272,7 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
       onStop: handleStopWithToast,
       onSendMessage,
       empresaAlvo: currentSession?.empresaAlvo || null,
+      companyContext: currentSession?.companyContext || null,
     }),
     [
       messages,
@@ -291,6 +292,7 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
       hideSuggestionsForMessageId,
       currentSession?.id,
       currentSession?.empresaAlvo,
+      currentSession?.companyContext,
       userId,
       processing,
       lastUserQuery,

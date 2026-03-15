@@ -8,6 +8,7 @@ import {
   normalizeCnpj,
   validateCityInState,
 } from '../services/brasilApiService';
+import MarketPulse from './MarketPulse';
 
 interface EmptyStateHomeProps {
   mode: ChatMode;
@@ -211,6 +212,9 @@ const EmptyStateHome: React.FC<EmptyStateHomeProps> = ({ mode, onStartInvestigat
             </button>
           </div>
         </div>
+
+        {/* Market Pulse */}
+        <MarketPulse isDarkMode={isDarkMode} />
 
         {/* Footer */}
         <div
