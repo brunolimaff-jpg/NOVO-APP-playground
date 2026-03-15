@@ -3,6 +3,7 @@ import { ChatSession, CRM_STAGE_LABELS } from '../types';
 import { useCRM } from '../contexts/CRMContext';
 import { sendMessageToGemini } from '../services/geminiService';
 import ConfirmPopover from './ConfirmPopover';
+import NewsRadar from './NewsRadar';
 
 interface CRMDetailProps {
   card: any; // intencionalmente flexível para permitir campos adicionais do CRM
@@ -545,6 +546,11 @@ export const CRMDetail: React.FC<CRMDetailProps> = ({
                     Essas anotacoes ficam apenas neste modal para apoiar o follow-up.
                   </p>
                 </div>
+              )}
+
+              {/* News Radar */}
+              {card.newsRadarEnabled !== false && card.companyName && (
+                <NewsRadar companyName={card.companyName} isDarkMode={isDarkMode} />
               )}
 
               <div className={`rounded-xl border p-4 ${isDarkMode ? 'bg-slate-900/60 border-slate-700' : 'bg-slate-50 border-slate-200'}`}>

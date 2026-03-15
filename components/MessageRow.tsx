@@ -9,6 +9,7 @@ import ScorePorta from './ScorePorta';
 import ClienteSeniorScore from './ClienteSeniorScore';
 import MessageActionsBar from './MessageActionsBar';
 import { DeepDiveTopics } from './DeepDiveTopics';
+import WeatherInsight from './WeatherInsight';
 import { buildAuditableSources, normalizeSourceUrl, type AuditableSource } from '../utils/textCleaners';
 import { fetchLinkStatuses, type LinkValidationResult } from '../utils/linkValidation';
 import { getPortaState } from '../services/portaStateService';
@@ -37,6 +38,7 @@ export interface MessageRowData {
   onStop?: () => void;
   onSendMessage?: (text: string) => void;
   empresaAlvo?: string | null;
+  companyContext?: string | null;
 }
 
 interface MessageRowProps {
@@ -69,6 +71,7 @@ const MessageRow = memo(({ index, data }: MessageRowProps) => {
     onStop,
     onSendMessage,
     empresaAlvo,
+    companyContext,
   } = data;
 
   const msg = messages[index];
@@ -200,6 +203,11 @@ const MessageRow = memo(({ index, data }: MessageRowProps) => {
                 onRegenerateSuggestions={onRegenerateSuggestions}
                 hideSuggestions={msg.id === hideSuggestionsForMessageId}
               />
+              {isLast && !isLoading && companyContext && (() => {
+                const locMatch = companyContext.match(/Cidade=([^;]+);\s*UF=([^;]+)/);
+                if (!locMatch) return null;
+                return <WeatherInsight city={locMatch[1].trim()} state={locMatch[2].trim()} isDarkMode={isDarkMode} />;
+              })()}
               {isLast && !isLoading && onDeepDive && <DeepDiveTopics onSelectTopic={onDeepDive} />}
               <MessageActionsBar
                 content={msg.text}

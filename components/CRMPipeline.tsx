@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { CRMPipelineProps, CRM_STAGE_LABELS, CRMStage } from '../types';
+import NewsBadge from './NewsBadge';
 
 export const CRMPipeline: React.FC<CRMPipelineProps> = ({ cards, onMoveCard, onSelectCard }) => {
   const stages: CRMStage[] = ['prospeccao', 'primeira_reuniao', 'levantamento', 'defesa_tecnica', 'dossie_final'];
@@ -242,6 +243,9 @@ export const CRMPipeline: React.FC<CRMPipelineProps> = ({ cards, onMoveCard, onS
                         </span>
 
                         <div className="flex items-center gap-2">
+                          {(card.unreadNewsCount ?? 0) > 0 && (
+                            <NewsBadge count={card.unreadNewsCount!} dominant="neutral" />
+                          )}
                           {investigationsCount !== undefined && (
                             <span className="text-[10px] text-slate-400 dark:text-slate-500">
                               {investigationsCount} inv.
