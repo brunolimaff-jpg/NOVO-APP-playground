@@ -848,5 +848,5 @@ export async function sendMessageToGemini(
   const sources = normalizeGroundingSources(response);
   const suggestions: string[] = [];
 
-  return { text: finalText, sources, suggestions, scorePorta, clienteSeniorData, ghostReason: null };
+  return { text: finalText, sources, suggestions, scorePorta, clienteSeniorData, ghostReason: null, cnpjDetected, empresaAlvo };
 }

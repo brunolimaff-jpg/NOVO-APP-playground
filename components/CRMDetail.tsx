@@ -6,6 +6,9 @@ import ConfirmPopover from './ConfirmPopover';
 import NewsRadar from './NewsRadar';
 import ComexProfile from './ComexProfile';
 import MeetingBriefing from './MeetingBriefing';
+import SafraTimeline from './SafraTimeline';
+import SectorAnalysis from './SectorAnalysis';
+import RegulatoryRadar from './RegulatoryRadar';
 import { type MeetingPrepInput } from '../services/meetingPrepService';
 
 interface CRMDetailProps {
@@ -98,6 +101,7 @@ export const CRMDetail: React.FC<CRMDetailProps> = ({
   const [isGeneratingBrief, setIsGeneratingBrief] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [showMeetingBriefing, setShowMeetingBriefing] = useState(false);
+  const [showSectorAnalysis, setShowSectorAnalysis] = useState(false);
 
   const currentStage = card.stage as CRMStageKey;
   const allAttachments: CRMAttachment[] = Array.isArray(card.attachments) ? card.attachments : [];
@@ -557,6 +561,11 @@ export const CRMDetail: React.FC<CRMDetailProps> = ({
                 <ComexProfile cnpj={cnpjs[0]} isDarkMode={isDarkMode} compact />
               )}
 
+              {/* Safra Timeline */}
+              {card.state && (
+                <SafraTimeline state={card.state} isDarkMode={isDarkMode} compact />
+              )}
+
               {/* News Radar */}
               {card.newsRadarEnabled !== false && card.companyName && (
                 <NewsRadar companyName={card.companyName} isDarkMode={isDarkMode} />
@@ -673,6 +682,15 @@ export const CRMDetail: React.FC<CRMDetailProps> = ({
               </button>
             )}
           </ConfirmPopover>
+          {cnpjs.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowSectorAnalysis(true)}
+              className="order-1 md:order-2 inline-flex items-center justify-center px-3 py-2 rounded-lg border text-[12px] font-medium border-purple-500/60 text-purple-600 dark:text-purple-400 hover:bg-purple-500/10"
+            >
+              🏭 Raio-X Setorial
+            </button>
+          )}
           <button
             type="button"
             onClick={() => setShowMeetingBriefing(true)}
@@ -708,6 +726,19 @@ export const CRMDetail: React.FC<CRMDetailProps> = ({
           sessionSummaries: linkedSessions.map(s => s.title || '').filter(Boolean),
         } as MeetingPrepInput}
       />
+
+      {/* Sector Analysis Drawer */}
+      {cnpjs.length > 0 && (
+        <SectorAnalysis
+          isOpen={showSectorAnalysis}
+          onClose={() => setShowSectorAnalysis(false)}
+          isDarkMode={isDarkMode}
+          cnpj={cnpjs[0]}
+          companyName={card.companyName || 'Empresa'}
+          state={card.state}
+          briefDescription={card.briefDescription}
+        />
+      )}
     </div>
   );
 };

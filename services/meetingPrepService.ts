@@ -5,6 +5,7 @@ import { sendMessageToGemini } from './geminiService';
 import { fetchComexProfile, type ComexProfileData } from './comexService';
 import { fetchNewsForCompany, type NewsRadarData } from './newsRadarService';
 import { getWeatherForCity, type WeatherData } from './weatherService';
+import { formatSafraForPrompt } from '../utils/safraCalendar';
 
 export interface MeetingPrepInput {
   companyName: string;
@@ -107,6 +108,12 @@ function buildPrompt(input: MeetingPrepInput): string {
     sections.push(`CLIMA PRÓXIMOS DIAS: ${forecast}`);
   }
 
+  // Safra calendar data
+  if (input.state) {
+    const safraData = formatSafraForPrompt(input.state);
+    if (safraData) sections.push(safraData);
+  }
+
   if (input.sessionSummaries && input.sessionSummaries.length > 0) {
     sections.push(`RESUMO DAS INVESTIGAÇÕES ANTERIORES:\n${input.sessionSummaries.join('\n---\n').substring(0, 3000)}`);
   }
@@ -131,6 +138,9 @@ FORMATO DO BRIEFING (use markdown):
 
 ## Notícias Relevantes
 Resumo de notícias recentes (se houver) e seu impacto na negociação.
+
+## Janela Safra
+Se dados de safra disponíveis: timing ideal de abordagem considerando plantio/colheita da região.
 
 ## Condição Climática
 1 frase sobre janela de visita e impacto na operação (se dados disponíveis).

@@ -158,11 +158,20 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const cnpjDigits = session.cnpj ? String(session.cnpj).replace(/\D/g, '') : '';
     const cnpj = cnpjDigits.length === 14 ? cnpjDigits : (session.cnpj || undefined);
 
+    // Extract city/state from companyContext if available
+    const ctx = session.companyContext || '';
+    const cityMatch = ctx.match(/Cidade=([^;]+)/);
+    const stateMatch = ctx.match(/UF=([^;]+)/);
+    const city = cityMatch?.[1]?.trim() || undefined;
+    const state = stateMatch?.[1]?.trim() || undefined;
+
     const base: CRMCard = {
       id,
       companyName: extractCompanyNameFromSession(session),
       cnpj: cnpj || undefined,
       cnpjs: cnpj ? [String(cnpj)] : undefined,
+      city,
+      state,
       website: extractWebsiteFromSession(session),
       briefDescription: generateBriefDescriptionFromSession(session),
       exactLink: extractExactLinkFromSession(session),
@@ -174,7 +183,7 @@ export const CRMProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       stages: {},
       latestScorePorta: session.scoreOportunidade || undefined,
       health: 'green',
-      newsRadarEnabled: false,
+      newsRadarEnabled: true,
     };
 
     setCards(prev => [base, ...prev]);

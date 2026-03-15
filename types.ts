@@ -272,6 +272,8 @@ export interface CRMCard {
   // NOVO: lista de CNPJs
   cnpjs?: string[];
   // NOVO: campos basicos do cadastro
+  city?: string;
+  state?: string;
   website?: string;
   briefDescription?: string;
   // NOVO: ExactSpotter
