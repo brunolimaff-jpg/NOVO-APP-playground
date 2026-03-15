@@ -2,9 +2,9 @@
 // Consolida dados de diversas fontes e gera briefing de reunião via Gemini
 
 import { sendMessageToGemini } from './geminiService';
-import { type ComexProfileData } from './comexService';
-import { type NewsRadarData } from './newsRadarService';
-import { type WeatherData } from './weatherService';
+import { fetchComexProfile, type ComexProfileData } from './comexService';
+import { fetchNewsForCompany, type NewsRadarData } from './newsRadarService';
+import { getWeatherForCity, type WeatherData } from './weatherService';
 
 export interface MeetingPrepInput {
   companyName: string;
@@ -139,6 +139,42 @@ Seja direto, objetivo, em português brasileiro. Foco em insights acionáveis pa
 Não invente dados — use apenas o que foi fornecido.`;
 }
 
+async function enrichInput(input: MeetingPrepInput): Promise<MeetingPrepInput> {
+  const enriched = { ...input };
+
+  const fetches: Promise<void>[] = [];
+
+  // Auto-fetch news if not provided
+  if (!enriched.news && enriched.companyName) {
+    fetches.push(
+      fetchNewsForCompany(enriched.companyName)
+        .then(news => { enriched.news = news; })
+        .catch(() => {}),
+    );
+  }
+
+  // Auto-fetch weather if not provided but city is available
+  if (!enriched.weather && enriched.city) {
+    fetches.push(
+      getWeatherForCity(enriched.city, enriched.state || '')
+        .then(weather => { enriched.weather = weather; })
+        .catch(() => {}),
+    );
+  }
+
+  // Auto-fetch COMEX if not provided but CNPJ is available
+  if (!enriched.comex && enriched.cnpj) {
+    fetches.push(
+      fetchComexProfile(enriched.cnpj)
+        .then(comex => { enriched.comex = comex; })
+        .catch(() => {}),
+    );
+  }
+
+  await Promise.allSettled(fetches);
+  return enriched;
+}
+
 export async function generateMeetingBriefing(
   input: MeetingPrepInput,
   forceRefresh: boolean = false,
@@ -148,7 +184,10 @@ export async function generateMeetingBriefing(
     if (cached) return cached;
   }
 
-  const prompt = buildPrompt(input);
+  // Enrich input with data from all available sources
+  const enrichedInput = await enrichInput(input);
+
+  const prompt = buildPrompt(enrichedInput);
   const systemPrompt = 'Você é um analista comercial sênior preparando briefings de reunião. Seja conciso e prático.';
 
   const { text } = await sendMessageToGemini(prompt, [], systemPrompt);
