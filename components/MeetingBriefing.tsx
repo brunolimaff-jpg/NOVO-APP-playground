@@ -131,7 +131,7 @@ const MeetingBriefing: React.FC<MeetingBriefingProps> = ({
                   Preparando briefing...
                 </p>
                 <p className={`text-[10px] mt-1 ${dk ? 'text-slate-600' : 'text-slate-400'}`}>
-                  Consolidando dados do CRM, COMEX, notícias e clima
+                  Buscando notícias, clima, COMEX e gerando briefing...
                 </p>
               </div>
               {[...Array(4)].map((_, i) => (
