@@ -11,6 +11,7 @@ import { loadWithChunkRetry } from '../utils/chunkRetry';
 const InvestigationDashboard = React.lazy(() => loadWithChunkRetry(() => import('./InvestigationDashboard')));
 const SettingsDrawer = React.lazy(() => loadWithChunkRetry(() => import('./SettingsDrawer')));
 const WarRoom = React.lazy(() => loadWithChunkRetry(() => import('./WarRoom')));
+const MeetingBriefing = React.lazy(() => loadWithChunkRetry(() => import('./MeetingBriefing')));
 import { cleanTitle } from '../utils/textCleaners';
 import { extractCompanyName } from '../utils/companyNameExtractor';
 import { parseSmartOptions } from './SmartOptions';
@@ -88,6 +89,7 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
   const [showDashboard, setShowDashboard] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showWarRoom, setShowWarRoom] = useState(false);
+  const [showMeetingBriefing, setShowMeetingBriefing] = useState(false);
   const [showRetryToast, setShowRetryToast] = useState(false);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -359,6 +361,15 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
                 >
                   📅
                 </button>
+                <button
+                  onClick={() => setShowMeetingBriefing(true)}
+                  className={`p-1.5 text-sm transition-colors ${
+                    isDarkMode ? 'text-gray-400 hover:text-indigo-400' : 'text-gray-500 hover:text-indigo-500'
+                  }`}
+                  title="Preparar briefing de reunião"
+                >
+                  📋
+                </button>
                 <div className={`w-px h-4 mx-1 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-300'}`} />
               </>
             )}
@@ -592,6 +603,23 @@ const ChatInterface: React.FC<ExtendedChatInterfaceProps> = ({
               </div>
             </div>
           </div>
+        )}
+
+        {showMeetingBriefing && currentSession?.empresaAlvo && (
+          <SuspenseWithError>
+            <MeetingBriefing
+              isOpen={showMeetingBriefing}
+              onClose={() => setShowMeetingBriefing(false)}
+              isDarkMode={isDarkMode}
+              prepInput={{
+                companyName: currentSession.empresaAlvo,
+                cnpj: currentSession.companyContext?.match(/CNPJ=(\d{14})/)?.[1] || null,
+                city: currentSession.companyContext?.match(/Cidade=([^;]+)/)?.[1]?.trim(),
+                state: currentSession.companyContext?.match(/UF=([^;]+)/)?.[1]?.trim(),
+                sessionSummaries: [currentSession.title || ''].filter(Boolean),
+              }}
+            />
+          </SuspenseWithError>
         )}
 
         {canWarRoom && showWarRoom && (

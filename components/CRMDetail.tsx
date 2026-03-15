@@ -4,6 +4,9 @@ import { useCRM } from '../contexts/CRMContext';
 import { sendMessageToGemini } from '../services/geminiService';
 import ConfirmPopover from './ConfirmPopover';
 import NewsRadar from './NewsRadar';
+import ComexProfile from './ComexProfile';
+import MeetingBriefing from './MeetingBriefing';
+import { type MeetingPrepInput } from '../services/meetingPrepService';
 
 interface CRMDetailProps {
   card: any; // intencionalmente flexível para permitir campos adicionais do CRM
@@ -94,6 +97,7 @@ export const CRMDetail: React.FC<CRMDetailProps> = ({
   const [briefDescriptionInput, setBriefDescriptionInput] = useState(briefDescription);
   const [isGeneratingBrief, setIsGeneratingBrief] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [showMeetingBriefing, setShowMeetingBriefing] = useState(false);
 
   const currentStage = card.stage as CRMStageKey;
   const allAttachments: CRMAttachment[] = Array.isArray(card.attachments) ? card.attachments : [];
@@ -548,6 +552,11 @@ export const CRMDetail: React.FC<CRMDetailProps> = ({
                 </div>
               )}
 
+              {/* COMEX Profile */}
+              {cnpjs.length > 0 && (
+                <ComexProfile cnpj={cnpjs[0]} isDarkMode={isDarkMode} compact />
+              )}
+
               {/* News Radar */}
               {card.newsRadarEnabled !== false && card.companyName && (
                 <NewsRadar companyName={card.companyName} isDarkMode={isDarkMode} />
@@ -666,13 +675,39 @@ export const CRMDetail: React.FC<CRMDetailProps> = ({
           </ConfirmPopover>
           <button
             type="button"
+            onClick={() => setShowMeetingBriefing(true)}
+            className="order-1 md:order-2 inline-flex items-center justify-center px-3 py-2 rounded-lg border text-[12px] font-medium border-indigo-500/60 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/10"
+          >
+            📋 Preparar Reunião
+          </button>
+          <button
+            type="button"
             onClick={onClose}
-            className="order-1 md:order-2 inline-flex items-center justify-center flex-1 md:flex-none px-4 py-2.5 rounded-lg text-[13px] font-medium bg-slate-900 text-white hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white"
+            className="order-1 md:order-3 inline-flex items-center justify-center flex-1 md:flex-none px-4 py-2.5 rounded-lg text-[13px] font-medium bg-slate-900 text-white hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white"
           >
             Fechar
           </button>
         </div>
       </div>
+
+      {/* Meeting Briefing Drawer */}
+      <MeetingBriefing
+        isOpen={showMeetingBriefing}
+        onClose={() => setShowMeetingBriefing(false)}
+        isDarkMode={isDarkMode}
+        prepInput={{
+          companyName: card.companyName || 'Empresa',
+          cnpj: cnpjs[0] || null,
+          city: card.city,
+          state: card.state,
+          website: card.website,
+          briefDescription: card.briefDescription,
+          scorePorta: porta,
+          prospectionNotes: prospectionNotes,
+          spotterNotes: spotterRaw,
+          sessionSummaries: linkedSessions.map(s => s.title || '').filter(Boolean),
+        } as MeetingPrepInput}
+      />
     </div>
   );
 };
