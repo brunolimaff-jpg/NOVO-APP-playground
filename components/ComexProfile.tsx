@@ -80,7 +80,7 @@ const ComexProfile: React.FC<ComexProfileProps> = ({ cnpj, isDarkMode, compact =
           </div>
         ) : (
           <p className={`mt-1.5 text-[11px] ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>
-            Não listada como exportadora · MDIC {result.anoReferencia || new Date().getFullYear()}
+            Sem dados de exportação encontrados · {result.source === 'gemini' ? 'Google Search' : 'MDIC'} {result.anoReferencia || new Date().getFullYear()}
           </p>
         )}
       </div>
@@ -96,7 +96,7 @@ const ComexProfile: React.FC<ComexProfileProps> = ({ cnpj, isDarkMode, compact =
         <div className="flex items-center gap-2">
           <span className="text-sm">🚢</span>
           <span className={`text-xs font-medium ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>
-            COMEX — Não listada como exportadora (MDIC {result.anoReferencia || new Date().getFullYear()})
+            COMEX — Sem dados de exportação ({result.source === 'gemini' ? 'Google Search' : 'MDIC'} {result.anoReferencia || new Date().getFullYear()})
           </span>
         </div>
       </div>
@@ -151,8 +151,13 @@ const ComexProfile: React.FC<ComexProfileProps> = ({ cnpj, isDarkMode, compact =
               💡 Exportador ativo com operação de comércio exterior. Avaliar necessidade de módulos de câmbio,
               Commerce Log e gestão aduaneira na proposta comercial.
             </p>
+            {result.message && (
+              <p className={`text-[9px] mt-1 leading-relaxed ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>
+                📌 {result.message}
+              </p>
+            )}
             <p className={`text-[9px] text-right mt-2 ${isDarkMode ? 'text-slate-600' : 'text-slate-400'}`}>
-              Fonte: MDIC/Comex Stat · CNPJ {cnpj}
+              Fonte: {result.source === 'gemini' ? 'Google Search + IA' : 'MDIC/Comex Stat'} · CNPJ {cnpj}
             </p>
           </div>
         )}
