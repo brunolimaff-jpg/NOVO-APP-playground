@@ -10,6 +10,7 @@ import ClienteSeniorScore from './ClienteSeniorScore';
 import MessageActionsBar from './MessageActionsBar';
 import { DeepDiveTopics } from './DeepDiveTopics';
 import WeatherInsight from './WeatherInsight';
+import ComexProfile from './ComexProfile';
 import { buildAuditableSources, normalizeSourceUrl, type AuditableSource } from '../utils/textCleaners';
 import { fetchLinkStatuses, type LinkValidationResult } from '../utils/linkValidation';
 import { getPortaState } from '../services/portaStateService';
@@ -207,6 +208,11 @@ const MessageRow = memo(({ index, data }: MessageRowProps) => {
                 const locMatch = companyContext.match(/Cidade=([^;]+);\s*UF=([^;]+)/);
                 if (!locMatch) return null;
                 return <WeatherInsight city={locMatch[1].trim()} state={locMatch[2].trim()} isDarkMode={isDarkMode} />;
+              })()}
+              {isLast && !isLoading && companyContext && (() => {
+                const cnpjMatch = companyContext.match(/CNPJ=(\d{14})/);
+                if (!cnpjMatch) return null;
+                return <ComexProfile cnpj={cnpjMatch[1]} isDarkMode={isDarkMode} />;
               })()}
               {isLast && !isLoading && onDeepDive && <DeepDiveTopics onSelectTopic={onDeepDive} />}
               <MessageActionsBar

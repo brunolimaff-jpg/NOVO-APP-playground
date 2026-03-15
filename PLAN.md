@@ -1,396 +1,406 @@
-# Planejamento UX — Features 1, 2 e 3
+# Planejamento UX — Features 4 e 5: COMEX Trade Profiler + AI Meeting Prep
 
-## Princípios de Design Adotados
+> Features 1-3 (Clima, News Radar, Market Pulse) já implementadas.
 
-1. **Progressive Disclosure** — informação aparece sob demanda, nunca sobrecarrega
-2. **Zero Anxiety** — nenhum elemento novo compete com o fluxo principal de chat
-3. **Contextual Relevance** — dados aparecem QUANDO e ONDE fazem sentido
-4. **Mobile-first** — toda feature funciona perfeitamente em tela pequena
-5. **Consistent Patterns** — reutilizar padrões visuais que o usuário já conhece (drawers, cards, badges)
+## Princípios de Design (mantidos)
+
+1. **Progressive Disclosure** — informação sob demanda
+2. **Zero Anxiety** — não compete com o fluxo principal
+3. **Contextual Relevance** — dados aparecem onde fazem sentido
+4. **Mobile-first** — funciona em tela pequena
+5. **Consistent Patterns** — reutilizar drawers, cards, badges existentes
 
 ---
 
-## Feature 1: Clima & Safra Intelligence
+## Feature 4: COMEX Trade Profiler
 
-### Onde NÃO colocar
-- **NÃO** como widget fixo na sidebar — polui visualmente, compete com sessões
-- **NÃO** como painel lateral permanente — ocupa espaço precioso no desktop
-- **NÃO** como modal popup — interrompe o fluxo de trabalho
+### Contexto técnico existente
 
-### Onde colocar (decisão UX)
+- `api/comex.ts` já existe como serverless function — recebe CNPJ, retorna `ComexResult`:
+  ```ts
+  { isExportador: boolean, cnpj?, anoReferencia?, faixaValorEstimado?, principaisNCMs?, message? }
+  ```
+- Atualmente é mockado (determinístico baseado na soma dos dígitos do CNPJ)
+- Está **desativado** no frontend (menção em CLAUDE.md: "desativa temporariamente a chamada da api comex")
+- Brasil API já usada para buscar CNAE/razão social (complementar)
+- O CRM já armazena `cnpj` e `cnpjs[]` por card
 
-**Abordagem: Inline Contextual Card dentro do chat**
+### Decisão UX: Onde colocar
 
-O clima aparece DENTRO do fluxo de conversa, como um card rico renderizado após o bot mencionar uma empresa com município identificado. Isso é natural porque:
-- O usuário já está focado no chat
-- O dado climático tem contexto imediato (a empresa sendo analisada)
-- Não exige navegação extra nem nova área na interface
+#### Onde NÃO colocar
+- **NÃO** como página separada → dados COMEX são sobre UMA empresa, não sobre um painel geral
+- **NÃO** no EmptyStateHome → é informação específica de empresa, não de aquecimento
+- **NÃO** como modal standalone → interrompe o fluxo sem necessidade
 
-### Layout Desktop (>768px)
+#### Onde colocar: DOIS pontos de entrada
+
+**Ponto 1: Card inline no chat (similar ao WeatherInsight)**
+
+Quando o bot analisa uma empresa com CNPJ e o sistema detecta que ela é exportadora, um card COMEX aparece inline na mensagem:
 
 ```
+Desktop — dentro do bubble do bot:
 ┌─────────────────────────────────────────────────┐
-│ 🤖 Bot Message: "Análise da Fazenda XYZ..."     │
+│ 🤖 Bot: "Análise da Agroexport Ltda..."         │
+│                                                  │
+│ [Score PORTA] [Cliente Senior] [Clima]           │
 │                                                  │
 │ ┌──────────────────────────────────────────────┐ │
-│ │ 🌤️ Clima — Ribeirão Preto, SP               │ │
+│ │ 🚢 Perfil COMEX — Exportadora                │ │
 │ │                                               │ │
-│ │ Hoje  Seg   Ter   Qua   Qui   Sex   Sáb     │ │
-│ │ 32°   30°   28°   31°   33°   29°   27°     │ │
-│ │ ☀️    🌤️    🌧️    ☀️    ☀️    🌧️    🌤️      │ │
-│ │ ▁▃▅▇█▇▅▃▁▃▅▇  ← chuva (mm) mini-gráfico    │ │
+│ │ Faixa: US$ 10M–50M  Ref: 2025               │ │
+│ │ Produtos: Soja em grãos, Farelo de Soja      │ │
 │ │                                               │ │
-│ │ 💡 Gemini: "Período seco nos próximos 5      │ │
-│ │ dias favorece colheita de soja. Janela ideal  │ │
-│ │ para visita técnica."                         │ │
-│ │                                     [▾ mais]  │ │
+│ │ 💡 "Exportador de grande porte. Módulo de    │ │
+│ │ câmbio e comex pode ser diferencial na       │ │
+│ │ proposta. Avaliar necessidade de hedge."      │ │
+│ │                                    [▾ mais]   │ │
 │ └──────────────────────────────────────────────┘ │
 └─────────────────────────────────────────────────┘
 ```
 
-- **Largura**: 100% do bubble do bot (max-w-3xl herdado)
-- **Altura collapsed**: ~120px (previsão compacta + insight IA)
-- **Altura expanded**: ~220px (detalhes: umidade, vento, UV, histórico)
-- **Cores**: fundo `bg-sky-50/50 dark:bg-sky-950/30`, borda `border-sky-200/50`
-- **Ícones**: emoji nativos (sem dependência extra)
-- **Mini-gráfico de chuva**: barras SVG inline, 7 dias, altura proporcional
+**Ponto 2: Badge/seção no CRM Detail**
 
-### Layout Mobile (<768px)
+Na coluna direita do CRM Detail, acima do News Radar, um card compacto:
+
+```
+CRM Detail — coluna direita:
+┌─────────────────────────────────────┐
+│ [Score PORTA box]                    │
+│                                      │
+│ ┌─────────────────────────────────┐ │
+│ │ 🚢 COMEX                        │ │
+│ │ ✅ Exportadora · US$ 10M–50M    │ │
+│ │ Soja, Farelo de Soja · Ref 2025 │ │
+│ │                         [▾ ver]  │ │
+│ └─────────────────────────────────┘ │
+│                                      │
+│ [📰 News Radar]                     │
+│ [Etapa do funil]                     │
+└─────────────────────────────────────┘
+```
+
+Se NÃO é exportadora:
+```
+│ ┌─────────────────────────────────┐ │
+│ │ 🚢 COMEX                        │ │
+│ │ Não listada como exportadora    │ │
+│ │ Ref 2025 · MDIC                  │ │
+│ └─────────────────────────────────┘ │
+```
+
+### Layout Mobile
 
 ```
 ┌────────────────────────────┐
-│ 🌤️ Clima — Rib. Preto, SP │
-│                             │
-│ Hoje 32° ☀️  Seg 30° 🌤️    │
-│ Ter  28° 🌧️  Qua 31° ☀️    │
-│ ▁▃▅▇█▇▅  chuva (mm)        │
-│                             │
-│ 💡 "Período seco favorece  │
-│ colheita..."    [▾ mais]    │
+│ 🚢 COMEX — Exportadora     │
+│ US$ 10M–50M · 2025         │
+│ Soja, Farelo de Soja       │
+│ 💡 "Módulo câmbio..."      │
 └────────────────────────────┘
 ```
 
-- **Grid de dias**: 2 colunas (em vez de 7 inline)
-- **Insight IA**: truncado em 2 linhas com "ver mais"
-- **Touch target**: card inteiro é tappable para expandir (min 44px)
-- **Sem scroll horizontal**: tudo cabe na viewport
+- Card full-width, compacto (sem grid complexo)
+- Touch: card inteiro tappable para expandir
+- Mesma paleta do WeatherInsight (consistência)
 
 ### Interação e Comportamento
 
-1. **Trigger automático**: quando o Gemini detecta município na análise, injeta o card clima após a resposta
-2. **Trigger manual**: botão discreto `🌤️` no header do chat (ao lado do ⚔️ War Room), abre input de cidade
-3. **Cache**: 30 min (Open-Meteo atualiza a cada hora)
-4. **Offline**: mostra último dado cacheado com badge "dados de X min atrás"
-5. **Animação**: fade-in suave (300ms), consistente com `animate-fade-in` existente
-6. **Expandir/Colapsar**: chevron `▾`/`▴`, transição height 200ms ease
+1. **Trigger automático**: quando o sistema processa um CNPJ na investigação, faz a chamada COMEX
+2. **Trigger manual no CRM**: ao abrir card com CNPJ, busca automaticamente
+3. **Cache**: localStorage por CNPJ, expira em 24h (dados anuais, raramente mudam)
+4. **Fallback**: se API não disponível (local dev), mostra "Consulta COMEX indisponível — disponível em produção"
+5. **Loading**: skeleton inline (1 linha, 80px altura)
+6. **Dados enriquecem o PORTA**: alimentar dimensão O (Operação) se exportadora
+
+### Cores e Visual
+
+- Exportadora: fundo `bg-indigo-50/50 dark:bg-indigo-950/20`, borda `border-indigo-200/50`
+- Não exportadora: fundo neutro (slate), texto discreto
+- Badge no kanban: `🚢` ao lado do health se exportadora (não se não for)
 
 ### Componentes a criar
 
 | Arquivo | Responsabilidade |
 |---|---|
-| `components/WeatherInsight.tsx` | Card visual (apresentação) |
-| `services/weatherService.ts` | Fetch Open-Meteo + cache + parse |
-| `utils/weatherUtils.ts` | Mapear códigos WMO → emoji, formatar dados |
+| `components/ComexProfile.tsx` | Card visual inline no chat + versão compacta CRM |
+| `services/comexService.ts` | Fetch `/api/comex` + cache + parse + fallback |
 
-### API Open-Meteo — Endpoint
+### API
 
 ```
-GET https://api.open-meteo.com/v1/forecast
-  ?latitude=-21.17&longitude=-47.81
-  &daily=temperature_2m_max,temperature_2m_min,precipitation_sum,weathercode
-  &timezone=America/Sao_Paulo
-  &forecast_days=7
-```
+# Produção (Vercel):
+GET /api/comex?cnpj=12345678000190
 
-Sem chave. Sem rate limit agressivo. Resposta ~2KB.
-
-Para converter cidade → coordenadas:
-```
-GET https://geocoding-api.open-meteo.com/v1/search
-  ?name=Ribeirão+Preto&country=BR&count=1
+# Local: não funciona (serverless) → fallback gracioso
 ```
 
 ### Integração com Gemini
 
-Após receber os dados climáticos, incluir no prompt do Gemini:
+O resultado COMEX é adicionado ao contexto do Gemini como enriquecimento:
 ```
-[CONTEXTO CLIMÁTICO - {cidade}]
-Previsão 7 dias: {dados formatados}
-Analise o impacto climático na operação agrícola desta empresa.
-Considere: janela de plantio/colheita, riscos, oportunidade de visita.
+[PERFIL COMEX]
+Exportadora: SIM
+Faixa estimada: US$ 10M–50M (ref 2025)
+Principais NCMs: Soja em grãos, Farelo de Soja
+→ Considere isso na análise de porte, tecnologia e oportunidades de módulos.
 ```
 
 ---
 
-## Feature 2: News Radar em Tempo Real
+## Feature 5: AI Meeting Prep — Briefing Automático
 
-### Onde NÃO colocar
-- **NÃO** como feed separado/página nova — fragmenta a experiência
-- **NÃO** como notificações push constantes — gera ansiedade
-- **NÃO** como ticker/marquee no topo — distrai do foco principal
+### Contexto técnico existente
 
-### Onde colocar (decisão UX)
+- **FollowUpModal**: agenda follow-up com .ics/Outlook (3/7/15/30 dias)
+- **EmailModal**: envia dossiê por email via Apps Script
+- **War Room**: sub-chat fullscreen com sidebar (padrão reutilizável)
+- **Export PDF/DOC/MD**: já existe em `useChat.ts`
+- **CRM Detail**: já tem notas de prospecção, dados Spotter, sessões vinculadas
+- **Header do chat**: tem botões 📝 (DOC), 📅 (follow-up), ⚔️ (War Room), ⚙️ (settings)
+- **Score PORTA + clima + COMEX + News**: dados contextuais já coletados
 
-**Abordagem Dupla: Badge no CRM + Seção expandível no CRM Detail**
+### Decisão UX: Onde colocar
 
-O News Radar é sobre MONITORAMENTO de empresas do pipeline. O lugar natural é o CRM, onde o usuário já gerencia seus prospects.
+#### Onde NÃO colocar
+- **NÃO** como modal complexo com muitos campos → o prep deve ser AUTOMÁTICO, não um formulário
+- **NÃO** como sub-chat (War Room style) → é geração one-shot, não diálogo
+- **NÃO** substituindo o export PDF → PDF é do dossiê de chat, prep é focado na reunião
+- **NÃO** no EmptyState → precisa de dados de uma empresa específica
 
-#### Ponto 1: Badge no card do Kanban
+#### Onde colocar: BOTÃO no CRM Detail + BOTÃO no header do chat
 
-```
-┌─────────────────────────┐
-│ Fazenda XYZ     PORTA 78│
-│ Agropecuária grande...  │
-│ 🟢 Saudável   🔴 2 news │  ← badge vermelho = notícia negativa
-│ Atualizado há 2h        │     badge verde = notícia positiva
-└─────────────────────────┘     badge cinza = neutro
-```
+**Ponto 1: CRM Detail — botão "Preparar Reunião" no footer**
 
-- **Badge pequeno**: `rounded-full px-2 py-0.5 text-xs` — não compete com o score PORTA
-- **Cores semânticas**: 🔴 negativo, 🟢 positivo, ⚪ neutro (consistente com health do CRM)
-- **Número**: quantidade de notícias novas desde última visualização
-- **Sem animação piscante**: badge estático, sem pulse — reduz ansiedade
-
-#### Ponto 2: Seção no CRM Detail (principal)
+O vendedor está revisando o card CRM de uma empresa antes da reunião. O botão natural fica no footer, ao lado de "Fechar" e "Excluir":
 
 ```
-Desktop CRM Detail (right panel):
-┌─────────────────────────────────────┐
-│ 📋 Fazenda XYZ                      │
-│ ─────────────────────────────────── │
-│ [Info] [Notas] [Sessões] [📰 Radar]│  ← nova tab
-│ ─────────────────────────────────── │
-│                                      │
-│ 📰 Radar de Notícias                │
-│                                      │
-│ ┌─ 🟢 Positiva · há 3h ──────────┐ │
-│ │ "Fazenda XYZ expande operação   │ │
-│ │ em Goiás com R$50M"             │ │
-│ │ Fonte: Valor Econômico          │ │
-│ │ 💡 Oportunidade: expansão pode  │ │
-│ │ demandar novo ERP regional      │ │
-│ └─────────────────────────────────┘ │
-│                                      │
-│ ┌─ 🔴 Negativa · há 1d ──────────┐ │
-│ │ "Grupo XYZ enfrenta processo    │ │
-│ │ trabalhista de R$2M"            │ │
-│ │ Fonte: Folha de SP              │ │
-│ │ 💡 Risco: pode atrasar decisão  │ │
-│ │ de compra. Monitorar.           │ │
-│ └─────────────────────────────────┘ │
-│                                      │
-│ [🔄 Atualizar] Última busca: 14:30  │
-│ ⚙️ Monitoramento: [ON ●○ OFF]       │
-└─────────────────────────────────────┘
+Desktop CRM Detail Footer:
+┌─────────────────────────────────────────────────────┐
+│ [🗑 Excluir]    [📋 Preparar Reunião]    [Fechar]   │
+└─────────────────────────────────────────────────────┘
 ```
 
-### Layout Mobile
+Ao clicar, abre um **drawer lateral direito** (mesmo padrão do SettingsDrawer) com o briefing gerado:
 
 ```
+Desktop — MeetingBriefing Drawer (w-96):
+┌────────────────────────────────────┐
+│ 📋 Briefing de Reunião       [✕]  │
+│ ────────────────────────────────── │
+│                                     │
+│ 🏢 FAZENDA XYZ                     │
+│ CNPJ: 12.345.678/0001-90           │
+│ Ribeirão Preto, SP                  │
+│ Score PORTA: 78/100 (PRD)           │
+│                                     │
+│ ── CONTEXTO ─────────────────────  │
+│ Agropecuária de grande porte,      │
+│ exportadora na faixa US$ 10M-50M.  │
+│ Utiliza ERP legado (TOTVS Protheus)│
+│ com módulos financeiro e fiscal.    │
+│                                     │
+│ ── PONTOS DE DOR ────────────────  │
+│ • Integração manual entre ERP e    │
+│   sistema de gestão de campo       │
+│ • Sem módulo de COMEX integrado    │
+│ • Folha + ponto em sistema apart.  │
+│                                     │
+│ ── OBJEÇÕES PROVÁVEIS ───────────  │
+│ • "Já temos TOTVS, migração é     │
+│   arriscada" → Resposta: ...       │
+│ • "Custo de licenciamento" →       │
+│   Resposta: ...                     │
+│                                     │
+│ ── PERGUNTAS-CHAVE ──────────────  │
+│ 1. Quantas fazendas operam hoje?   │
+│ 2. Qual o volume de exportação?    │
+│ 3. Como gerenciam a logística?     │
+│                                     │
+│ ── NOTÍCIAS RECENTES ────────────  │
+│ 🟢 "Expansão em Goiás" (3h atrás) │
+│ 🔴 "Processo trabalhista" (1d)     │
+│                                     │
+│ ── CLIMA ATUAL ──────────────────  │
+│ Próx. 3 dias: seco, 30-32°C       │
+│ Janela favorável para visita.       │
+│                                     │
+│ ─────────────────────────────────  │
+│ [📄 Exportar PDF] [📋 Copiar]      │
+│ [📧 Enviar por email]              │
+└────────────────────────────────────┘
+```
+
+**Ponto 2: Header do chat — botão 📋 (quando tem sessão ativa)**
+
+Na barra de botões do header, ao lado do 📝 (DOC) e 📅 (follow-up):
+
+```
+Header do chat (quando hasReport):
+┌─────────────────────────────────────────────────┐
+│ ☰  Investigação: Fazenda XYZ   📝 📋 📅 | ⚔️ ⚙️│
+└─────────────────────────────────────────────────┘
+                                  ↑
+                          Novo: Meeting Prep
+```
+
+- Mesmo estilo dos botões existentes (`p-1.5 text-sm`)
+- Title: "Preparar briefing de reunião"
+- Abre o mesmo drawer `MeetingBriefing`
+- **Mobile**: os botões ficam apertados → 📋 vai pra dentro do SettingsDrawer como ação
+
+### Layout Mobile — MeetingBriefing
+
+```
+Mobile — Drawer fullscreen:
 ┌────────────────────────────┐
-│ [Info][Notas][📰 Radar]    │  ← tabs scrolláveis
+│ ← Voltar    📋 Briefing    │
 ├────────────────────────────┤
-│ 📰 Radar de Notícias       │
 │                             │
-│ 🟢 há 3h                   │
-│ "Fazenda XYZ expande..."   │
-│ Valor Econômico             │
-│ 💡 Expansão = oportunidade  │
-│ ───────────────────────     │
-│ 🔴 há 1d                   │
-│ "Processo trabalhista..."   │
-│ Folha de SP                 │
-│ 💡 Risco: atrasar compra   │
+│ 🏢 FAZENDA XYZ              │
+│ PORTA 78 · Exportadora     │
 │                             │
-│ [🔄 Atualizar]  14:30      │
+│ ── CONTEXTO ──────────     │
+│ Agropecuária de grande     │
+│ porte, exportadora...      │
+│                             │
+│ ── PONTOS DE DOR ────      │
+│ • Integração manual...     │
+│ • Sem COMEX integrado...   │
+│                             │
+│ ── OBJEÇÕES ─────────      │
+│ • "Migração arriscada"     │
+│   → Senior oferece...      │
+│                             │
+│ ── PERGUNTAS-CHAVE ──      │
+│ 1. Quantas fazendas?       │
+│ 2. Volume exportação?      │
+│                             │
+│ ─────────────────────      │
+│ [📄 PDF] [📋 Copiar]       │
+│ [📧 Email]                  │
 └────────────────────────────┘
 ```
 
-- Cards full-width, separados por divider sutil
-- Scroll vertical nativo, sem paginação
-- Touch: card tappable → abre link da fonte no browser
+- **Fullscreen** no mobile (mesmo padrão do War Room)
+- **Scroll** nativo vertical
+- **Botões de ação** fixos no bottom
+- **← Voltar**: fecha o drawer (não é necessário confirmar)
 
 ### Interação e Comportamento
 
-1. **Busca via Gemini Grounding**: Google Search tool já disponível
-2. **Frequência**: busca ao abrir CRM Detail (se última busca > 2h) ou botão manual
-3. **Classificação**: Gemini analisa sentimento + relevância comercial
-4. **Cache**: localStorage por CNPJ, expira em 2h
-5. **Toggle**: `newsRadarEnabled` já existe no tipo `CRMCard` — ativar
-6. **Limite**: máximo 5 notícias por empresa (evita overload)
-7. **Estado vazio**: "Nenhuma notícia encontrada. Isso é bom!" (tom positivo)
+1. **Geração one-shot**: ao abrir, Gemini gera o briefing completo de uma vez
+2. **Dados consolidados automaticamente**:
+   - Score PORTA + justificativas (se disponível)
+   - Dados cadastrais (CNPJ, cidade, UF, website)
+   - Notas do CRM (prospecção, Spotter)
+   - Sessões vinculadas (resumo das investigações)
+   - COMEX profile (se exportadora)
+   - News Radar (últimas notícias)
+   - Clima (próximos dias)
+   - Concorrentes detectados
+3. **Cache**: briefing cacheado por card+timestamp, expira em 4h
+4. **Loading**: skeleton com seções placeholder + mensagem "Preparando briefing..."
+5. **Exportar PDF**: reutiliza `jspdf` já instalado — one-pager A4
+6. **Copiar**: clipboard como texto formatado
+7. **Email**: reutiliza o fluxo do `EmailModal` com o conteúdo do briefing
+8. **Regenerar**: botão discreto no topo para forçar nova geração
+
+### Prompt para o Gemini
+
+```
+Você é um preparador de reuniões comerciais para o agronegócio.
+Com base nos dados abaixo, gere um BRIEFING DE REUNIÃO estruturado.
+
+DADOS DA EMPRESA:
+{nome, cnpj, cidade, UF, website}
+
+SCORE PORTA: {score}/100 ({segmento})
+{justificativas por dimensão}
+
+PERFIL COMEX: {exportadora? faixa? produtos?}
+
+NOTAS CRM:
+{prospectionNotes}
+{spotterRaw}
+
+CONCORRENTES DETECTADOS:
+{lista de ERPs/softwares identificados}
+
+NOTÍCIAS RECENTES:
+{resumo de notícias com sentimento}
+
+CLIMA PRÓXIMOS DIAS:
+{previsão resumida}
+
+FORMATO DO BRIEFING:
+## CONTEXTO (2-3 frases sobre a empresa)
+## PONTOS DE DOR (3-5 bullets com oportunidades de venda)
+## OBJEÇÕES PROVÁVEIS (2-3 objeções com respostas sugeridas)
+## PERGUNTAS-CHAVE (3-5 perguntas para fazer na reunião)
+## RESUMO DE NOTÍCIAS (se houver)
+## CONDIÇÃO CLIMÁTICA (1 frase sobre janela de visita)
+
+Seja direto, objetivo, em português. Foco em gerar insights acionáveis.
+```
 
 ### Componentes a criar
 
 | Arquivo | Responsabilidade |
 |---|---|
-| `components/NewsRadar.tsx` | Seção de notícias no CRM Detail |
-| `components/NewsBadge.tsx` | Badge compacto no card do Kanban |
-| `services/newsRadarService.ts` | Busca via Gemini Grounding + parse + cache |
+| `components/MeetingBriefing.tsx` | Drawer de briefing (principal) |
+| `services/meetingPrepService.ts` | Consolidação de dados + prompt Gemini + cache |
+
+### Fluxo de dados
+
+```
+MeetingBriefing.tsx
+  → meetingPrepService.consolidateData(card, sessions)
+    ├── card.latestScorePorta
+    ├── card.stages.prospeccao.crmNotes
+    ├── card.stages.prospeccao.technicalNotes (Spotter)
+    ├── comexService.getComexProfile(cnpj)
+    ├── newsRadarService (cache ou fetch)
+    ├── weatherService (cache ou fetch)
+    └── sessions[].messages (resumo)
+  → meetingPrepService.generateBriefing(consolidatedData)
+    → sendMessageToGemini(prompt, [], systemPrompt)
+  → MeetingBriefing renders markdown result
+```
 
 ---
 
-## Feature 3: Market Pulse — Painel Econômico
+## Resumo Comparativo UX — Features 4 e 5
 
-### Onde NÃO colocar
-- **NÃO** como página separada → ninguém vai navegar até lá
-- **NÃO** substituindo o EmptyStateHome → o form de nova investigação é essencial
-- **NÃO** como sidebar permanente → compete com SessionsSidebar
-
-### Onde colocar (decisão UX)
-
-**Abordagem: Seção abaixo do form no EmptyStateHome + Pill compacta no header**
-
-O Market Pulse é informação de "aquecimento" — o vendedor olha ao começar o dia. O EmptyState é a tela que ele vê primeiro.
-
-#### Ponto 1: EmptyStateHome (principal)
-
-```
-Desktop EmptyStateHome:
-┌─────────────────────────────────────────────────┐
-│          🦅 Senior Scout 360                     │
-│     "Bom dia, Bruno. Pronto pra campo?"         │
-│                                                  │
-│ ┌──────────────────────────────────────────────┐ │
-│ │ [Nome da empresa]                             │ │
-│ │ [CNPJ] [Validar]                              │ │
-│ │ [Cidade          ] [UF]                       │ │
-│ │ [        Iniciar Investigação        ]        │ │
-│ └──────────────────────────────────────────────┘ │
-│                                                  │
-│ ─── 📊 Pulso do Mercado ─────────────────────── │
-│                                                  │
-│ ┌──────┐ ┌──────┐ ┌──────┐ ┌──────┐ ┌────────┐ │
-│ │ 💵    │ │ 💶    │ │ 📈    │ │ 🌾    │ │ 🌽     │ │
-│ │Dólar  │ │Euro   │ │Selic  │ │Soja   │ │Milho   │ │
-│ │R$5,12 │ │R$5,58 │ │14,25% │ │R$148  │ │R$72    │ │
-│ │▲ 0,3% │ │▼ 0,1% │ │= 0%   │ │▲ 2,1% │ │▼ 0,5%  │ │
-│ └──────┘ └──────┘ └──────┘ └──────┘ └────────┘ │
-│                                                  │
-│ 💡 "Dólar em alta favorece exportadores de soja. │
-│ Considere priorizar prospects do segmento COP."  │
-│                                     Atualiz. 9h  │
-└─────────────────────────────────────────────────┘
-```
-
-- **Grid**: `grid-cols-5` desktop, `grid-cols-3` tablet, `grid-cols-2` mobile
-- **Card**: `rounded-xl p-3 bg-slate-50 dark:bg-slate-800/50`
-- **Variação**: verde (▲ alta), vermelho (▼ baixa), cinza (= estável)
-- **Insight IA**: uma frase do Gemini contextualizando para agronegócio
-
-#### Ponto 2: Pill no Header (desktop only)
-
-```
-┌─────────────────────────────────────────────────┐
-│ ☰  Investigação: Fazenda XYZ    💵5,12 🌾148    │
-└─────────────────────────────────────────────────┘
-```
-
-- Apenas 2 indicadores: dólar + soja
-- Clicável: abre popover com todos os indicadores
-- **Mobile: NÃO mostrar** — espaço limitado, só no EmptyState
-
-### Layout Mobile
-
-```
-┌────────────────────────────┐
-│ ── 📊 Pulso do Mercado ──  │
-│                             │
-│ ┌────────┐ ┌────────┐      │
-│ │ 💵 Dólar│ │ 💶 Euro │     │
-│ │ R$5,12  │ │ R$5,58  │     │
-│ │ ▲ 0,3%  │ │ ▼ 0,1%  │     │
-│ └────────┘ └────────┘      │
-│ ┌────────┐ ┌────────┐      │
-│ │ 📈 Selic│ │ 🌾 Soja │     │
-│ │ 14,25%  │ │ R$148   │     │
-│ │ = 0%    │ │ ▲ 2,1%  │     │
-│ └────────┘ └────────┘      │
-│ ┌────────┐                  │
-│ │ 🌽Milho │                 │
-│ │ R$72    │                 │
-│ │ ▼ 0,5%  │                 │
-│ └────────┘                  │
-│                             │
-│ 💡 "Dólar em alta favorece │
-│ exportadores de soja."      │
-└────────────────────────────┘
-```
-
-### Interação e Comportamento
-
-1. **Fetch ao montar EmptyState**: busca dados BACEN + commodities
-2. **Cache**: 1 hora (dados macro não mudam em minutos)
-3. **Fallback**: "Dados indisponíveis" com botão retry (sem travar UI)
-4. **Loading**: skeleton shimmer nos cards
-5. **Insight IA**: gerado 1x ao carregar, cacheado com os dados
-6. **Sem auto-refresh**: atualiza só quando EmptyState remonta
-
-### APIs Utilizadas
-
-```
-# Dólar (PTAX)
-GET https://api.bcb.gov.br/dados/serie/bcdata.sgs.1/dados/ultimos/2?formato=json
-
-# Euro
-GET https://api.bcb.gov.br/dados/serie/bcdata.sgs.21619/dados/ultimos/2?formato=json
-
-# Selic Meta
-GET https://api.bcb.gov.br/dados/serie/bcdata.sgs.432/dados/ultimos/1?formato=json
-
-# IPCA mensal
-GET https://api.bcb.gov.br/dados/serie/bcdata.sgs.433/dados/ultimos/2?formato=json
-```
-
-Commodities (soja/milho): Gemini com grounding para preço atual como fallback.
-
-### Componentes a criar
-
-| Arquivo | Responsabilidade |
-|---|---|
-| `components/MarketPulse.tsx` | Grid de indicadores + insight IA |
-| `components/MarketPulseCard.tsx` | Card individual de indicador |
-| `components/MarketPulsePill.tsx` | Pill compacta no header (desktop) |
-| `services/marketPulseService.ts` | Fetch BACEN + cache + variação % |
-
----
-
-## Resumo Comparativo UX
-
-| Feature | Superfície | Ansiedade | Usabilidade | Navegação nova? |
+| Feature | Superfície principal | Superfície secundária | Ansiedade | Usabilidade |
 |---|---|---|---|---|
-| Clima & Safra | Inline no chat | Muito baixa | Alta (zero cliques) | Não |
-| News Radar | Badge CRM + Tab Detail | Baixa (estático) | Alta (no CRM) | Não |
-| Market Pulse | EmptyState + pill header | Muito baixa (passivo) | Alta (visível) | Não |
+| COMEX Profiler | Card inline no chat | Card compacto no CRM Detail | Muito baixa (contextual) | Alta (zero navegação) |
+| Meeting Prep | Drawer no CRM Detail | Botão 📋 no header do chat | Baixa (ação explícita) | Alta (one-click → briefing) |
 
-**Princípio central: Nenhuma feature adiciona um novo "lugar" na interface.** Todas se encaixam em superfícies existentes.
+### Decisão-chave: nenhuma feature cria navegação nova
+
+- COMEX usa o mesmo padrão do WeatherInsight (card inline)
+- Meeting Prep usa o mesmo padrão do SettingsDrawer (drawer lateral)
+- Ambos se conectam ao CRM Detail que já é o "hub" da empresa
 
 ---
 
 ## Ordem de Implementação
 
-### Fase 1: Services (sem UI)
-1. `services/weatherService.ts`
-2. `services/newsRadarService.ts`
-3. `services/marketPulseService.ts`
+### Fase 1: Services
+1. `services/comexService.ts` — fetch API + cache + fallback local dev
+2. `services/meetingPrepService.ts` — consolidação + prompt Gemini + cache
 
-### Fase 2: Componentes visuais
-4. `components/WeatherInsight.tsx`
-5. `components/MarketPulse.tsx` + `MarketPulseCard.tsx`
-6. `components/NewsRadar.tsx` + `NewsBadge.tsx`
+### Fase 2: Componentes
+3. `components/ComexProfile.tsx` — card visual (inline + compacto)
+4. `components/MeetingBriefing.tsx` — drawer de briefing
 
 ### Fase 3: Integração
-7. `WeatherInsight` no `MessageRow.tsx`
-8. `MarketPulse` no `EmptyStateHome.tsx`
-9. `NewsRadar` no `CRMDetail.tsx` (nova tab)
-10. `NewsBadge` no `CRMPipeline.tsx`
-11. `MarketPulsePill` no header do `ChatInterface.tsx`
+5. `ComexProfile` no `MessageRow.tsx` (inline, após CNPJ detectado)
+6. `ComexProfile` compacto no `CRMDetail.tsx` (coluna direita)
+7. Botão "Preparar Reunião" no footer do `CRMDetail.tsx`
+8. Botão 📋 no header do `ChatInterface.tsx`
+9. `MeetingBriefing` como drawer lazy-loaded
 
-### Fase 4: IA Enhancement
-12. Prompt de clima no `geminiService.ts`
-13. Prompt de notícias no `newsRadarService.ts`
-14. Prompt de insight de mercado no `marketPulseService.ts`
-
-### Fase 5: Testes
-15. Testes unitários para os 3 services
-16. Testes de componente para os cards visuais
+### Fase 4: Testes
+10. Testes unitários para comexService e meetingPrepService
