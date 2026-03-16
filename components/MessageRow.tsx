@@ -1,19 +1,21 @@
-import React, { memo, useEffect, useMemo, useState } from 'react';
+import React, { memo, useEffect, useMemo, useState, Suspense } from 'react';
 import { Message, Sender, AppError, Feedback } from '../types';
 import { ChatMode } from '../constants';
-import GhostMessageBlock from './GhostMessageBlock';
-import ErrorMessageCard from './ErrorMessageCard';
 import SectionalBotMessage from './SectionalBotMessage';
 import LoadingSmart from './LoadingSmart';
-import ScorePorta from './ScorePorta';
-import ClienteSeniorScore from './ClienteSeniorScore';
 import MessageActionsBar from './MessageActionsBar';
-import { DeepDiveTopics } from './DeepDiveTopics';
-import WeatherInsight from './WeatherInsight';
-import ComexProfile from './ComexProfile';
 import { buildAuditableSources, normalizeSourceUrl, type AuditableSource } from '../utils/textCleaners';
 import { fetchLinkStatuses, type LinkValidationResult } from '../utils/linkValidation';
 import { getPortaState } from '../services/portaStateService';
+
+// Lazy-loaded conditional components (code-splitting)
+const ScorePorta = React.lazy(() => import('./ScorePorta'));
+const ClienteSeniorScore = React.lazy(() => import('./ClienteSeniorScore'));
+const WeatherInsight = React.lazy(() => import('./WeatherInsight'));
+const ComexProfile = React.lazy(() => import('./ComexProfile'));
+const GhostMessageBlock = React.lazy(() => import('./GhostMessageBlock'));
+const ErrorMessageCard = React.lazy(() => import('./ErrorMessageCard'));
+const DeepDiveTopics = React.lazy(() => import('./DeepDiveTopics').then(m => ({ default: m.DeepDiveTopics })));
 
 export interface MessageRowData {
   messages: Message[];
@@ -130,20 +132,24 @@ const MessageRow = memo(({ index, data }: MessageRowProps) => {
     );
   } else if (msg.isError && msg.errorDetails) {
     content = (
-      <ErrorMessageCard
-        error={msg.errorDetails}
-        onRetry={onRetry || (() => {})}
-        isLoadingRetry={isLoading}
-        isDarkMode={isDarkMode}
-        mode={mode}
-        onReportError={onReportError ? () => onReportError(msg.id, msg.errorDetails!) : undefined}
-      />
+      <Suspense fallback={null}>
+        <ErrorMessageCard
+          error={msg.errorDetails}
+          onRetry={onRetry || (() => {})}
+          isLoadingRetry={isLoading}
+          isDarkMode={isDarkMode}
+          mode={mode}
+          onReportError={onReportError ? () => onReportError(msg.id, msg.errorDetails!) : undefined}
+        />
+      </Suspense>
     );
   } else if (isBot && !msg.isThinking && !msg.isError && (!msg.text || msg.text.trim() === '')) {
     content = (
-      <div className="flex justify-start animate-fade-in w-full max-w-3xl">
-        <GhostMessageBlock msg={msg} onRetry={onRetry} isLoading={isLoading} isDarkMode={isDarkMode} />
-      </div>
+      <Suspense fallback={null}>
+        <div className="flex justify-start animate-fade-in w-full max-w-3xl">
+          <GhostMessageBlock msg={msg} onRetry={onRetry} isLoading={isLoading} isDarkMode={isDarkMode} />
+        </div>
+      </Suspense>
     );
   } else {
     const sourcesCount = auditableSources.length;
@@ -182,9 +188,9 @@ const MessageRow = memo(({ index, data }: MessageRowProps) => {
           </div>
           {isBot ? (
             <>
-              {displayScore && <ScorePorta {...displayScore} isDarkMode={isDarkMode} />}
+              {displayScore && <Suspense fallback={null}><ScorePorta {...displayScore} isDarkMode={isDarkMode} /></Suspense>}
               {msg.clienteSeniorData?.encontrado && (
-                <ClienteSeniorScore data={msg.clienteSeniorData} isDarkMode={isDarkMode} />
+                <Suspense fallback={null}><ClienteSeniorScore data={msg.clienteSeniorData} isDarkMode={isDarkMode} /></Suspense>
               )}
               <SectionalBotMessage
                 message={{ ...msg, groundingSources: msg.groundingSources || [] }}
@@ -207,14 +213,14 @@ const MessageRow = memo(({ index, data }: MessageRowProps) => {
               {isLast && !isLoading && companyContext && (() => {
                 const locMatch = companyContext.match(/Cidade=([^;]+);\s*UF=([^;]+)/);
                 if (!locMatch) return null;
-                return <WeatherInsight city={locMatch[1].trim()} state={locMatch[2].trim()} isDarkMode={isDarkMode} />;
+                return <Suspense fallback={null}><WeatherInsight city={locMatch[1].trim()} state={locMatch[2].trim()} isDarkMode={isDarkMode} /></Suspense>;
               })()}
               {isLast && !isLoading && companyContext && (() => {
                 const cnpjMatch = companyContext.match(/CNPJ=(\d{14})/);
                 if (!cnpjMatch) return null;
-                return <ComexProfile cnpj={cnpjMatch[1]} isDarkMode={isDarkMode} />;
+                return <Suspense fallback={null}><ComexProfile cnpj={cnpjMatch[1]} isDarkMode={isDarkMode} /></Suspense>;
               })()}
-              {isLast && !isLoading && onDeepDive && <DeepDiveTopics onSelectTopic={onDeepDive} />}
+              {isLast && !isLoading && onDeepDive && <Suspense fallback={null}><DeepDiveTopics onSelectTopic={onDeepDive} /></Suspense>}
               <MessageActionsBar
                 content={msg.text}
                 sourcesCount={sourcesCount}

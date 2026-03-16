@@ -1,11 +1,12 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, Suspense } from 'react';
 import { Message } from '../types';
-import MarkdownRenderer from './MarkdownRenderer';
 import { parseMarkdownSections } from '../utils/sectionParser';
 import { useAuth } from '../contexts/AuthContext';
 import { ChatMode } from '../constants';
 import SmartOptions, { parseSmartOptions } from './SmartOptions';
 import type { AuditableSource } from '../utils/textCleaners';
+
+const MarkdownRenderer = React.lazy(() => import('./MarkdownRenderer'));
 
 interface SectionalBotMessageProps {
   message: Message;
@@ -66,12 +67,14 @@ const SectionalBotMessage: React.FC<SectionalBotMessageProps> = ({
   if (sections.length <= 1 && !cleanText.includes('##')) {
      return (
        <div className="flex flex-col gap-2">
-         <MarkdownRenderer 
-            content={cleanText} 
-            isDarkMode={isDarkMode} 
-            groundingSources={message.groundingSources}
-            auditableSources={auditableSources}
-         />
+         <Suspense fallback={<div className="animate-pulse h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4" />}>
+           <MarkdownRenderer
+              content={cleanText}
+              isDarkMode={isDarkMode}
+              groundingSources={message.groundingSources}
+              auditableSources={auditableSources}
+           />
+         </Suspense>
          {processedOptions.length > 0 && onPreFillInput && !hideSuggestions && (
             <SmartOptions 
               options={processedOptions} 
@@ -89,13 +92,15 @@ const SectionalBotMessage: React.FC<SectionalBotMessageProps> = ({
       {sections.map((section, idx) => (
         <div key={section.key} className="section-block group relative">
           <div className="section-content">
-             <MarkdownRenderer
-                content={section.key === 'intro' ? section.content : `${'#'.repeat(section.level)} ${section.title}\n\n${section.content}`}
-                isDarkMode={isDarkMode}
-                groundingSources={message.groundingSources}
-                auditableSources={auditableSources}
-                showCollapsibleSources={idx === sections.length - 1}
-             />
+             <Suspense fallback={<div className="animate-pulse h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4" />}>
+               <MarkdownRenderer
+                  content={section.key === 'intro' ? section.content : `${'#'.repeat(section.level)} ${section.title}\n\n${section.content}`}
+                  isDarkMode={isDarkMode}
+                  groundingSources={message.groundingSources}
+                  auditableSources={auditableSources}
+                  showCollapsibleSources={idx === sections.length - 1}
+               />
+             </Suspense>
           </div>
         </div>
       ))}

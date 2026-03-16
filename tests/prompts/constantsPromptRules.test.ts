@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BASE_SYSTEM_PROMPT } from '../../constants';
+import { BASE_SYSTEM_PROMPT } from '../../prompts/systemPrompts';
 
 describe('BASE_SYSTEM_PROMPT critical investigation rules', () => {
   it('enforces phase separation and includes phase 8 recommendations', () => {

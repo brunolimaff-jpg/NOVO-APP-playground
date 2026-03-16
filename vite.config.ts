@@ -106,6 +106,11 @@ export default defineConfig(() => {
         output: {
           manualChunks: {
             vendor: ['react', 'react-dom'],
+            'vendor-markdown': ['react-markdown', 'remark-gfm', 'remark-breaks', 'rehype-raw'],
+            'vendor-motion': ['framer-motion'],
+            'vendor-virtuoso': ['react-virtuoso'],
+            'vendor-clerk': ['@clerk/clerk-react'],
+            'vendor-genai': ['@google/genai'],
           },
         },
       },
