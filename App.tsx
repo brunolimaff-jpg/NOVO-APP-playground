@@ -6,9 +6,9 @@ import { useTheme } from './hooks/useTheme';
 import { useSessionStorage } from './hooks/useSessionStorage';
 import ToastContainer from './components/ToastContainer';
 import ChatInterface from './components/ChatInterface';
-import { AuthModal } from './components/AuthModal';
-import { EmailModal } from './components/EmailModal';
-import { FollowUpModal } from './components/FollowUpModal';
+const AuthModal = React.lazy(() => import('./components/AuthModal').then(m => ({ default: m.AuthModal })));
+const EmailModal = React.lazy(() => loadWithChunkRetry(() => import('./components/EmailModal')).then(m => ({ default: m.EmailModal })));
+const FollowUpModal = React.lazy(() => loadWithChunkRetry(() => import('./components/FollowUpModal')).then(m => ({ default: m.FollowUpModal })));
 import { useAuth } from './contexts/AuthContext';
 import { useMode } from './contexts/ModeContext';
 import { useCRM } from './contexts/CRMContext';
@@ -981,7 +981,7 @@ const App: React.FC = () => {
 
   return (
     <>
-      <AuthModal />
+      <React.Suspense fallback={null}><AuthModal /></React.Suspense>
 
       {!isOnline && (
         <div className="fixed top-0 inset-x-0 z-[100] flex items-center justify-center gap-2 bg-amber-500 text-amber-950 text-xs font-semibold py-1.5 px-4 shadow-lg">
@@ -1161,18 +1161,21 @@ const App: React.FC = () => {
       )}
 
       {showEmailModal && (
-        <EmailModal
-          emailTo={emailTo}
-          onEmailToChange={setEmailTo}
-          emailSubject={emailSubject}
-          onEmailSubjectChange={setEmailSubject}
-          emailStatus={emailStatus}
-          onSend={handleSendEmail}
-          onClose={() => setShowEmailModal(false)}
-        />
+        <React.Suspense fallback={null}>
+          <EmailModal
+            emailTo={emailTo}
+            onEmailToChange={setEmailTo}
+            emailSubject={emailSubject}
+            onEmailSubjectChange={setEmailSubject}
+            emailStatus={emailStatus}
+            onSend={handleSendEmail}
+            onClose={() => setShowEmailModal(false)}
+          />
+        </React.Suspense>
       )}
 
       {showFollowUpModal && (
+        <React.Suspense fallback={null}>
         <FollowUpModal
           emailTo={emailTo}
           onEmailToChange={setEmailTo}
@@ -1189,6 +1192,7 @@ const App: React.FC = () => {
           onSchedule={handleScheduleFollowUp}
           onClose={() => setShowFollowUpModal(false)}
         />
+        </React.Suspense>
       )}
 
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />

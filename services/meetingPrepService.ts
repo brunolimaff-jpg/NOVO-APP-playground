@@ -1,7 +1,8 @@
 // services/meetingPrepService.ts
 // Consolida dados de diversas fontes e gera briefing de reunião via Gemini
 
-import { sendMessageToGemini } from './geminiService';
+import { proxyChatSendMessage } from './geminiProxy';
+import { MODEL_IDS } from '../config/models';
 import { fetchComexProfile, type ComexProfileData } from './comexService';
 import { fetchNewsForCompany, type NewsRadarData } from './newsRadarService';
 import { getWeatherForCity, type WeatherData } from './weatherService';
@@ -200,7 +201,13 @@ export async function generateMeetingBriefing(
   const prompt = buildPrompt(enrichedInput);
   const systemPrompt = 'Você é um analista comercial sênior preparando briefings de reunião. Seja conciso e prático.';
 
-  const { text } = await sendMessageToGemini(prompt, [], systemPrompt);
+  const { text } = await proxyChatSendMessage({
+    model: MODEL_IDS.tactical,
+    systemInstruction: systemPrompt,
+    history: [],
+    message: prompt,
+    useGrounding: true,
+  });
 
   const data: MeetingBriefingData = {
     companyName: input.companyName,

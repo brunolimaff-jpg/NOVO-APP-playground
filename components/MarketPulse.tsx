@@ -32,7 +32,7 @@ const MarketPulseCard: React.FC<{ indicator: MarketIndicator; isDarkMode: boolea
       <span className={`text-sm font-bold ${isDarkMode ? 'text-slate-100' : 'text-slate-800'}`}>
         {indicator.value}
       </span>
-      {!isFlat || !unavailable ? (
+      {!isFlat && !unavailable ? (
         <span className={`text-[10px] font-medium ${variationColor}`}>
           {variationIcon} {Math.abs(indicator.variation).toFixed(1)}%
         </span>

@@ -1,15 +1,17 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, Suspense } from 'react';
 import { ChatSession, CRM_STAGE_LABELS } from '../types';
 import { useCRM } from '../contexts/CRMContext';
 import { sendMessageToGemini } from '../services/geminiService';
 import ConfirmPopover from './ConfirmPopover';
-import NewsRadar from './NewsRadar';
-import ComexProfile from './ComexProfile';
-import MeetingBriefing from './MeetingBriefing';
-import SafraTimeline from './SafraTimeline';
-import SectorAnalysis from './SectorAnalysis';
-import RegulatoryRadar from './RegulatoryRadar';
 import { type MeetingPrepInput } from '../services/meetingPrepService';
+
+// Lazy-loaded sub-features (code-splitting)
+const NewsRadar = React.lazy(() => import('./NewsRadar'));
+const ComexProfile = React.lazy(() => import('./ComexProfile'));
+const MeetingBriefing = React.lazy(() => import('./MeetingBriefing'));
+const SafraTimeline = React.lazy(() => import('./SafraTimeline'));
+const SectorAnalysis = React.lazy(() => import('./SectorAnalysis'));
+const RegulatoryRadar = React.lazy(() => import('./RegulatoryRadar'));
 
 interface CRMDetailProps {
   card: any; // intencionalmente flexível para permitir campos adicionais do CRM
@@ -558,17 +560,17 @@ export const CRMDetail: React.FC<CRMDetailProps> = ({
 
               {/* COMEX Profile */}
               {cnpjs.length > 0 && (
-                <ComexProfile cnpj={cnpjs[0]} isDarkMode={isDarkMode} compact />
+                <Suspense fallback={null}><ComexProfile cnpj={cnpjs[0]} isDarkMode={isDarkMode} compact /></Suspense>
               )}
 
               {/* Safra Timeline */}
               {card.state && (
-                <SafraTimeline state={card.state} isDarkMode={isDarkMode} compact />
+                <Suspense fallback={null}><SafraTimeline state={card.state} isDarkMode={isDarkMode} compact /></Suspense>
               )}
 
               {/* News Radar */}
               {card.newsRadarEnabled !== false && card.companyName && (
-                <NewsRadar companyName={card.companyName} isDarkMode={isDarkMode} />
+                <Suspense fallback={null}><NewsRadar companyName={card.companyName} isDarkMode={isDarkMode} /></Suspense>
               )}
 
               <div className={`rounded-xl border p-4 ${isDarkMode ? 'bg-slate-900/60 border-slate-700' : 'bg-slate-50 border-slate-200'}`}>
@@ -709,35 +711,41 @@ export const CRMDetail: React.FC<CRMDetailProps> = ({
       </div>
 
       {/* Meeting Briefing Drawer */}
-      <MeetingBriefing
-        isOpen={showMeetingBriefing}
-        onClose={() => setShowMeetingBriefing(false)}
-        isDarkMode={isDarkMode}
-        prepInput={{
-          companyName: card.companyName || 'Empresa',
-          cnpj: cnpjs[0] || null,
-          city: card.city,
-          state: card.state,
-          website: card.website,
-          briefDescription: card.briefDescription,
-          scorePorta: porta,
-          prospectionNotes: prospectionNotes,
-          spotterNotes: spotterRaw,
-          sessionSummaries: linkedSessions.map(s => s.title || '').filter(Boolean),
-        } as MeetingPrepInput}
-      />
+      {showMeetingBriefing && (
+        <Suspense fallback={null}>
+          <MeetingBriefing
+            isOpen={showMeetingBriefing}
+            onClose={() => setShowMeetingBriefing(false)}
+            isDarkMode={isDarkMode}
+            prepInput={{
+              companyName: card.companyName || 'Empresa',
+              cnpj: cnpjs[0] || null,
+              city: card.city,
+              state: card.state,
+              website: card.website,
+              briefDescription: card.briefDescription,
+              scorePorta: porta,
+              prospectionNotes: prospectionNotes,
+              spotterNotes: spotterRaw,
+              sessionSummaries: linkedSessions.map(s => s.title || '').filter(Boolean),
+            } as MeetingPrepInput}
+          />
+        </Suspense>
+      )}
 
       {/* Sector Analysis Drawer */}
-      {cnpjs.length > 0 && (
-        <SectorAnalysis
-          isOpen={showSectorAnalysis}
-          onClose={() => setShowSectorAnalysis(false)}
-          isDarkMode={isDarkMode}
-          cnpj={cnpjs[0]}
-          companyName={card.companyName || 'Empresa'}
-          state={card.state}
-          briefDescription={card.briefDescription}
-        />
+      {showSectorAnalysis && cnpjs.length > 0 && (
+        <Suspense fallback={null}>
+          <SectorAnalysis
+            isOpen={showSectorAnalysis}
+            onClose={() => setShowSectorAnalysis(false)}
+            isDarkMode={isDarkMode}
+            cnpj={cnpjs[0]}
+            companyName={card.companyName || 'Empresa'}
+            state={card.state}
+            briefDescription={card.briefDescription}
+          />
+        </Suspense>
       )}
     </div>
   );

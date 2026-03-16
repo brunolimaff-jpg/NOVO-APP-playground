@@ -61,8 +61,8 @@ const RegulatoryRadar: React.FC<RegulatoryRadarProps> = ({ items, isDarkMode, co
           )}
         </div>
         <div className="mt-1.5 space-y-0.5">
-          {items.slice(0, 2).map((item, i) => (
-            <p key={i} className={`text-[11px] ${dk ? 'text-slate-300' : 'text-slate-700'}`}>
+          {items.slice(0, 2).map((item) => (
+            <p key={item.name} className={`text-[11px] ${dk ? 'text-slate-300' : 'text-slate-700'}`}>
               {levelConfig[item.level].emoji} {item.name}
             </p>
           ))}
