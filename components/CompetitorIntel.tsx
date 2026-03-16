@@ -25,11 +25,11 @@ const CompetitorIntel: React.FC<CompetitorIntelProps> = ({ items, salesArgument,
       </span>
 
       <div className="space-y-1.5">
-        {items.map((comp, i) => {
+        {items.map((comp) => {
           const size = sizeConfig[comp.relativeSize] || sizeConfig.similar;
           return (
             <div
-              key={i}
+              key={comp.name}
               className={`rounded-lg border p-2.5 ${
                 dk ? 'bg-purple-950/20 border-purple-800/30' : 'bg-purple-50/40 border-purple-200/40'
               }`}
