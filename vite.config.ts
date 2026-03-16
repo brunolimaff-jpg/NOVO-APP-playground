@@ -57,6 +57,17 @@ export default defineConfig(() => {
           cleanupOutdatedCaches: true,
           clientsClaim: true,
           skipWaiting: true,
+          // Excluir chunks pesados de mermaid e html2canvas do precache (~3MB).
+          // Eles são lazy-loaded sob demanda e cacheados pelo runtime caching.
+          globIgnores: [
+            '**/flowchart-elk-*',    // 1.4MB — layout ELK raramente usado
+            '**/mindmap-*',          // 530KB
+            '**/katex-*',            // 261KB
+            '**/mermaid.core-*',     // 232KB
+            '**/html2canvas*',       // 198KB
+            '**/*Diagram-*',         // all diagram chunks (~500KB total)
+            '**/createText-*',       // 60KB — mermaid text helper
+          ],
           // Estratégias por tipo de recurso
           runtimeCaching: [
             // CDN externos (Tailwind, fonts, html2pdf) → NetworkFirst, cache 7 dias
@@ -81,6 +92,15 @@ export default defineConfig(() => {
               options: {
                 cacheName: 'static-assets',
                 expiration: { maxEntries: 60, maxAgeSeconds: 60 * 60 * 24 * 30 },
+              },
+            },
+            // Mermaid/html2canvas lazy chunks → CacheFirst on demand (excluídos do precache)
+            {
+              urlPattern: /\/assets\/(flowchart-elk|mindmap|katex|mermaid|html2canvas|.*Diagram|createText)/,
+              handler: 'CacheFirst',
+              options: {
+                cacheName: 'lazy-libs',
+                expiration: { maxEntries: 30, maxAgeSeconds: 60 * 60 * 24 * 30 },
               },
             },
           ],
