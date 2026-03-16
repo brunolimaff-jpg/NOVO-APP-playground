@@ -1,7 +1,8 @@
 // services/sectorAnalysisService.ts
 // Raio-X Setorial unificado: Visão do Setor + Adoção Tech + Radar Regulatório + Intel Competitiva
 
-import { sendMessageToGemini } from './geminiService';
+import { proxyChatSendMessage } from './geminiProxy';
+import { MODEL_IDS } from '../config/models';
 import { formatSafraForPrompt } from '../utils/safraCalendar';
 
 export interface RegulatoryItem {
@@ -208,7 +209,13 @@ export async function generateSectorAnalysis(
 
   const systemPrompt = 'Você é um analista de inteligência de mercado sênior. Responda APENAS com JSON válido, sem formatação markdown ao redor.';
 
-  const { text } = await sendMessageToGemini(prompt, [], systemPrompt);
+  const { text } = await proxyChatSendMessage({
+    model: MODEL_IDS.tactical,
+    systemInstruction: systemPrompt,
+    history: [],
+    message: prompt,
+    useGrounding: true,
+  });
 
   const data = parseAnalysisResponse(text, companyName, cnae);
 

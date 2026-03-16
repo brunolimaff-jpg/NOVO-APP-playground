@@ -1,7 +1,8 @@
 // services/comexService.ts
 // Client para dados COMEX: tenta API serverless → fallback Gemini + Google Search
 
-import { sendMessageToGemini } from './geminiService';
+import { proxyChatSendMessage } from './geminiProxy';
+import { MODEL_IDS } from '../config/models';
 
 export interface ComexResult {
   isExportador: boolean;
@@ -98,7 +99,13 @@ REGRAS:
   const systemPrompt = 'Você é um analista de comércio exterior brasileiro. Responda APENAS com JSON válido.';
 
   try {
-    const { text } = await sendMessageToGemini(prompt, [], systemPrompt);
+    const { text } = await proxyChatSendMessage({
+      model: MODEL_IDS.tactical,
+      systemInstruction: systemPrompt,
+      history: [],
+      message: prompt,
+      useGrounding: true,
+    });
 
     let parsed: any;
     try {

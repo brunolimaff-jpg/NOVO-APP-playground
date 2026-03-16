@@ -1,7 +1,8 @@
 // services/newsRadarService.ts
 // Busca de notícias via Gemini com Google Search grounding
 
-import { sendMessageToGemini } from './geminiService';
+import { proxyChatSendMessage } from './geminiProxy';
+import { MODEL_IDS } from '../config/models';
 
 export interface NewsItem {
   title: string;
@@ -105,7 +106,13 @@ IMPORTANTE: Retorne APENAS o JSON, sem texto adicional.`;
   const systemPrompt = 'Você é um analista de inteligência comercial. Busque notícias reais e recentes. Retorne apenas JSON válido.';
 
   try {
-    const { text } = await sendMessageToGemini(prompt, [], systemPrompt);
+    const { text } = await proxyChatSendMessage({
+      model: MODEL_IDS.tactical,
+      systemInstruction: systemPrompt,
+      history: [],
+      message: prompt,
+      useGrounding: true,
+    });
     const items = parseNewsFromResponse(text);
 
     const data: NewsRadarData = {
